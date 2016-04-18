@@ -1,8 +1,7 @@
 # contrib/rum/Makefile
 
 MODULE_big = rum
-OBJS = ginsort.o \
-	ginarrayproc.o ginbtree.o ginbulk.o gindatapage.o \
+OBJS = ginarrayproc.o ginbtree.o ginbulk.o gindatapage.o \
 	ginentrypage.o ginfast.o ginget.o gininsert.o \
 	ginscan.o ginutil.o ginvacuum.o $(WIN32RES)
 
