@@ -357,7 +357,8 @@ dataLocateItem(GinBtree btree, GinBtreeStack *stack)
 				maxoff;
 	PostingItem *pitem = NULL;
 	int			result;
-	Page		page = BufferGetPage(stack->buffer);
+	Page		page = BufferGetPage(stack->buffer, NULL, NULL,
+									 BGP_NO_SNAPSHOT_TEST);
 
 	Assert(!GinPageIsLeaf(page));
 	Assert(GinPageIsData(page));
@@ -489,7 +490,8 @@ findInLeafPage(GinBtree btree, Page page, OffsetNumber *offset,
 static bool
 dataLocateLeafItem(GinBtree btree, GinBtreeStack *stack)
 {
-	Page		page = BufferGetPage(stack->buffer);
+	Page		page = BufferGetPage(stack->buffer, NULL, NULL,
+									 BGP_NO_SNAPSHOT_TEST);
 	ItemPointerData iptr;
 	Pointer ptr;
 
@@ -620,7 +622,7 @@ GinPageDeletePostingItem(Page page, OffsetNumber offset)
 static bool
 dataIsEnoughSpace(GinBtree btree, Buffer buf, OffsetNumber off)
 {
-	Page		page = BufferGetPage(buf);
+	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	Assert(GinPageIsData(page));
 	Assert(!btree->isDelete);
@@ -699,7 +701,7 @@ dataPrepareData(GinBtree btree, Page page, OffsetNumber off)
 static void
 dataPlaceToPage(GinBtree btree, Buffer buf, OffsetNumber off, XLogRecData **prdata)
 {
-	Page		page = BufferGetPage(buf);
+	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	Form_pg_attribute attr = btree->ginstate->addAttrs[btree->entryAttnum - 1];
 
 	/* these must be static so they can be returned to caller */
@@ -886,8 +888,9 @@ dataSplitPageLeaf(GinBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
 	Size		totalsize = 0, prevTotalsize;
 	Pointer		ptr, copyPtr;
 	Page		page;
-	Page		lpage = PageGetTempPageCopy(BufferGetPage(lbuf));
-	Page		rpage = BufferGetPage(rbuf);
+	Page		lpage = PageGetTempPageCopy(BufferGetPage(lbuf, NULL, NULL,
+														 BGP_NO_SNAPSHOT_TEST));
+	Page		rpage = BufferGetPage(rbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	Size		pageSize = PageGetPageSize(lpage);
 	Size		maxItemSize = 0;
 	Datum		addInfo = 0;
@@ -1127,11 +1130,12 @@ dataSplitPageInternal(GinBtree btree, Buffer lbuf, Buffer rbuf,
 	char	   *ptr;
 	OffsetNumber separator;
 	ItemPointer bound;
-	Page		lpage = PageGetTempPageCopy(BufferGetPage(lbuf));
+	Page		lpage = PageGetTempPageCopy(BufferGetPage(lbuf, NULL, NULL,
+														 BGP_NO_SNAPSHOT_TEST));
 	ItemPointerData oldbound = *GinDataPageGetRightBound(lpage);
 	int			sizeofitem = GinSizeOfDataPageItem(lpage);
 	OffsetNumber maxoff = GinPageGetOpaque(lpage)->maxoff;
-	Page		rpage = BufferGetPage(rbuf);
+	Page		rpage = BufferGetPage(rbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	Size		pageSize = PageGetPageSize(lpage);
 	Size		freeSpace;
 	uint32		nCopied = 1;
@@ -1249,7 +1253,7 @@ static Page
 dataSplitPage(GinBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
 														XLogRecData **prdata)
 {
-	if (GinPageIsLeaf(BufferGetPage(lbuf)))
+	if (GinPageIsLeaf(BufferGetPage(lbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST)))
 		return dataSplitPageLeaf(btree, lbuf, rbuf, off, prdata);
 	else
 		return dataSplitPageInternal(btree, lbuf, rbuf, off, prdata);
@@ -1304,9 +1308,9 @@ updateItemIndexes(Page page, OffsetNumber attnum, GinState *ginstate)
 void
 ginDataFillRoot(GinBtree btree, Buffer root, Buffer lbuf, Buffer rbuf)
 {
-	Page		page = BufferGetPage(root),
-				lpage = BufferGetPage(lbuf),
-				rpage = BufferGetPage(rbuf);
+	Page		page = BufferGetPage(root, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
+				lpage = BufferGetPage(lbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
+				rpage = BufferGetPage(rbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	PostingItem li,
 				ri;
 

@@ -136,7 +136,8 @@ entryLocateEntry(GinBtree btree, GinBtreeStack *stack)
 				maxoff;
 	IndexTuple	itup = NULL;
 	int			result;
-	Page		page = BufferGetPage(stack->buffer);
+	Page		page = BufferGetPage(stack->buffer, NULL, NULL,
+									 BGP_NO_SNAPSHOT_TEST);
 
 	Assert(!GinPageIsLeaf(page));
 	Assert(!GinPageIsData(page));
@@ -207,7 +208,8 @@ entryLocateEntry(GinBtree btree, GinBtreeStack *stack)
 static bool
 entryLocateLeafEntry(GinBtree btree, GinBtreeStack *stack)
 {
-	Page		page = BufferGetPage(stack->buffer);
+	Page		page = BufferGetPage(stack->buffer, NULL, NULL,
+									 BGP_NO_SNAPSHOT_TEST);
 	OffsetNumber low,
 				high;
 
@@ -321,7 +323,7 @@ static bool
 entryIsEnoughSpace(GinBtree btree, Buffer buf, OffsetNumber off)
 {
 	Size		itupsz = 0;
-	Page		page = BufferGetPage(buf);
+	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	Assert(btree->entry);
 	Assert(!GinPageIsData(page));
@@ -377,7 +379,7 @@ entryPreparePage(GinBtree btree, Page page, OffsetNumber off)
 static void
 entryPlaceToPage(GinBtree btree, Buffer buf, OffsetNumber off, XLogRecData **prdata)
 {
-	Page		page = BufferGetPage(buf);
+	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	OffsetNumber placed;
 
 	/* these must be static so they can be returned to caller */
@@ -443,8 +445,9 @@ entrySplitPage(GinBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off, XLogR
 	IndexTuple	itup,
 				leftrightmost = NULL;
 	Page		page;
-	Page		lpage = PageGetTempPageCopy(BufferGetPage(lbuf));
-	Page		rpage = BufferGetPage(rbuf);
+	Page		lpage = PageGetTempPageCopy(BufferGetPage(lbuf, NULL, NULL,
+														 BGP_NO_SNAPSHOT_TEST));
+	Page		rpage = BufferGetPage(rbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	Size		pageSize = PageGetPageSize(lpage);
 
 	/* these must be static so they can be returned to caller */
@@ -551,7 +554,7 @@ ginPageGetLinkItup(Buffer buf)
 {
 	IndexTuple	itup,
 				nitup;
-	Page		page = BufferGetPage(buf);
+	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	itup = getRightMostTuple(page);
 	nitup = GinFormInteriorTuple(itup, page, BufferGetBlockNumber(buf));
@@ -569,7 +572,7 @@ ginEntryFillRoot(GinBtree btree, Buffer root, Buffer lbuf, Buffer rbuf)
 	Page		page;
 	IndexTuple	itup;
 
-	page = BufferGetPage(root);
+	page = BufferGetPage(root, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	itup = ginPageGetLinkItup(lbuf);
 	if (PageAddItem(page, (Item) itup, IndexTupleSize(itup), InvalidOffsetNumber, false, false) == InvalidOffsetNumber)

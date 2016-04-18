@@ -277,7 +277,8 @@ GinNewBuffer(Relation index)
 		 */
 		if (ConditionalLockBuffer(buffer))
 		{
-			Page		page = BufferGetPage(buffer);
+			Page		page = BufferGetPage(buffer, NULL, NULL,
+											 BGP_NO_SNAPSHOT_TEST);
 
 			if (PageIsNew(page))
 				return buffer;	/* OK to use, if never initialized */
@@ -322,14 +323,15 @@ GinInitPage(Page page, uint32 f, Size pageSize)
 void
 GinInitBuffer(Buffer b, uint32 f)
 {
-	GinInitPage(BufferGetPage(b), f, BufferGetPageSize(b));
+	GinInitPage(BufferGetPage(b, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
+				f, BufferGetPageSize(b));
 }
 
 void
 GinInitMetabuffer(Buffer b)
 {
 	GinMetaPageData *metadata;
-	Page		page = BufferGetPage(b);
+	Page		page = BufferGetPage(b, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	GinInitPage(page, GIN_META, BufferGetPageSize(b));
 
@@ -646,7 +648,7 @@ ginGetStats(Relation index, GinStatsData *stats)
 
 	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
 	LockBuffer(metabuffer, GIN_SHARE);
-	metapage = BufferGetPage(metabuffer);
+	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	metadata = GinPageGetMeta(metapage);
 
 	stats->nPendingPages = metadata->nPendingPages;
@@ -673,7 +675,7 @@ ginUpdateStats(Relation index, const GinStatsData *stats)
 
 	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
 	LockBuffer(metabuffer, GIN_EXCLUSIVE);
-	metapage = BufferGetPage(metabuffer);
+	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	metadata = GinPageGetMeta(metapage);
 
 	START_CRIT_SECTION();

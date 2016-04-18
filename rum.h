@@ -12,550 +12,927 @@
 #ifndef __RUM_H__
 #define __RUM_H__
 
-#include "access/gist.h"
+#include "access/genam.h"
+#include "access/gin.h"
 #include "access/itup.h"
+#include "access/xlog_internal.h"
 #include "fmgr.h"
+#include "lib/rbtree.h"
 #include "storage/bufmgr.h"
-#include "storage/buffile.h"
-#include "utils/rbtree.h"
-#include "utils/hsearch.h"
+#include "utils/tuplesort.h"
+
 
 /*
- * Maximum number of "halves" a page can be split into in one operation.
- * Typically a split produces 2 halves, but can be more if keys have very
- * different lengths, or when inserting multiple keys in one operation (as
- * when inserting downlinks to an internal node).  There is no theoretical
- * limit on this, but in practice if you get more than a handful page halves
- * in one split, there's something wrong with the opclass implementation.
- * GIST_MAX_SPLIT_PAGES is an arbitrary limit on that, used to size some
- * local arrays used during split.  Note that there is also a limit on the
- * number of buffers that can be held locked at a time, MAX_SIMUL_LWLOCKS,
- * so if you raise this higher than that limit, you'll just get a different
- * error.
+ * Page opaque data in a inverted index page.
+ *
+ * Note: GIN does not include a page ID word as do the other index types.
+ * This is OK because the opaque data is only 8 bytes and so can be reliably
+ * distinguished by size.  Revisit this if the size ever increases.
+ * Further note: as of 9.2, SP-GiST also uses 8-byte special space.  This is
+ * still OK, as long as GIN isn't using all of the high-order bits in its
+ * flags word, because that way the flags word cannot match the page ID used
+ * by SP-GiST.
  */
-#define GIST_MAX_SPLIT_PAGES		75
+typedef struct GinPageOpaqueData
+{
+	BlockNumber rightlink;		/* next page if any */
+	OffsetNumber maxoff;		/* number entries on GIN_DATA page: number of
+								 * heap ItemPointers on GIN_DATA|GIN_LEAF page
+								 * or number of PostingItems on GIN_DATA &
+								 * ~GIN_LEAF page. On GIN_LIST page, number of
+								 * heap tuples. */
+	OffsetNumber freespace;
+	uint16		flags;			/* see bit definitions below */
+} GinPageOpaqueData;
 
-/* Buffer lock modes */
-#define GIST_SHARE	BUFFER_LOCK_SHARE
-#define GIST_EXCLUSIVE	BUFFER_LOCK_EXCLUSIVE
-#define GIST_UNLOCK BUFFER_LOCK_UNLOCK
+typedef GinPageOpaqueData *GinPageOpaque;
+
+#define GIN_DATA		  (1 << 0)
+#define GIN_LEAF		  (1 << 1)
+#define GIN_DELETED		  (1 << 2)
+#define GIN_META		  (1 << 3)
+#define GIN_LIST		  (1 << 4)
+#define GIN_LIST_FULLROW  (1 << 5)		/* makes sense only on GIN_LIST page */
+
+/* Page numbers of fixed-location pages */
+#define GIN_METAPAGE_BLKNO	(0)
+#define GIN_ROOT_BLKNO		(1)
+
+typedef struct GinMetaPageData
+{
+	/*
+	 * Pointers to head and tail of pending list, which consists of GIN_LIST
+	 * pages.  These store fast-inserted entries that haven't yet been moved
+	 * into the regular GIN structure.
+	 */
+	BlockNumber head;
+	BlockNumber tail;
+
+	/*
+	 * Free space in bytes in the pending list's tail page.
+	 */
+	uint32		tailFreeSize;
+
+	/*
+	 * We store both number of pages and number of heap tuples that are in the
+	 * pending list.
+	 */
+	BlockNumber nPendingPages;
+	int64		nPendingHeapTuples;
+
+	/*
+	 * Statistics for planner use (accurate as of last VACUUM)
+	 */
+	BlockNumber nTotalPages;
+	BlockNumber nEntryPages;
+	BlockNumber nDataPages;
+	int64		nEntries;
+
+	/*
+	 * GIN version number (ideally this should have been at the front, but too
+	 * late now.  Don't move it!)
+	 *
+	 * Currently 1 (for indexes initialized in 9.1 or later)
+	 *
+	 * Version 0 (indexes initialized in 9.0 or before) is compatible but may
+	 * be missing null entries, including both null keys and placeholders.
+	 * Reject full-index-scan attempts on such indexes.
+	 */
+	int32		ginVersion;
+} GinMetaPageData;
+
+#define GIN_CURRENT_VERSION		1
+
+#define GinPageGetMeta(p) \
+	((GinMetaPageData *) PageGetContents(p))
+
+/*
+ * Macros for accessing a GIN index page's opaque data
+ */
+#define GinPageGetOpaque(page) ( (GinPageOpaque) PageGetSpecialPointer(page) )
+
+#define GinPageIsLeaf(page)    ( (GinPageGetOpaque(page)->flags & GIN_LEAF) != 0 )
+#define GinPageSetLeaf(page)   ( GinPageGetOpaque(page)->flags |= GIN_LEAF )
+#define GinPageSetNonLeaf(page)    ( GinPageGetOpaque(page)->flags &= ~GIN_LEAF )
+#define GinPageIsData(page)    ( (GinPageGetOpaque(page)->flags & GIN_DATA) != 0 )
+#define GinPageSetData(page)   ( GinPageGetOpaque(page)->flags |= GIN_DATA )
+#define GinPageIsList(page)    ( (GinPageGetOpaque(page)->flags & GIN_LIST) != 0 )
+#define GinPageSetList(page)   ( GinPageGetOpaque(page)->flags |= GIN_LIST )
+#define GinPageHasFullRow(page)    ( (GinPageGetOpaque(page)->flags & GIN_LIST_FULLROW) != 0 )
+#define GinPageSetFullRow(page)   ( GinPageGetOpaque(page)->flags |= GIN_LIST_FULLROW )
+
+#define GinPageIsDeleted(page) ( (GinPageGetOpaque(page)->flags & GIN_DELETED) != 0 )
+#define GinPageSetDeleted(page)    ( GinPageGetOpaque(page)->flags |= GIN_DELETED)
+#define GinPageSetNonDeleted(page) ( GinPageGetOpaque(page)->flags &= ~GIN_DELETED)
+
+#define GinPageRightMost(page) ( GinPageGetOpaque(page)->rightlink == InvalidBlockNumber)
+
+/*
+ * We use our own ItemPointerGet(BlockNumber|GetOffsetNumber)
+ * to avoid Asserts, since sometimes the ip_posid isn't "valid"
+ */
+#define GinItemPointerGetBlockNumber(pointer) \
+	BlockIdGetBlockNumber(&(pointer)->ip_blkid)
+
+#define GinItemPointerGetOffsetNumber(pointer) \
+	((pointer)->ip_posid)
+
+/*
+ * Special-case item pointer values needed by the GIN search logic.
+ *	MIN: sorts less than any valid item pointer
+ *	MAX: sorts greater than any valid item pointer
+ *	LOSSY PAGE: indicates a whole heap page, sorts after normal item
+ *				pointers for that page
+ * Note that these are all distinguishable from an "invalid" item pointer
+ * (which is InvalidBlockNumber/0) as well as from all normal item
+ * pointers (which have item numbers in the range 1..MaxHeapTuplesPerPage).
+ */
+#define ItemPointerSetMin(p)  \
+	ItemPointerSet((p), (BlockNumber)0, (OffsetNumber)0)
+#define ItemPointerIsMin(p)  \
+	(GinItemPointerGetOffsetNumber(p) == (OffsetNumber)0 && \
+	 GinItemPointerGetBlockNumber(p) == (BlockNumber)0)
+#define ItemPointerSetMax(p)  \
+	ItemPointerSet((p), InvalidBlockNumber, (OffsetNumber)0xffff)
+#define ItemPointerIsMax(p)  \
+	(GinItemPointerGetOffsetNumber(p) == (OffsetNumber)0xffff && \
+	 GinItemPointerGetBlockNumber(p) == InvalidBlockNumber)
+#define ItemPointerSetLossyPage(p, b)  \
+	ItemPointerSet((p), (b), (OffsetNumber)0xffff)
+#define ItemPointerIsLossyPage(p)  \
+	(GinItemPointerGetOffsetNumber(p) == (OffsetNumber)0xffff && \
+	 GinItemPointerGetBlockNumber(p) != InvalidBlockNumber)
+
+/*
+ * Posting item in a non-leaf posting-tree page
+ */
+typedef struct
+{
+	/* We use BlockIdData not BlockNumber to avoid padding space wastage */
+	BlockIdData child_blkno;
+	ItemPointerData key;
+} PostingItem;
+
+#define PostingItemGetBlockNumber(pointer) \
+	BlockIdGetBlockNumber(&(pointer)->child_blkno)
+
+#define PostingItemSetBlockNumber(pointer, blockNumber) \
+	BlockIdSet(&((pointer)->child_blkno), (blockNumber))
+
+/*
+ * Category codes to distinguish placeholder nulls from ordinary NULL keys.
+ * Note that the datatype size and the first two code values are chosen to be
+ * compatible with the usual usage of bool isNull flags.
+ *
+ * GIN_CAT_EMPTY_QUERY is never stored in the index; and notice that it is
+ * chosen to sort before not after regular key values.
+ */
+typedef signed char GinNullCategory;
+
+#define GIN_CAT_NORM_KEY		0		/* normal, non-null key value */
+#define GIN_CAT_NULL_KEY		1		/* null key value */
+#define GIN_CAT_EMPTY_ITEM		2		/* placeholder for zero-key item */
+#define GIN_CAT_NULL_ITEM		3		/* placeholder for null item */
+#define GIN_CAT_EMPTY_QUERY		(-1)	/* placeholder for full-scan query */
+
+/*
+ * Access macros for null category byte in entry tuples
+ */
+#define GinCategoryOffset(itup,ginstate) \
+	(IndexInfoFindDataOffset((itup)->t_info) + \
+	 ((ginstate)->oneCol ? 0 : sizeof(int16)))
+/*#define GinGetNullCategory(itup,ginstate) \
+  	(*((GinNullCategory *) ((char*)(itup) + GinCategoryOffset(itup,ginstate))))
+  #define GinSetNullCategory(itup,ginstate,c) \
+	(*((GinNullCategory *) ((char*)(itup) + GinCategoryOffset(itup,ginstate))) = (c))*/
+
+#define GinGetNullCategory(itup,ginstate) \
+      (*((GinNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(GinNullCategory))))
+#define GinSetNullCategory(itup,ginstate,c) \
+      (*((GinNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(GinNullCategory))) = (c))
+
+/*
+ * Access macros for leaf-page entry tuples (see discussion in README)
+ */
+#define GinGetNPosting(itup)	GinItemPointerGetOffsetNumber(&(itup)->t_tid)
+#define GinSetNPosting(itup,n)	ItemPointerSetOffsetNumber(&(itup)->t_tid,n)
+#define GIN_TREE_POSTING		((OffsetNumber)0xffff)
+#define GinIsPostingTree(itup)	(GinGetNPosting(itup) == GIN_TREE_POSTING)
+#define GinSetPostingTree(itup, blkno)	( GinSetNPosting((itup),GIN_TREE_POSTING), ItemPointerSetBlockNumber(&(itup)->t_tid, blkno) )
+#define GinGetPostingTree(itup) GinItemPointerGetBlockNumber(&(itup)->t_tid)
+
+#define GinGetPostingOffset(itup)	GinItemPointerGetBlockNumber(&(itup)->t_tid)
+#define GinSetPostingOffset(itup,n) ItemPointerSetBlockNumber(&(itup)->t_tid,n)
+#define GinGetPosting(itup)			((Pointer) ((char*)(itup) + GinGetPostingOffset(itup)))
+
+#define GinMaxItemSize \
+	MAXALIGN_DOWN(((BLCKSZ - SizeOfPageHeaderData - \
+		MAXALIGN(sizeof(GinPageOpaqueData))) / 6 - sizeof(ItemIdData)))
+
+/*
+ * Access macros for non-leaf entry tuples
+ */
+#define GinGetDownlink(itup)	GinItemPointerGetBlockNumber(&(itup)->t_tid)
+#define GinSetDownlink(itup,blkno)	ItemPointerSet(&(itup)->t_tid, blkno, InvalidOffsetNumber)
+
+
+/*
+ * Data (posting tree) pages
+ */
+#define GinDataPageGetRightBound(page)	((ItemPointer) PageGetContents(page))
+#define GinDataPageGetData(page)	\
+	(PageGetContents(page) + MAXALIGN(sizeof(ItemPointerData)))
+#define GinSizeOfDataPageItem(page) \
+	(GinPageIsLeaf(page) ? sizeof(ItemPointerData) : sizeof(PostingItem))
+#define GinDataPageGetItem(page,i)	\
+	(GinDataPageGetData(page) + ((i)-1) * GinSizeOfDataPageItem(page))
+
+#define GinDataPageGetFreeSpace(page)	\
+	(BLCKSZ - MAXALIGN(SizeOfPageHeaderData) \
+	 - MAXALIGN(sizeof(ItemPointerData)) \
+	 - GinPageGetOpaque(page)->maxoff * GinSizeOfDataPageItem(page) \
+	 - MAXALIGN(sizeof(GinPageOpaqueData)))
+
+#define GinMaxLeafDataItems \
+	((BLCKSZ - MAXALIGN(SizeOfPageHeaderData) - \
+	  MAXALIGN(sizeof(ItemPointerData)) - \
+	  MAXALIGN(sizeof(GinPageOpaqueData))) \
+	 / sizeof(ItemPointerData))
+
+/*
+ * List pages
+ */
+#define GinListPageSize  \
+	( BLCKSZ - SizeOfPageHeaderData - MAXALIGN(sizeof(GinPageOpaqueData)) )
 
 typedef struct
 {
-	BlockNumber prev;
-	uint32		freespace;
-	char		tupledata[1];
-} GISTNodeBufferPage;
+	ItemPointerData iptr;
+	OffsetNumber offsetNumer;
+	uint16 pageOffset;
+} GinDataLeafItemIndex;
 
-#define BUFFER_PAGE_DATA_OFFSET MAXALIGN(offsetof(GISTNodeBufferPage, tupledata))
-/* Returns free space in node buffer page */
-#define PAGE_FREE_SPACE(nbp) (nbp->freespace)
-/* Checks if node buffer page is empty */
-#define PAGE_IS_EMPTY(nbp) (nbp->freespace == BLCKSZ - BUFFER_PAGE_DATA_OFFSET)
-/* Checks if node buffers page don't contain sufficient space for index tuple */
-#define PAGE_NO_SPACE(nbp, itup) (PAGE_FREE_SPACE(nbp) < \
-										MAXALIGN(IndexTupleSize(itup)))
+#define GinDataLeafIndexCount 32
+
+#define GinDataPageSize	\
+	(BLCKSZ - MAXALIGN(SizeOfPageHeaderData) \
+	 - MAXALIGN(sizeof(ItemPointerData)) \
+	 - MAXALIGN(sizeof(GinPageOpaqueData)) \
+	 - MAXALIGN(sizeof(GinDataLeafItemIndex) * GinDataLeafIndexCount))
+
+#define GinDataPageFreeSpacePre(page,ptr) \
+	(GinDataPageSize \
+	 - ((ptr) - GinDataPageGetData(page)))
+
+#define GinPageGetIndexes(page) \
+	((GinDataLeafItemIndex *)(GinDataPageGetData(page) + GinDataPageSize))
+
 
 /*
- * GISTSTATE: information needed for any GiST index operation
- *
- * This struct retains call info for the index's opclass-specific support
- * functions (per index column), plus the index's tuple descriptor.
- *
- * scanCxt holds the GISTSTATE itself as well as any data that lives for the
- * lifetime of the index operation.  We pass this to the support functions
- * via fn_mcxt, so that they can store scan-lifespan data in it.  The
- * functions are invoked in tempCxt, which is typically short-lifespan
- * (that is, it's reset after each tuple).  However, tempCxt can be the same
- * as scanCxt if we're not bothering with per-tuple context resets.
+ * Storage type for GIN's reloptions
  */
-typedef struct GISTSTATE
+typedef struct GinOptions
 {
-	MemoryContext scanCxt;		/* context for scan-lifespan data */
-	MemoryContext tempCxt;		/* short-term context for calling functions */
+	int32		vl_len_;		/* varlena header (do not touch directly!) */
+	bool		useFastUpdate;	/* use fast updates? */
+} GinOptions;
 
-	TupleDesc	tupdesc;		/* index's tuple descriptor */
+#define GIN_DEFAULT_USE_FASTUPDATE	true
+#define GinGetUseFastUpdate(relation) \
+	((relation)->rd_options ? \
+	 ((GinOptions *) (relation)->rd_options)->useFastUpdate : GIN_DEFAULT_USE_FASTUPDATE)
 
+
+/* Macros for buffer lock/unlock operations */
+#define GIN_UNLOCK	BUFFER_LOCK_UNLOCK
+#define GIN_SHARE	BUFFER_LOCK_SHARE
+#define GIN_EXCLUSIVE  BUFFER_LOCK_EXCLUSIVE
+
+
+/*
+ * GinState: working data structure describing the index being worked on
+ */
+typedef struct GinState
+{
+	Relation	index;
+	bool		oneCol;			/* true if single-column index */
+
+	/*
+	 * origTupDesc is the nominal tuple descriptor of the index, ie, the i'th
+	 * attribute shows the key type (not the input data type!) of the i'th
+	 * index column.  In a single-column index this describes the actual leaf
+	 * index tuples.  In a multi-column index, the actual leaf tuples contain
+	 * a smallint column number followed by a key datum of the appropriate
+	 * type for that column.  We set up tupdesc[i] to describe the actual
+	 * rowtype of the index tuples for the i'th column, ie, (int2, keytype).
+	 * Note that in any case, leaf tuples contain more data than is known to
+	 * the TupleDesc; see access/gin/README for details.
+	 */
+	TupleDesc	origTupdesc;
+	TupleDesc	tupdesc[INDEX_MAX_KEYS];
+	Oid			addInfoTypeOid[INDEX_MAX_KEYS];
+	Form_pg_attribute addAttrs[INDEX_MAX_KEYS];
+
+	/*
+	 * Per-index-column opclass support functions
+	 */
+	FmgrInfo	compareFn[INDEX_MAX_KEYS];
+	FmgrInfo	extractValueFn[INDEX_MAX_KEYS];
+	FmgrInfo	extractQueryFn[INDEX_MAX_KEYS];
 	FmgrInfo	consistentFn[INDEX_MAX_KEYS];
-	FmgrInfo	unionFn[INDEX_MAX_KEYS];
-	FmgrInfo	compressFn[INDEX_MAX_KEYS];
-	FmgrInfo	decompressFn[INDEX_MAX_KEYS];
-	FmgrInfo	penaltyFn[INDEX_MAX_KEYS];
-	FmgrInfo	picksplitFn[INDEX_MAX_KEYS];
-	FmgrInfo	equalFn[INDEX_MAX_KEYS];
-	FmgrInfo	distanceFn[INDEX_MAX_KEYS];
-
+	FmgrInfo	comparePartialFn[INDEX_MAX_KEYS];	/* optional method */
+	FmgrInfo	configFn[INDEX_MAX_KEYS];			/* optional method */
+	FmgrInfo	preConsistentFn[INDEX_MAX_KEYS];			/* optional method */
+	FmgrInfo	orderingFn[INDEX_MAX_KEYS];			/* optional method */
+	/* canPartialMatch[i] is true if comparePartialFn[i] is valid */
+	bool		canPartialMatch[INDEX_MAX_KEYS];
+	/* canPreConsistent[i] is true if preConsistentFn[i] is valid */
+	bool		canPreConsistent[INDEX_MAX_KEYS];
+	/* canOrdering[i] is true if orderingFn[i] is valid */
+	bool		canOrdering[INDEX_MAX_KEYS];
 	/* Collations to pass to the support functions */
 	Oid			supportCollation[INDEX_MAX_KEYS];
-} GISTSTATE;
-
-
-/*
- * During a GiST index search, we must maintain a queue of unvisited items,
- * which can be either individual heap tuples or whole index pages.  If it
- * is an ordered search, the unvisited items should be visited in distance
- * order.  Unvisited items at the same distance should be visited in
- * depth-first order, that is heap items first, then lower index pages, then
- * upper index pages; this rule avoids doing extra work during a search that
- * ends early due to LIMIT.
- *
- * To perform an ordered search, we use an RBTree to manage the distance-order
- * queue.  Each GISTSearchTreeItem stores all unvisited items of the same
- * distance; they are GISTSearchItems chained together via their next fields.
- *
- * In a non-ordered search (no order-by operators), the RBTree degenerates
- * to a single item, which we use as a queue of unvisited index pages only.
- * In this case matched heap items from the current index leaf page are
- * remembered in GISTScanOpaqueData.pageData[] and returned directly from
- * there, instead of building a separate GISTSearchItem for each one.
- */
-
-/* Individual heap tuple to be visited */
-typedef struct GISTSearchHeapItem
-{
-	ItemPointerData heapPtr;
-	bool		recheck;		/* T if quals must be rechecked */
-} GISTSearchHeapItem;
-
-/* Unvisited item, either index page or heap tuple */
-typedef struct GISTSearchItem
-{
-	struct GISTSearchItem *next;	/* list link */
-	BlockNumber blkno;			/* index page number, or InvalidBlockNumber */
-	union
-	{
-		GistNSN		parentlsn;	/* parent page's LSN, if index page */
-		/* we must store parentlsn to detect whether a split occurred */
-		GISTSearchHeapItem heap;	/* heap info, if heap tuple */
-	}			data;
-} GISTSearchItem;
-
-#define GISTSearchItemIsHeap(item)	((item).blkno == InvalidBlockNumber)
-
-/*
- * Within a GISTSearchTreeItem's chain, heap items always appear before
- * index-page items, since we want to visit heap items first.  lastHeap points
- * to the last heap item in the chain, or is NULL if there are none.
- */
-typedef struct GISTSearchTreeItem
-{
-	RBNode		rbnode;			/* this is an RBTree item */
-	GISTSearchItem *head;		/* first chain member */
-	GISTSearchItem *lastHeap;	/* last heap-tuple member, if any */
-	double		distances[1];	/* array with numberOfOrderBys entries */
-} GISTSearchTreeItem;
-
-#define GSTIHDRSZ offsetof(GISTSearchTreeItem, distances)
-
-/*
- * GISTScanOpaqueData: private state for a scan of a GiST index
- */
-typedef struct GISTScanOpaqueData
-{
-	GISTSTATE  *giststate;		/* index information, see above */
-	RBTree	   *queue;			/* queue of unvisited items */
-	MemoryContext queueCxt;		/* context holding the queue */
-	bool		qual_ok;		/* false if qual can never be satisfied */
-	bool		firstCall;		/* true until first gistgettuple call */
-
-	GISTSearchTreeItem *curTreeItem;	/* current queue item, if any */
-
-	/* pre-allocated workspace arrays */
-	GISTSearchTreeItem *tmpTreeItem;	/* workspace to pass to rb_insert */
-	double	   *distances;		/* output area for gistindex_keytest */
-
-	/* In a non-ordered search, returnable heap items are stored here: */
-	GISTSearchHeapItem pageData[BLCKSZ / sizeof(IndexTupleData)];
-	OffsetNumber nPageData;		/* number of valid items in array */
-	OffsetNumber curPageData;	/* next item to return */
-} GISTScanOpaqueData;
-
-typedef GISTScanOpaqueData *GISTScanOpaque;
-
+} GinState;
 
 /* XLog stuff */
 
-#define XLOG_GIST_PAGE_UPDATE		0x00
- /* #define XLOG_GIST_NEW_ROOT			 0x20 */	/* not used anymore */
-#define XLOG_GIST_PAGE_SPLIT		0x30
- /* #define XLOG_GIST_INSERT_COMPLETE	 0x40 */	/* not used anymore */
-#define XLOG_GIST_CREATE_INDEX		0x50
- /* #define XLOG_GIST_PAGE_DELETE		 0x60 */	/* not used anymore */
+#define XLOG_GIN_CREATE_INDEX  0x00
 
-typedef struct gistxlogPageUpdate
+#define XLOG_GIN_CREATE_PTREE  0x10
+
+typedef struct ginxlogCreatePostingTree
 {
 	RelFileNode node;
 	BlockNumber blkno;
+	uint32		nitem;
+	int16		typlen;
 
-	/*
-	 * If this operation completes a page split, by inserting a downlink for
-	 * the split page, leftchild points to the left half of the split.
-	 */
-	BlockNumber leftchild;
+	bool		typbyval;
+	char		typalign;
+	char		typstorage;
+	/* follows list of heap's ItemPointer */
+} ginxlogCreatePostingTree;
 
-	/* number of deleted offsets */
-	uint16		ntodelete;
+#define XLOG_GIN_INSERT  0x20
 
-	/*
-	 * follow: 1. todelete OffsetNumbers 2. tuples to insert
-	 */
-} gistxlogPageUpdate;
-
-typedef struct gistxlogPageSplit
+typedef struct ginxlogInsert
 {
 	RelFileNode node;
-	BlockNumber origblkno;		/* splitted page */
-	BlockNumber origrlink;		/* rightlink of the page before split */
-	GistNSN		orignsn;		/* NSN of the page before split */
-	bool		origleaf;		/* was splitted page a leaf page? */
+	BlockNumber blkno;
+	BlockNumber updateBlkno;
+	OffsetNumber offset;
+	OffsetNumber nitem;
+	int16		typlen;
 
-	BlockNumber leftchild;		/* like in gistxlogPageUpdate */
-	uint16		npage;			/* # of pages in the split */
-	bool		markfollowright;	/* set F_FOLLOW_RIGHT flags */
+	bool		typbyval;
+	char		typalign;
+	char		typstorage;
+	bool		isDelete;
+	bool		isData;
+	bool		isLeaf;
 
 	/*
-	 * follow: 1. gistxlogPage and array of IndexTupleData per page
+	 * follows: tuples or ItemPointerData or PostingItem or list of
+	 * ItemPointerData
 	 */
-} gistxlogPageSplit;
+} ginxlogInsert;
 
-typedef struct gistxlogPage
+#define XLOG_GIN_SPLIT	0x30
+
+typedef struct ginxlogSplit
 {
+	RelFileNode node;
+	BlockNumber lblkno;
+	BlockNumber rootBlkno;
+	BlockNumber rblkno;
+	BlockNumber rrlink;
+	OffsetNumber separator;
+	OffsetNumber nitem;
+	int16		typlen;
+
+	bool		typbyval;
+	char		typalign;
+	char		typstorage;
+	bool		isData;
+	bool		isLeaf;
+	bool		isRootSplit;
+
+	BlockNumber leftChildBlkno;
+	BlockNumber updateBlkno;
+
+	ItemPointerData rightbound; /* used only in posting tree */
+	/* follows: list of tuple or ItemPointerData or PostingItem */
+} ginxlogSplit;
+
+#define XLOG_GIN_VACUUM_PAGE	0x40
+
+typedef struct ginxlogVacuumPage
+{
+	RelFileNode node;
 	BlockNumber blkno;
-	int			num;			/* number of index tuples following */
-} gistxlogPage;
+	OffsetNumber nitem;
+	int16		typlen;
 
-/* SplitedPageLayout - gistSplit function result */
-typedef struct SplitedPageLayout
+	bool		typbyval;
+	char		typalign;
+	char		typstorage;
+	/* follows content of page */
+} ginxlogVacuumPage;
+
+#define XLOG_GIN_DELETE_PAGE	0x50
+
+typedef struct ginxlogDeletePage
 {
-	gistxlogPage block;
-	IndexTupleData *list;
-	int			lenlist;
-	IndexTuple	itup;			/* union key for page */
-	Page		page;			/* to operate */
-	Buffer		buffer;			/* to write after all proceed */
+	RelFileNode node;
+	BlockNumber blkno;
+	BlockNumber parentBlkno;
+	OffsetNumber parentOffset;
+	BlockNumber leftBlkno;
+	BlockNumber rightLink;
+} ginxlogDeletePage;
 
-	struct SplitedPageLayout *next;
-} SplitedPageLayout;
+#define XLOG_GIN_UPDATE_META_PAGE 0x60
 
-/*
- * GISTInsertStack used for locking buffers and transfer arguments during
- * insertion
- */
-typedef struct GISTInsertStack
+typedef struct ginxlogUpdateMeta
 {
-	/* current page */
+	RelFileNode node;
+	GinMetaPageData metadata;
+	BlockNumber prevTail;
+	BlockNumber newRightlink;
+	int32		ntuples;		/* if ntuples > 0 then metadata.tail was
+								 * updated with that many tuples; else new sub
+								 * list was inserted */
+	/* array of inserted tuples follows */
+} ginxlogUpdateMeta;
+
+#define XLOG_GIN_INSERT_LISTPAGE  0x70
+
+typedef struct ginxlogInsertListPage
+{
+	RelFileNode node;
+	BlockNumber blkno;
+	BlockNumber rightlink;
+	int32		ntuples;
+	/* array of inserted tuples follows */
+} ginxlogInsertListPage;
+
+#define XLOG_GIN_DELETE_LISTPAGE  0x80
+
+#define GIN_NDELETE_AT_ONCE 16
+typedef struct ginxlogDeleteListPages
+{
+	RelFileNode node;
+	GinMetaPageData metadata;
+	int32		ndeleted;
+	BlockNumber toDelete[GIN_NDELETE_AT_ONCE];
+} ginxlogDeleteListPages;
+
+
+/* ginutil.c */
+extern Datum ginoptions(PG_FUNCTION_ARGS);
+extern void initGinState(GinState *state, Relation index);
+extern Buffer GinNewBuffer(Relation index);
+extern void GinInitBuffer(Buffer b, uint32 f);
+extern void GinInitPage(Page page, uint32 f, Size pageSize);
+extern void GinInitMetabuffer(Buffer b);
+extern int ginCompareEntries(GinState *ginstate, OffsetNumber attnum,
+				  Datum a, GinNullCategory categorya,
+				  Datum b, GinNullCategory categoryb);
+extern int ginCompareAttEntries(GinState *ginstate,
+					 OffsetNumber attnuma, Datum a, GinNullCategory categorya,
+				   OffsetNumber attnumb, Datum b, GinNullCategory categoryb);
+extern Datum *ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
+				  Datum value, bool isNull,
+				  int32 *nentries, GinNullCategory **categories,
+				  Datum **addInfo, bool **addInfoIsNull);
+
+extern OffsetNumber gintuple_get_attrnum(GinState *ginstate, IndexTuple tuple);
+extern Datum gintuple_get_key(GinState *ginstate, IndexTuple tuple,
+				 GinNullCategory *category);
+
+/* gininsert.c */
+extern Datum ginbuild(PG_FUNCTION_ARGS);
+extern Datum ginbuildempty(PG_FUNCTION_ARGS);
+extern Datum gininsert(PG_FUNCTION_ARGS);
+extern void ginEntryInsert(GinState *ginstate,
+			   OffsetNumber attnum, Datum key, GinNullCategory category,
+			   ItemPointerData *items, Datum *addInfo,
+			   bool *addInfoIsNull, uint32 nitem,
+			   GinStatsData *buildStats);
+
+/* ginbtree.c */
+
+typedef struct GinBtreeStack
+{
 	BlockNumber blkno;
 	Buffer		buffer;
-	Page		page;
+	OffsetNumber off;
+	/* predictNumber contains predicted number of pages on current level */
+	uint32		predictNumber;
+	struct GinBtreeStack *parent;
+} GinBtreeStack;
 
-	/*
-	 * log sequence number from page->lsn to recognize page update and compare
-	 * it with page's nsn to recognize page split
-	 */
-	GistNSN		lsn;
+typedef struct GinBtreeData *GinBtree;
 
-	/* offset of the downlink in the parent page, that points to this page */
-	OffsetNumber downlinkoffnum;
-
-	/* pointer to parent */
-	struct GISTInsertStack *parent;
-} GISTInsertStack;
-
-/* Working state and results for multi-column split logic in gistsplit.c */
-typedef struct GistSplitVector
+typedef struct GinBtreeData
 {
-	GIST_SPLITVEC splitVector;	/* passed to/from user PickSplit method */
+	/* search methods */
+	BlockNumber (*findChildPage) (GinBtree, GinBtreeStack *);
+	bool		(*isMoveRight) (GinBtree, Page);
+	bool		(*findItem) (GinBtree, GinBtreeStack *);
 
-	Datum		spl_lattr[INDEX_MAX_KEYS];		/* Union of subkeys in
-												 * splitVector.spl_left */
-	bool		spl_lisnull[INDEX_MAX_KEYS];
+	/* insert methods */
+	OffsetNumber (*findChildPtr) (GinBtree, Page, BlockNumber, OffsetNumber);
+	BlockNumber (*getLeftMostPage) (GinBtree, Page);
+	bool		(*isEnoughSpace) (GinBtree, Buffer, OffsetNumber);
+	void		(*placeToPage) (GinBtree, Buffer, OffsetNumber, XLogRecData **);
+	Page		(*splitPage) (GinBtree, Buffer, Buffer, OffsetNumber, XLogRecData **);
+	void		(*fillRoot) (GinBtree, Buffer, Buffer, Buffer);
 
-	Datum		spl_rattr[INDEX_MAX_KEYS];		/* Union of subkeys in
-												 * splitVector.spl_right */
-	bool		spl_risnull[INDEX_MAX_KEYS];
+	bool		isData;
+	bool		searchMode;
 
-	bool	   *spl_dontcare;	/* flags tuples which could go to either side
-								 * of the split for zero penalty */
-} GistSplitVector;
+	Relation	index;
+	GinState   *ginstate;		/* not valid in a data scan */
+	bool		fullScan;
+	bool		isBuild;
+
+	BlockNumber rightblkno;
+
+	/* Entry options */
+	OffsetNumber entryAttnum;
+	Datum		entryKey;
+	GinNullCategory entryCategory;
+	IndexTuple	entry;
+	bool		isDelete;
+
+	/* Data (posting tree) options */
+	ItemPointerData *items;
+	Datum		*addInfo;
+	bool		*addInfoIsNull;
+
+	uint32		nitem;
+	uint32		curitem;
+
+	PostingItem pitem;
+} GinBtreeData;
+
+extern GinBtreeStack *ginPrepareFindLeafPage(GinBtree btree, BlockNumber blkno);
+extern GinBtreeStack *ginFindLeafPage(GinBtree btree, GinBtreeStack *stack);
+extern GinBtreeStack *ginReFindLeafPage(GinBtree btree, GinBtreeStack *stack);
+extern Buffer ginStepRight(Buffer buffer, Relation index, int lockmode);
+extern void freeGinBtreeStack(GinBtreeStack *stack);
+extern void ginInsertValue(GinBtree btree, GinBtreeStack *stack,
+			   GinStatsData *buildStats);
+extern void ginFindParents(GinBtree btree, GinBtreeStack *stack, BlockNumber rootBlkno);
+
+/* ginentrypage.c */
+extern void ginPrepareEntryScan(GinBtree btree, OffsetNumber attnum,
+					Datum key, GinNullCategory category,
+					GinState *ginstate);
+extern void ginEntryFillRoot(GinBtree btree, Buffer root, Buffer lbuf, Buffer rbuf);
+extern IndexTuple ginPageGetLinkItup(Buffer buf);
+extern void ginReadTuple(GinState *ginstate, OffsetNumber attnum,
+	IndexTuple itup, ItemPointerData *ipd, Datum *addInfo, bool *addInfoIsNull);
+extern ItemPointerData updateItemIndexes(Page page, OffsetNumber attnum, GinState *ginstate);
+
+/* gindatapage.c */
+extern int ginCompareItemPointers(ItemPointer a, ItemPointer b);
+extern char *ginDataPageLeafWriteItemPointer(char *ptr, ItemPointer iptr, ItemPointer prev, bool addInfoIsNull);
+extern Pointer ginPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
+	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
+	GinState *ginstate);
+extern Size ginCheckPlaceToDataPageLeaf(OffsetNumber attnum,
+	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
+	GinState *ginstate, Size size);
+extern uint32 ginMergeItemPointers(ItemPointerData *dst, Datum *dst2, bool *dst3,
+					 ItemPointerData *a, Datum *a2, bool *a3, uint32 na,
+					 ItemPointerData *b, Datum * b2, bool *b3, uint32 nb);
+extern void GinDataPageAddItem(Page page, void *data, OffsetNumber offset);
+extern void GinPageDeletePostingItem(Page page, OffsetNumber offset);
 
 typedef struct
 {
-	Relation	r;
-	Size		freespace;		/* free space to be left */
+	GinBtreeData btree;
+	GinBtreeStack *stack;
+} GinPostingTreeScan;
 
-	GISTInsertStack *stack;
-} GISTInsertState;
+extern GinPostingTreeScan *ginPrepareScanPostingTree(Relation index,
+						  BlockNumber rootBlkno, bool searchMode, OffsetNumber attnum, GinState *ginstate);
+extern void ginInsertItemPointers(GinState *ginstate,
+					  OffsetNumber attnum,
+					  GinPostingTreeScan *gdi,
+					  ItemPointerData *items,
+					  Datum *addInfo,
+					  bool *addInfoIsNull,
+					  uint32 nitem,
+					  GinStatsData *buildStats);
+extern Buffer ginScanBeginPostingTree(GinPostingTreeScan *gdi);
+extern void ginDataFillRoot(GinBtree btree, Buffer root, Buffer lbuf, Buffer rbuf);
+extern void ginPrepareDataScan(GinBtree btree, Relation index, OffsetNumber attnum, GinState *ginstate);
 
-/* root page of a gist index */
-#define GIST_ROOT_BLKNO				0
+/* ginscan.c */
 
 /*
- * Before PostgreSQL 9.1, we used rely on so-called "invalid tuples" on inner
- * pages to finish crash recovery of incomplete page splits. If a crash
- * happened in the middle of a page split, so that the downlink pointers were
- * not yet inserted, crash recovery inserted a special downlink pointer. The
- * semantics of an invalid tuple was that it if you encounter one in a scan,
- * it must always be followed, because we don't know if the tuples on the
- * child page match or not.
+ * GinScanKeyData describes a single GIN index qualifier expression.
  *
- * We no longer create such invalid tuples, we now mark the left-half of such
- * an incomplete split with the F_FOLLOW_RIGHT flag instead, and finish the
- * split properly the next time we need to insert on that page. To retain
- * on-disk compatibility for the sake of pg_upgrade, we still store 0xffff as
- * the offset number of all inner tuples. If we encounter any invalid tuples
- * with 0xfffe during insertion, we throw an error, though scans still handle
- * them. You should only encounter invalid tuples if you pg_upgrade a pre-9.1
- * gist index which already has invalid tuples in it because of a crash. That
- * should be rare, and you are recommended to REINDEX anyway if you have any
- * invalid tuples in an index, so throwing an error is as far as we go with
- * supporting that.
+ * From each qual expression, we extract one or more specific index search
+ * conditions, which are represented by GinScanEntryData.  It's quite
+ * possible for identical search conditions to be requested by more than
+ * one qual expression, in which case we merge such conditions to have just
+ * one unique GinScanEntry --- this is particularly important for efficiency
+ * when dealing with full-index-scan entries.  So there can be multiple
+ * GinScanKeyData.scanEntry pointers to the same GinScanEntryData.
+ *
+ * In each GinScanKeyData, nentries is the true number of entries, while
+ * nuserentries is the number that extractQueryFn returned (which is what
+ * we report to consistentFn).  The "user" entries must come first.
  */
-#define TUPLE_IS_VALID		0xffff
-#define TUPLE_IS_INVALID	0xfffe
+typedef struct GinScanKeyData *GinScanKey;
 
-#define  GistTupleIsInvalid(itup)	( ItemPointerGetOffsetNumber( &((itup)->t_tid) ) == TUPLE_IS_INVALID )
-#define  GistTupleSetValid(itup)	ItemPointerSetOffsetNumber( &((itup)->t_tid), TUPLE_IS_VALID )
+typedef struct GinScanEntryData *GinScanEntry;
 
-
-
-
-/*
- * A buffer attached to an internal node, used when building an index in
- * buffering mode.
- */
-typedef struct
+typedef struct GinScanKeyData
 {
-	BlockNumber nodeBlocknum;	/* index block # this buffer is for */
-	int32		blocksCount;	/* current # of blocks occupied by buffer */
+	/* Real number of entries in scanEntry[] (always > 0) */
+	uint32		nentries;
+	/* Number of entries that extractQueryFn and consistentFn know about */
+	uint32		nuserentries;
 
-	BlockNumber pageBlocknum;	/* temporary file block # */
-	GISTNodeBufferPage *pageBuffer;		/* in-memory buffer page */
+	/* array of GinScanEntry pointers, one per extracted search condition */
+	GinScanEntry *scanEntry;
 
-	/* is this buffer queued for emptying? */
-	bool		queuedForEmptying;
+	/* array of check flags, reported to consistentFn */
+	bool	   *entryRes;
+	Datum	   *addInfo;
+	bool	   *addInfoIsNull;
 
-	/* is this a temporary copy, not in the hash table? */
-	bool		isTemp;
+	/* other data needed for calling consistentFn */
+	Datum		query;
+	/* NB: these three arrays have only nuserentries elements! */
+	Datum	   *queryValues;
+	GinNullCategory *queryCategories;
+	Pointer    *extra_data;
+	StrategyNumber strategy;
+	int32		searchMode;
+	OffsetNumber attnum;
 
-	int			level;			/* 0 == leaf */
-} GISTNodeBuffer;
+	/*
+	 * Match status data.  curItem is the TID most recently tested (could be a
+	 * lossy-page pointer).  curItemMatches is TRUE if it passes the
+	 * consistentFn test; if so, recheckCurItem is the recheck flag.
+	 * isFinished means that all the input entry streams are finished, so this
+	 * key cannot succeed for any later TIDs.
+	 */
+	ItemPointerData curItem;
+	bool		curItemMatches;
+	bool		recheckCurItem;
+	bool		isFinished;
+	bool		orderBy;
+}	GinScanKeyData;
 
-/*
- * Does specified level have buffers? (Beware of multiple evaluation of
- * arguments.)
- */
-#define LEVEL_HAS_BUFFERS(nlevel, gfbb) \
-	((nlevel) != 0 && (nlevel) % (gfbb)->levelStep == 0 && \
-	 (nlevel) != (gfbb)->rootlevel)
-
-/* Is specified buffer at least half-filled (should be queued for emptying)? */
-#define BUFFER_HALF_FILLED(nodeBuffer, gfbb) \
-	((nodeBuffer)->blocksCount > (gfbb)->pagesPerBuffer / 2)
-
-/*
- * Is specified buffer full? Our buffers can actually grow indefinitely,
- * beyond the "maximum" size, so this just means whether the buffer has grown
- * beyond the nominal maximum size.
- */
-#define BUFFER_OVERFLOWED(nodeBuffer, gfbb) \
-	((nodeBuffer)->blocksCount > (gfbb)->pagesPerBuffer)
-
-/*
- * Data structure with general information about build buffers.
- */
-typedef struct GISTBuildBuffers
+typedef struct GinScanEntryData
 {
-	/* Persistent memory context for the buffers and metadata. */
+	/* query key and other information from extractQueryFn */
+	Datum		queryKey;
+	GinNullCategory queryCategory;
+	bool		isPartialMatch;
+	Pointer		extra_data;
+	StrategyNumber strategy;
+	int32		searchMode;
+	OffsetNumber attnum;
+
+	/* Current page in posting tree */
+	Buffer		buffer;
+
+	/* current ItemPointer to heap */
+	ItemPointerData curItem;
+	Datum		curAddInfo;
+	bool		curAddInfoIsNull;
+
+	/* for a partial-match or full-scan query, we accumulate all TIDs here */
+	TIDBitmap  *matchBitmap;
+	TBMIterator *matchIterator;
+	TBMIterateResult *matchResult;
+
+	/* used for Posting list and one page in Posting tree */
+	ItemPointerData *list;
+	Datum		*addInfo;
+	bool		*addInfoIsNull;
 	MemoryContext context;
+	uint32		nlist;
+	OffsetNumber offset;
 
-	BufFile    *pfile;			/* Temporary file to store buffers in */
-	long		nFileBlocks;	/* Current size of the temporary file */
+	bool		isFinished;
+	bool		reduceResult;
+	bool		preValue;
+	uint32		predictNumberResult;
+	GinPostingTreeScan *gdi;
+}	GinScanEntryData;
 
-	/*
-	 * resizable array of free blocks.
-	 */
-	long	   *freeBlocks;
-	int			nFreeBlocks;	/* # of currently free blocks in the array */
-	int			freeBlocksLen;	/* current allocated length of the array */
-
-	/* Hash for buffers by block number */
-	HTAB	   *nodeBuffersTab;
-
-	/* List of buffers scheduled for emptying */
-	List	   *bufferEmptyingQueue;
-
-	/*
-	 * Parameters to the buffering build algorithm. levelStep determines which
-	 * levels in the tree have buffers, and pagesPerBuffer determines how
-	 * large each buffer is.
-	 */
-	int			levelStep;
-	int			pagesPerBuffer;
-
-	/* Array of lists of buffers on each level, for final emptying */
-	List	  **buffersOnLevels;
-	int			buffersOnLevelsLen;
-
-	/*
-	 * Dynamically-sized array of buffers that currently have their last page
-	 * loaded in main memory.
-	 */
-	GISTNodeBuffer **loadedBuffers;
-	int			loadedBuffersCount;		/* # of entries in loadedBuffers */
-	int			loadedBuffersLen;		/* allocated size of loadedBuffers */
-
-	/* Level of the current root node (= height of the index tree - 1) */
-	int			rootlevel;
-} GISTBuildBuffers;
-
-/*
- * Storage type for GiST's reloptions
- */
-typedef struct GiSTOptions
-{
-	int32		vl_len_;		/* varlena header (do not touch directly!) */
-	int			fillfactor;		/* page fill factor in percent (0..100) */
-	int			bufferingModeOffset;	/* use buffering build? */
-} GiSTOptions;
-
-/* gist.c */
-extern Datum gistbuildempty(PG_FUNCTION_ARGS);
-extern Datum gistinsert(PG_FUNCTION_ARGS);
-extern MemoryContext createTempGistContext(void);
-extern GISTSTATE *initGISTstate(Relation index);
-extern void freeGISTstate(GISTSTATE *giststate);
-extern void gistdoinsert(Relation r,
-			 IndexTuple itup,
-			 Size freespace,
-			 GISTSTATE *GISTstate);
-
-/* A List of these is returned from gistplacetopage() in *splitinfo */
 typedef struct
 {
-	Buffer		buf;			/* the split page "half" */
-	IndexTuple	downlink;		/* downlink for this half. */
-} GISTPageSplitInfo;
+	ItemPointerData iptr;
+	float8			distance;
+	bool			recheck;
+} GinOrderingItem;
 
-extern bool gistplacetopage(Relation rel, Size freespace, GISTSTATE *giststate,
-				Buffer buffer,
-				IndexTuple *itup, int ntup,
-				OffsetNumber oldoffnum, BlockNumber *newblkno,
-				Buffer leftchildbuf,
-				List **splitinfo,
-				bool markleftchild);
+typedef struct GinScanOpaqueData
+{
+	MemoryContext tempCtx;
+	GinState	ginstate;
 
-extern SplitedPageLayout *gistSplit(Relation r, Page page, IndexTuple *itup,
-		  int len, GISTSTATE *giststate);
+	GinScanKey	keys;			/* one per scan qualifier expr */
+	uint32		nkeys;
+	int			norderbys;
 
-/* gistxlog.c */
-extern void gist_redo(XLogRecPtr lsn, XLogRecord *record);
-extern void gist_desc(StringInfo buf, uint8 xl_info, char *rec);
-extern void gist_xlog_startup(void);
-extern void gist_xlog_cleanup(void);
+	GinScanEntry *entries;		/* one per index search condition */
+	GinScanEntry *sortedEntries;		/* one per index search condition */
+	int			entriesIncrIndex;
+	uint32		totalentries;
+	uint32		allocentries;	/* allocated length of entries[] */
 
-extern XLogRecPtr gistXLogUpdate(RelFileNode node, Buffer buffer,
-			   OffsetNumber *todelete, int ntodelete,
-			   IndexTuple *itup, int ntup,
-			   Buffer leftchild);
+	Tuplesortstate *sortstate;
 
-extern XLogRecPtr gistXLogSplit(RelFileNode node,
-			  BlockNumber blkno, bool page_is_leaf,
-			  SplitedPageLayout *dist,
-			  BlockNumber origrlink, GistNSN oldnsn,
-			  Buffer leftchild, bool markfollowright);
+	ItemPointerData iptr;
+	bool		firstCall;
+	bool		isVoidRes;		/* true if query is unsatisfiable */
+	bool		useFastScan;
+	TIDBitmap  *tbm;
+} GinScanOpaqueData;
 
-/* gistget.c */
-extern Datum gistgettuple(PG_FUNCTION_ARGS);
-extern Datum gistgetbitmap(PG_FUNCTION_ARGS);
+typedef GinScanOpaqueData *GinScanOpaque;
 
-/* gistutil.c */
+extern Datum ginbeginscan(PG_FUNCTION_ARGS);
+extern Datum ginendscan(PG_FUNCTION_ARGS);
+extern Datum ginrescan(PG_FUNCTION_ARGS);
+extern Datum ginmarkpos(PG_FUNCTION_ARGS);
+extern Datum ginrestrpos(PG_FUNCTION_ARGS);
+extern void ginNewScanKey(IndexScanDesc scan);
 
-#define GiSTPageSize   \
-	( BLCKSZ - SizeOfPageHeaderData - MAXALIGN(sizeof(GISTPageOpaqueData)) )
+/* ginget.c */
+extern Datum gingetbitmap(PG_FUNCTION_ARGS);
+extern Datum gingettuple(PG_FUNCTION_ARGS);
 
-#define GIST_MIN_FILLFACTOR			10
-#define GIST_DEFAULT_FILLFACTOR		90
+/* ginvacuum.c */
+extern Datum ginbulkdelete(PG_FUNCTION_ARGS);
+extern Datum ginvacuumcleanup(PG_FUNCTION_ARGS);
 
-extern Datum gistoptions(PG_FUNCTION_ARGS);
-extern bool gistfitpage(IndexTuple *itvec, int len);
-extern bool gistnospace(Page page, IndexTuple *itvec, int len, OffsetNumber todelete, Size freespace);
-extern void gistcheckpage(Relation rel, Buffer buf);
-extern Buffer gistNewBuffer(Relation r);
-extern void gistfillbuffer(Page page, IndexTuple *itup, int len,
-			   OffsetNumber off);
-extern IndexTuple *gistextractpage(Page page, int *len /* out */ );
-extern IndexTuple *gistjoinvector(
-			   IndexTuple *itvec, int *len,
-			   IndexTuple *additvec, int addlen);
-extern IndexTupleData *gistfillitupvec(IndexTuple *vec, int veclen, int *memlen);
+typedef struct
+{
+	ItemPointerData	iptr;
+	Datum			addInfo;
+	bool			addInfoIsNull;
+} GinEntryAccumulatorItem;
 
-extern IndexTuple gistunion(Relation r, IndexTuple *itvec,
-		  int len, GISTSTATE *giststate);
-extern IndexTuple gistgetadjusted(Relation r,
-				IndexTuple oldtup,
-				IndexTuple addtup,
-				GISTSTATE *giststate);
-extern IndexTuple gistFormTuple(GISTSTATE *giststate,
-			  Relation r, Datum *attdata, bool *isnull, bool newValues);
+/* ginbulk.c */
+typedef struct GinEntryAccumulator
+{
+	RBNode		rbnode;
+	Datum		key;
+	GinNullCategory category;
+	OffsetNumber attnum;
+	bool		shouldSort;
+	GinEntryAccumulatorItem *list;
+	uint32		maxcount;		/* allocated size of list[] */
+	uint32		count;			/* current number of list[] entries */
+} GinEntryAccumulator;
 
-extern OffsetNumber gistchoose(Relation r, Page p,
-		   IndexTuple it,
-		   GISTSTATE *giststate);
-extern void gistcentryinit(GISTSTATE *giststate, int nkey,
-			   GISTENTRY *e, Datum k,
-			   Relation r, Page pg,
-			   OffsetNumber o, bool l, bool isNull);
+typedef struct
+{
+	GinState   *ginstate;
+	long		allocatedMemory;
+	GinEntryAccumulator *entryallocator;
+	uint32		eas_used;
+	RBTree	   *tree;
+} BuildAccumulator;
 
-extern void GISTInitBuffer(Buffer b, uint32 f);
-extern void gistdentryinit(GISTSTATE *giststate, int nkey, GISTENTRY *e,
-			   Datum k, Relation r, Page pg, OffsetNumber o,
-			   bool l, bool isNull);
+extern void ginInitBA(BuildAccumulator *accum);
+extern void ginInsertBAEntries(BuildAccumulator *accum,
+				   ItemPointer heapptr, OffsetNumber attnum,
+				   Datum *entries, Datum *addInfo, bool *addInfoIsNull,
+				   GinNullCategory *categories, int32 nentries);
+extern void ginBeginBAScan(BuildAccumulator *accum);
+extern GinEntryAccumulatorItem *ginGetBAEntry(BuildAccumulator *accum,
+			  OffsetNumber *attnum, Datum *key, GinNullCategory *category,
+			  uint32 *n);
 
-extern float gistpenalty(GISTSTATE *giststate, int attno,
-			GISTENTRY *key1, bool isNull1,
-			GISTENTRY *key2, bool isNull2);
-extern void gistMakeUnionItVec(GISTSTATE *giststate, IndexTuple *itvec, int len,
-				   Datum *attr, bool *isnull);
-extern bool gistKeyIsEQ(GISTSTATE *giststate, int attno, Datum a, Datum b);
-extern void gistDeCompressAtt(GISTSTATE *giststate, Relation r, IndexTuple tuple, Page p,
-				  OffsetNumber o, GISTENTRY *attdata, bool *isnull);
+/* ginfast.c */
 
-extern void gistMakeUnionKey(GISTSTATE *giststate, int attno,
-				 GISTENTRY *entry1, bool isnull1,
-				 GISTENTRY *entry2, bool isnull2,
-				 Datum *dst, bool *dstisnull);
+typedef struct GinTupleCollector
+{
+	IndexTuple *tuples;
+	uint32		ntuples;
+	uint32		lentuples;
+	uint32		sumsize;
+} GinTupleCollector;
 
-extern XLogRecPtr gistGetFakeLSN(Relation rel);
+extern void ginHeapTupleFastInsert(GinState *ginstate,
+					   GinTupleCollector *collector);
+extern void ginHeapTupleFastCollect(GinState *ginstate,
+						GinTupleCollector *collector,
+						OffsetNumber attnum, Datum value, bool isNull,
+						ItemPointer ht_ctid);
+extern void ginInsertCleanup(GinState *ginstate,
+				 bool vac_delay, IndexBulkDeleteResult *stats);
 
-/* gistvacuum.c */
-extern Datum gistbulkdelete(PG_FUNCTION_ARGS);
-extern Datum gistvacuumcleanup(PG_FUNCTION_ARGS);
+/*
+ * Functions for reading ItemPointers with additional information. Used in
+ * various .c files and have to be inline for being fast.
+ */
 
-/* gistsplit.c */
-extern void gistSplitByKey(Relation r, Page page, IndexTuple *itup,
-			   int len, GISTSTATE *giststate,
-			   GistSplitVector *v,
-			   int attno);
+#define SEVENTHBIT	(0x40)
+#define SIXMASK		(0x3F)
 
-/* gistbuild.c */
-extern Datum gistbuild(PG_FUNCTION_ARGS);
-extern void gistValidateBufferingOption(char *value);
+/*
+ * Read next item pointer from leaf data page. Replaces current item pointer
+ * with the next one. Zero item pointer should be passed in order to read the
+ * first item pointer. Also reads value of addInfoIsNull flag which is stored
+ * with item pointer.
+ */
+static inline char *
+ginDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
+{
+	uint32 blockNumberIncr = 0;
+	uint16 offset = 0;
+	int i;
+	uint8 v;
 
-/* gistbuildbuffers.c */
-extern GISTBuildBuffers *gistInitBuildBuffers(int pagesPerBuffer, int levelStep,
-					 int maxLevel);
-extern GISTNodeBuffer *gistGetNodeBuffer(GISTBuildBuffers *gfbb,
-				  GISTSTATE *giststate,
-				  BlockNumber blkno, int level);
-extern void gistPushItupToNodeBuffer(GISTBuildBuffers *gfbb,
-						 GISTNodeBuffer *nodeBuffer, IndexTuple item);
-extern bool gistPopItupFromNodeBuffer(GISTBuildBuffers *gfbb,
-						  GISTNodeBuffer *nodeBuffer, IndexTuple *item);
-extern void gistFreeBuildBuffers(GISTBuildBuffers *gfbb);
-extern void gistRelocateBuildBuffersOnSplit(GISTBuildBuffers *gfbb,
-								GISTSTATE *giststate, Relation r,
-								int level, Buffer buffer,
-								List *splitinfo);
-extern void gistUnloadNodeBuffers(GISTBuildBuffers *gfbb);
+	i = 0;
+	do
+	{
+		v = *ptr;
+		ptr++;
+		blockNumberIncr |= (v & (~HIGHBIT)) << i;
+		Assert(i < 28 || ((i == 28) && ((v & (~HIGHBIT)) < (1 << 4))));
+		i += 7;
+	}
+	while (v & HIGHBIT);
+
+	Assert((uint64)iptr->ip_blkid.bi_lo + ((uint64)iptr->ip_blkid.bi_hi << 16) +
+				(uint64)blockNumberIncr < ((uint64)1 << 32));
+
+	blockNumberIncr += iptr->ip_blkid.bi_lo + (iptr->ip_blkid.bi_hi << 16);
+
+	iptr->ip_blkid.bi_lo = blockNumberIncr & 0xFFFF;
+	iptr->ip_blkid.bi_hi = (blockNumberIncr >> 16) & 0xFFFF;
+
+	i = 0;
+
+	while(true)
+	{
+		v = *ptr;
+		ptr++;
+		Assert(i < 14 || ((i == 14) && ((v & SIXMASK) < (1 << 2))));
+
+		if (v & HIGHBIT)
+		{
+			offset |= (v & (~HIGHBIT)) << i;
+		}
+		else
+		{
+			offset |= (v & SIXMASK) << i;
+			if (addInfoIsNull)
+				*addInfoIsNull = (v & SEVENTHBIT) ? true : false;
+			break;
+		}
+		i += 7;
+	}
+
+	Assert(OffsetNumberIsValid(offset));
+	iptr->ip_posid = offset;
+
+	return ptr;
+}
+
+/*
+ * Reads next item pointer and additional information from leaf data page.
+ * Replaces current item pointer with the next one. Zero item pointer should be
+ * passed in order to read the first item pointer.
+ */
+static inline Pointer
+ginDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
+	Datum *addInfo, bool *addInfoIsNull, GinState *ginstate)
+{
+	Form_pg_attribute attr;
+	bool isNull;
+
+	ptr = ginDataPageLeafReadItemPointer(ptr, iptr, &isNull);
+
+	Assert(iptr->ip_posid != InvalidOffsetNumber);
+
+	if (addInfoIsNull)
+		*addInfoIsNull = isNull;
+
+	if (!isNull)
+	{
+		attr = ginstate->addAttrs[attnum - 1];
+		ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen, ptr);
+		if (addInfo)
+			*addInfo = fetch_att(ptr,  attr->attbyval,  attr->attlen);
+		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);
+	}
+	return ptr;
+}
 
 #endif   /* __RUM_H__ */

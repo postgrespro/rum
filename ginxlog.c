@@ -94,7 +94,7 @@ ginRedoCreateIndex(XLogRecPtr lsn, XLogRecord *record)
 
 	MetaBuffer = XLogReadBuffer(*node, GIN_METAPAGE_BLKNO, true);
 	Assert(BufferIsValid(MetaBuffer));
-	page = (Page) BufferGetPage(MetaBuffer);
+	page = (Page) BufferGetPage(MetaBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	GinInitMetabuffer(MetaBuffer);
 
@@ -103,7 +103,7 @@ ginRedoCreateIndex(XLogRecPtr lsn, XLogRecord *record)
 
 	RootBuffer = XLogReadBuffer(*node, GIN_ROOT_BLKNO, true);
 	Assert(BufferIsValid(RootBuffer));
-	page = (Page) BufferGetPage(RootBuffer);
+	page = (Page) BufferGetPage(RootBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	GinInitBuffer(RootBuffer, GIN_LEAF);
 
@@ -133,7 +133,7 @@ ginRedoCreatePTree(XLogRecPtr lsn, XLogRecord *record)
 
 	buffer = XLogReadBuffer(data->node, data->blkno, true);
 	Assert(BufferIsValid(buffer));
-	page = (Page) BufferGetPage(buffer);
+	page = (Page) BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	GinInitBuffer(buffer, GIN_DATA | GIN_LEAF);
 
@@ -195,7 +195,7 @@ ginRedoInsert(XLogRecPtr lsn, XLogRecord *record)
 	buffer = XLogReadBuffer(data->node, data->blkno, false);
 	if (!BufferIsValid(buffer))
 		return;					/* page was deleted, nothing to do */
-	page = (Page) BufferGetPage(buffer);
+	page = (Page) BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	if (lsn > PageGetLSN(page))
 	{
@@ -328,12 +328,12 @@ ginRedoSplit(XLogRecPtr lsn, XLogRecord *record)
 
 	lbuffer = XLogReadBuffer(data->node, data->lblkno, true);
 	Assert(BufferIsValid(lbuffer));
-	lpage = (Page) BufferGetPage(lbuffer);
+	lpage = (Page) BufferGetPage(lbuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	GinInitBuffer(lbuffer, flags);
 
 	rbuffer = XLogReadBuffer(data->node, data->rblkno, true);
 	Assert(BufferIsValid(rbuffer));
-	rpage = (Page) BufferGetPage(rbuffer);
+	rpage = (Page) BufferGetPage(rbuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	GinInitBuffer(rbuffer, flags);
 
 	GinPageGetOpaque(lpage)->rightlink = BufferGetBlockNumber(rbuffer);
@@ -442,7 +442,8 @@ ginRedoSplit(XLogRecPtr lsn, XLogRecord *record)
 	if (data->isRootSplit)
 	{
 		Buffer		rootBuf = XLogReadBuffer(data->node, data->rootBlkno, true);
-		Page		rootPage = BufferGetPage(rootBuf);
+		Page		rootPage = BufferGetPage(rootBuf, NULL, NULL,
+											 BGP_NO_SNAPSHOT_TEST);
 
 		GinInitBuffer(rootBuf, flags & ~GIN_LEAF);
 
@@ -489,7 +490,7 @@ ginRedoVacuumPage(XLogRecPtr lsn, XLogRecord *record)
 	buffer = XLogReadBuffer(data->node, data->blkno, false);
 	if (!BufferIsValid(buffer))
 		return;
-	page = (Page) BufferGetPage(buffer);
+	page = (Page) BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	if (lsn > PageGetLSN(page))
 	{
@@ -567,7 +568,7 @@ ginRedoDeletePage(XLogRecPtr lsn, XLogRecord *record)
 		dbuffer = XLogReadBuffer(data->node, data->blkno, false);
 		if (BufferIsValid(dbuffer))
 		{
-			page = BufferGetPage(dbuffer);
+			page = BufferGetPage(dbuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 			if (lsn > PageGetLSN(page))
 			{
 				Assert(GinPageIsData(page));
@@ -585,7 +586,7 @@ ginRedoDeletePage(XLogRecPtr lsn, XLogRecord *record)
 		pbuffer = XLogReadBuffer(data->node, data->parentBlkno, false);
 		if (BufferIsValid(pbuffer))
 		{
-			page = BufferGetPage(pbuffer);
+			page = BufferGetPage(pbuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 			if (lsn > PageGetLSN(page))
 			{
 				Assert(GinPageIsData(page));
@@ -604,7 +605,7 @@ ginRedoDeletePage(XLogRecPtr lsn, XLogRecord *record)
 		lbuffer = XLogReadBuffer(data->node, data->leftBlkno, false);
 		if (BufferIsValid(lbuffer))
 		{
-			page = BufferGetPage(lbuffer);
+			page = BufferGetPage(lbuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 			if (lsn > PageGetLSN(page))
 			{
 				Assert(GinPageIsData(page));
@@ -638,7 +639,7 @@ ginRedoUpdateMetapage(XLogRecPtr lsn, XLogRecord *record)
 	metabuffer = XLogReadBuffer(data->node, GIN_METAPAGE_BLKNO, false);
 	if (!BufferIsValid(metabuffer))
 		return;					/* assume index was deleted, nothing to do */
-	metapage = BufferGetPage(metabuffer);
+	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	memcpy(GinPageGetMeta(metapage), &data->metadata, sizeof(GinMetaPageData));
 	PageSetLSN(metapage, lsn);
@@ -656,7 +657,8 @@ ginRedoUpdateMetapage(XLogRecPtr lsn, XLogRecord *record)
 			buffer = XLogReadBuffer(data->node, data->metadata.tail, false);
 			if (BufferIsValid(buffer))
 			{
-				Page		page = BufferGetPage(buffer);
+				Page		page = BufferGetPage(buffer, NULL, NULL,
+												 BGP_NO_SNAPSHOT_TEST);
 
 				if (lsn > PageGetLSN(page))
 				{
@@ -705,7 +707,8 @@ ginRedoUpdateMetapage(XLogRecPtr lsn, XLogRecord *record)
 			buffer = XLogReadBuffer(data->node, data->prevTail, false);
 			if (BufferIsValid(buffer))
 			{
-				Page		page = BufferGetPage(buffer);
+				Page		page = BufferGetPage(buffer, NULL, NULL,
+												 BGP_NO_SNAPSHOT_TEST);
 
 				if (lsn > PageGetLSN(page))
 				{
@@ -747,7 +750,7 @@ ginRedoInsertListPage(XLogRecPtr lsn, XLogRecord *record)
 
 	buffer = XLogReadBuffer(data->node, data->blkno, true);
 	Assert(BufferIsValid(buffer));
-	page = BufferGetPage(buffer);
+	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	GinInitBuffer(buffer, GIN_LIST);
 	GinPageGetOpaque(page)->rightlink = data->rightlink;
@@ -795,7 +798,7 @@ ginRedoDeleteListPages(XLogRecPtr lsn, XLogRecord *record)
 	metabuffer = XLogReadBuffer(data->node, GIN_METAPAGE_BLKNO, false);
 	if (!BufferIsValid(metabuffer))
 		return;					/* assume index was deleted, nothing to do */
-	metapage = BufferGetPage(metabuffer);
+	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	memcpy(GinPageGetMeta(metapage), &data->metadata, sizeof(GinMetaPageData));
 	PageSetLSN(metapage, lsn);
@@ -822,7 +825,7 @@ ginRedoDeleteListPages(XLogRecPtr lsn, XLogRecord *record)
 		Page		page;
 
 		buffer = XLogReadBuffer(data->node, data->toDelete[i], true);
-		page = BufferGetPage(buffer);
+		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 		GinInitBuffer(buffer, GIN_DELETED);
 
 		PageSetLSN(page, lsn);
@@ -929,7 +932,8 @@ ginContinueSplit(ginIncompleteSplit *split)
 	}
 	else
 	{
-		Page		page = BufferGetPage(buffer);
+		Page		page = BufferGetPage(buffer, NULL, NULL,
+										 BGP_NO_SNAPSHOT_TEST);
 
 		ginPrepareDataScan(&btree, reln, InvalidOffsetNumber, &ginstate);
 
