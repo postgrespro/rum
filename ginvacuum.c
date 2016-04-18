@@ -722,6 +722,8 @@ ginbulkdelete(IndexVacuumInfo *info,
 	OffsetNumber attnumOfPostingTree[BLCKSZ / (sizeof(IndexTupleData) + sizeof(ItemId))];
 	uint32		nRoot;
 
+	elog(LOG, "ginbulkdelete");
+
 	gvs.index = index;
 	gvs.callback = callback;
 	gvs.callback_state = callback_state;
@@ -837,6 +839,8 @@ ginvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 	BlockNumber totFreePages;
 	GinState	ginstate;
 	GinStatsData idxStat;
+
+	elog(LOG, "ginvacuumcleanup");
 
 	/*
 	 * In an autovacuum analyze, we want to clean up pending insertions.

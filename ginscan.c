@@ -27,6 +27,8 @@ ginbeginscan(Relation rel, int nkeys, int norderbys)
 	IndexScanDesc scan;
 	GinScanOpaque so;
 
+	elog(LOG, "ginbeginscan");
+
 	scan = RelationGetIndexScan(rel, nkeys, norderbys);
 
 	/* allocate private workspace */
@@ -434,9 +436,10 @@ void
 ginrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 		  ScanKey orderbys, int norderbys)
 {
-
 	/* remaining arguments are ignored */
 	GinScanOpaque so = (GinScanOpaque) scan->opaque;
+
+	elog(LOG, "ginrescan");
 
 	so->firstCall = true;
 
@@ -455,6 +458,8 @@ void
 ginendscan(IndexScanDesc scan)
 {
 	GinScanOpaque so = (GinScanOpaque) scan->opaque;
+
+	elog(LOG, "ginendscan");
 
 	freeScanKeys(so);
 

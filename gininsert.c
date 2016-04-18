@@ -633,6 +633,8 @@ ginbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	MemoryContext oldCtx;
 	OffsetNumber attnum;
 
+	elog(LOG, "ginbuild");
+
 	if (RelationGetNumberOfBlocks(index) != 0)
 		elog(ERROR, "index \"%s\" already contains data",
 			 RelationGetRelationName(index));
@@ -759,6 +761,8 @@ ginbuildempty(Relation index)
 	Buffer		RootBuffer,
 				MetaBuffer;
 
+	elog(LOG, "ginbuildempty");
+
 	/* An empty GIN index has two pages. */
 	MetaBuffer =
 		ReadBufferExtended(index, INIT_FORKNUM, P_NEW, RBM_NORMAL, NULL);
@@ -817,6 +821,8 @@ gininsert(Relation index, Datum *values, bool *isnull,
 	MemoryContext oldCtx;
 	MemoryContext insertCtx;
 	int			i;
+
+	elog(LOG, "gininsert");
 
 	insertCtx = AllocSetContextCreate(CurrentMemoryContext,
 									  "Gin insert temporary context",

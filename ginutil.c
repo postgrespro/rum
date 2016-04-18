@@ -20,6 +20,7 @@
 #include "miscadmin.h"
 #include "storage/indexfsm.h"
 #include "storage/lmgr.h"
+#include "utils/index_selfuncs.h"
 
 #include "rum.h"
 
@@ -57,7 +58,7 @@ rumhandler(PG_FUNCTION_ARGS)
 	amroutine->ambulkdelete = ginbulkdelete;
 	amroutine->amvacuumcleanup = ginvacuumcleanup;
 	amroutine->amcanreturn = NULL;
-// 	amroutine->amcostestimate = gincostestimate;
+	amroutine->amcostestimate = gincostestimate;
 	amroutine->amoptions = ginoptions;
 // 	amroutine->amvalidate = ginvalidate;
 	amroutine->ambeginscan = ginbeginscan;
@@ -661,6 +662,8 @@ ginoptions(Datum reloptions, bool validate)
 	static const relopt_parse_elt tab[] = {
 		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(GinOptions, useFastUpdate)}
 	};
+
+	elog(LOG, "ginoptions");
 
 	options = parseRelOptions(reloptions, validate, RELOPT_KIND_GIN,
 							  &numoptions);
