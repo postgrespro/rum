@@ -794,7 +794,7 @@ extern void ginNewScanKey(IndexScanDesc scan);
 
 /* ginget.c */
 extern int64 gingetbitmap(IndexScanDesc scan, TIDBitmap *tbm);
-//extern Datum gingettuple(PG_FUNCTION_ARGS);
+extern Datum gingettuple(PG_FUNCTION_ARGS);
 
 /* ginvacuum.c */
 extern IndexBulkDeleteResult *ginbulkdelete(IndexVacuumInfo *info,

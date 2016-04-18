@@ -13,6 +13,7 @@
  */
 
 #include "postgres.h"
+#include "ginsort.h"
 
 #include "access/relscan.h"
 #include "miscadmin.h"
@@ -2187,60 +2188,59 @@ insertScanItem(GinScanOpaque so, bool recheck)
 	tuplesort_putgin(so->sortstate, item);
 }
 
-// Datum
-// gingettuple(PG_FUNCTION_ARGS)
-// {
-// 	IndexScanDesc scan = (IndexScanDesc) PG_GETARG_POINTER(0);
-// 	bool		recheck;
-// 	GinScanOpaque so = (GinScanOpaque)scan->opaque;
-// 	GinSortItem *item;
-// 	bool	should_free;
-//
-// 	if (so->firstCall)
-// 	{
-// 		so->norderbys = scan->numberOfOrderBys;
-//
-// 		/*
-// 		 * Set up the scan keys, and check for unsatisfiable query.
-// 		 */
-// 		if (GinIsNewKey(scan))
-// 			ginNewScanKey(scan);
-//
-// 		if (GinIsVoidRes(scan))
-// 			PG_RETURN_INT64(0);
-//
-// 		so->tbm = NULL;
-// 		so->entriesIncrIndex = -1;
-// 		so->firstCall = false;
-// 		so->sortstate = tuplesort_begin_gin(work_mem, so->norderbys, false);
-//
-// 		scanPendingInsert(scan);
-//
-// 		/*
-// 		 * Now scan the main index.
-// 		 */
-// 		startScan(scan);
-//
-// 		while (scanGetItem(scan, &so->iptr, &so->iptr, &recheck))
-// 		{
-// 			insertScanItem(so, recheck);
-// 		}
-// 		tuplesort_performsort(so->sortstate);
-// 	}
-//
-// 	item = tuplesort_getgin(so->sortstate, true, &should_free);
-// 	if (item)
-// 	{
-// 		scan->xs_ctup.t_self = item->iptr;
-// 		scan->xs_recheck = item->recheck;
-//
-// 		if (should_free)
-// 			pfree(item);
-// 		PG_RETURN_BOOL(true);
-// 	}
-// 	else
-// 	{
-// 		PG_RETURN_BOOL(false);
-// 	}
-// }
+Datum
+gingettuple(PG_FUNCTION_ARGS)
+{
+	IndexScanDesc scan = (IndexScanDesc) PG_GETARG_POINTER(0);
+	bool		recheck;
+	GinScanOpaque so = (GinScanOpaque)scan->opaque;
+	GinSortItem *item;
+	bool	should_free;
 
+	if (so->firstCall)
+	{
+		so->norderbys = scan->numberOfOrderBys;
+
+		/*
+		 * Set up the scan keys, and check for unsatisfiable query.
+		 */
+		if (GinIsNewKey(scan))
+			ginNewScanKey(scan);
+
+		if (GinIsVoidRes(scan))
+			PG_RETURN_INT64(0);
+
+		so->tbm = NULL;
+		so->entriesIncrIndex = -1;
+		so->firstCall = false;
+		so->sortstate = tuplesort_begin_gin(work_mem, so->norderbys, false);
+
+		scanPendingInsert(scan);
+
+		/*
+		 * Now scan the main index.
+		 */
+		startScan(scan);
+
+		while (scanGetItem(scan, &so->iptr, &so->iptr, &recheck))
+		{
+			insertScanItem(so, recheck);
+		}
+		tuplesort_performsort(so->sortstate);
+	}
+
+	item = tuplesort_getgin(so->sortstate, true, &should_free);
+	if (item)
+	{
+		scan->xs_ctup.t_self = item->iptr;
+		scan->xs_recheck = item->recheck;
+
+		if (should_free)
+			pfree(item);
+		PG_RETURN_BOOL(true);
+	}
+	else
+	{
+		PG_RETURN_BOOL(false);
+	}
+}
