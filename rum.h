@@ -12,15 +12,23 @@
 #ifndef __RUM_H__
 #define __RUM_H__
 
+#include "access/amapi.h"
 #include "access/genam.h"
 #include "access/gin.h"
 #include "access/itup.h"
-#include "access/xlog_internal.h"
 #include "fmgr.h"
 #include "lib/rbtree.h"
 #include "storage/bufmgr.h"
 #include "utils/tuplesort.h"
 
+typedef struct XLogRecData
+{
+	char	   *data;			/* start of rmgr data to include */
+	uint32		len;			/* length of rmgr data to include */
+	Buffer		buffer;			/* buffer associated with data, if any */
+	bool		buffer_std;		/* buffer has standard pd_lower/pd_upper */
+	struct XLogRecData *next;	/* next struct in chain, or NULL */
+} XLogRecData;
 
 /*
  * Page opaque data in a inverted index page.
@@ -354,6 +362,15 @@ typedef struct GinState
 	Oid			supportCollation[INDEX_MAX_KEYS];
 } GinState;
 
+#define GIN_CONFIG_PROC				   7
+#define GIN_PRE_CONSISTENT_PROC		   8
+#define GIN_ORDERING_PROC			   9
+
+typedef struct GinConfig
+{
+	Oid			addInfoTypeOid;
+} GinConfig;
+
 /* XLog stuff */
 
 #define XLOG_GIN_CREATE_INDEX  0x00
@@ -489,7 +506,8 @@ typedef struct ginxlogDeleteListPages
 
 
 /* ginutil.c */
-extern Datum ginoptions(PG_FUNCTION_ARGS);
+extern bytea *ginoptions(Datum reloptions, bool validate);
+extern Datum rumhandler(PG_FUNCTION_ARGS);
 extern void initGinState(GinState *state, Relation index);
 extern Buffer GinNewBuffer(Relation index);
 extern void GinInitBuffer(Buffer b, uint32 f);
@@ -511,9 +529,12 @@ extern Datum gintuple_get_key(GinState *ginstate, IndexTuple tuple,
 				 GinNullCategory *category);
 
 /* gininsert.c */
-extern Datum ginbuild(PG_FUNCTION_ARGS);
-extern Datum ginbuildempty(PG_FUNCTION_ARGS);
-extern Datum gininsert(PG_FUNCTION_ARGS);
+extern IndexBuildResult *ginbuild(Relation heap, Relation index,
+								  struct IndexInfo *indexInfo);
+extern void ginbuildempty(Relation index);
+extern bool gininsert(Relation index, Datum *values, bool *isnull,
+					  ItemPointer ht_ctid, Relation heapRel,
+					  IndexUniqueCheck checkUnique);
 extern void ginEntryInsert(GinState *ginstate,
 			   OffsetNumber attnum, Datum key, GinNullCategory category,
 			   ItemPointerData *items, Datum *addInfo,
@@ -763,20 +784,24 @@ typedef struct GinScanOpaqueData
 
 typedef GinScanOpaqueData *GinScanOpaque;
 
-extern Datum ginbeginscan(PG_FUNCTION_ARGS);
-extern Datum ginendscan(PG_FUNCTION_ARGS);
-extern Datum ginrescan(PG_FUNCTION_ARGS);
+extern IndexScanDesc ginbeginscan(Relation rel, int nkeys, int norderbys);
+extern void ginendscan(IndexScanDesc scan);
+extern void ginrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
+					  ScanKey orderbys, int norderbys);
 extern Datum ginmarkpos(PG_FUNCTION_ARGS);
 extern Datum ginrestrpos(PG_FUNCTION_ARGS);
 extern void ginNewScanKey(IndexScanDesc scan);
 
 /* ginget.c */
-extern Datum gingetbitmap(PG_FUNCTION_ARGS);
+extern int64 gingetbitmap(IndexScanDesc scan, TIDBitmap *tbm);
 extern Datum gingettuple(PG_FUNCTION_ARGS);
 
 /* ginvacuum.c */
-extern Datum ginbulkdelete(PG_FUNCTION_ARGS);
-extern Datum ginvacuumcleanup(PG_FUNCTION_ARGS);
+extern IndexBulkDeleteResult *ginbulkdelete(IndexVacuumInfo *info,
+			 IndexBulkDeleteResult *stats, IndexBulkDeleteCallback callback,
+			 void *callback_state);
+extern IndexBulkDeleteResult *ginvacuumcleanup(IndexVacuumInfo *info,
+											   IndexBulkDeleteResult *stats);
 
 typedef struct
 {
@@ -934,5 +959,11 @@ ginDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
 	}
 	return ptr;
 }
+
+extern Datum FunctionCall10Coll(FmgrInfo *flinfo, Oid collation,
+								Datum arg1, Datum arg2,
+								Datum arg3, Datum arg4, Datum arg5,
+								Datum arg6, Datum arg7, Datum arg8,
+								Datum arg9, Datum arg10);
 
 #endif   /* __RUM_H__ */

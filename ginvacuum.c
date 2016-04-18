@@ -209,83 +209,83 @@ GinFormTuple(GinState *ginstate,
 static void
 xlogVacuumPage(Relation index, Buffer buffer, OffsetNumber attrnum, GinState *ginstate)
 {
-	Page		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-	XLogRecPtr	recptr;
-	XLogRecData rdata[3];
-	ginxlogVacuumPage data;
-	char	   *backup;
-	char		itups[BLCKSZ];
-	uint32		len = 0;
-
-	Assert(GinPageIsLeaf(page));
+// 	Page		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+// 	XLogRecPtr	recptr;
+// 	XLogRecData rdata[3];
+// 	ginxlogVacuumPage data;
+// 	char	   *backup;
+// 	char		itups[BLCKSZ];
+// 	uint32		len = 0;
+//
+// 	Assert(GinPageIsLeaf(page));
 
 	if (!RelationNeedsWAL(index))
 		return;
 
-	data.node = index->rd_node;
-	data.blkno = BufferGetBlockNumber(buffer);
-
-	if (GinPageIsData(page))
-	{
-		Form_pg_attribute attr = ginstate->addAttrs[attrnum - 1];
-
-		memcpy(itups, page, BLCKSZ);
-		backup = GinDataPageGetData(itups);
-		data.nitem = GinPageGetOpaque(itups)->maxoff;
-		if (attr)
-		{
-			data.typlen = attr->attlen;
-			data.typalign = attr->attalign;
-			data.typbyval = attr->attbyval;
-			data.typstorage = attr->attstorage;
-		}
-		if (data.nitem)
-			len = MAXALIGN(GinDataPageSize - GinPageGetOpaque(itups)->freespace);
-	}
-	else
-	{
-		char	   *ptr;
-		OffsetNumber i;
-
-		ptr = backup = itups;
-		for (i = FirstOffsetNumber; i <= PageGetMaxOffsetNumber(page); i++)
-		{
-			IndexTuple	itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, i));
-
-			memcpy(ptr, itup, IndexTupleSize(itup));
-			ptr += MAXALIGN(IndexTupleSize(itup));
-		}
-
-		data.nitem = PageGetMaxOffsetNumber(page);
-		len = ptr - backup;
-	}
-
-	rdata[0].buffer = buffer;
-	rdata[0].buffer_std = (GinPageIsData(page)) ? FALSE : TRUE;
-	rdata[0].len = 0;
-	rdata[0].data = NULL;
-	rdata[0].next = rdata + 1;
-
-	rdata[1].buffer = InvalidBuffer;
-	rdata[1].len = sizeof(ginxlogVacuumPage);
-	rdata[1].data = (char *) &data;
-
-	if (len == 0)
-	{
-		rdata[1].next = NULL;
-	}
-	else
-	{
-		rdata[1].next = rdata + 2;
-
-		rdata[2].buffer = InvalidBuffer;
-		rdata[2].len = len;
-		rdata[2].data = backup;
-		rdata[2].next = NULL;
-	}
-
-	recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_VACUUM_PAGE, rdata);
-	PageSetLSN(page, recptr);
+// 	data.node = index->rd_node;
+// 	data.blkno = BufferGetBlockNumber(buffer);
+//
+// 	if (GinPageIsData(page))
+// 	{
+// 		Form_pg_attribute attr = ginstate->addAttrs[attrnum - 1];
+//
+// 		memcpy(itups, page, BLCKSZ);
+// 		backup = GinDataPageGetData(itups);
+// 		data.nitem = GinPageGetOpaque(itups)->maxoff;
+// 		if (attr)
+// 		{
+// 			data.typlen = attr->attlen;
+// 			data.typalign = attr->attalign;
+// 			data.typbyval = attr->attbyval;
+// 			data.typstorage = attr->attstorage;
+// 		}
+// 		if (data.nitem)
+// 			len = MAXALIGN(GinDataPageSize - GinPageGetOpaque(itups)->freespace);
+// 	}
+// 	else
+// 	{
+// 		char	   *ptr;
+// 		OffsetNumber i;
+//
+// 		ptr = backup = itups;
+// 		for (i = FirstOffsetNumber; i <= PageGetMaxOffsetNumber(page); i++)
+// 		{
+// 			IndexTuple	itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, i));
+//
+// 			memcpy(ptr, itup, IndexTupleSize(itup));
+// 			ptr += MAXALIGN(IndexTupleSize(itup));
+// 		}
+//
+// 		data.nitem = PageGetMaxOffsetNumber(page);
+// 		len = ptr - backup;
+// 	}
+//
+// 	rdata[0].buffer = buffer;
+// 	rdata[0].buffer_std = (GinPageIsData(page)) ? FALSE : TRUE;
+// 	rdata[0].len = 0;
+// 	rdata[0].data = NULL;
+// 	rdata[0].next = rdata + 1;
+//
+// 	rdata[1].buffer = InvalidBuffer;
+// 	rdata[1].len = sizeof(ginxlogVacuumPage);
+// 	rdata[1].data = (char *) &data;
+//
+// 	if (len == 0)
+// 	{
+// 		rdata[1].next = NULL;
+// 	}
+// 	else
+// 	{
+// 		rdata[1].next = rdata + 2;
+//
+// 		rdata[2].buffer = InvalidBuffer;
+// 		rdata[2].len = len;
+// 		rdata[2].data = backup;
+// 		rdata[2].next = NULL;
+// 	}
+//
+// 	recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_VACUUM_PAGE, rdata);
+// 	PageSetLSN(page, recptr);
 }
 
 static bool
@@ -445,59 +445,59 @@ ginDeletePage(GinVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 		MarkBufferDirty(lBuffer);
 	MarkBufferDirty(dBuffer);
 
-	if (RelationNeedsWAL(gvs->index))
-	{
-		XLogRecPtr	recptr;
-		XLogRecData rdata[4];
-		ginxlogDeletePage data;
-		int			n;
-
-		data.node = gvs->index->rd_node;
-		data.blkno = deleteBlkno;
-		data.parentBlkno = parentBlkno;
-		data.parentOffset = myoff;
-		data.leftBlkno = leftBlkno;
-		data.rightLink = GinPageGetOpaque(page)->rightlink;
-
-		rdata[0].buffer = dBuffer;
-		rdata[0].buffer_std = FALSE;
-		rdata[0].data = NULL;
-		rdata[0].len = 0;
-		rdata[0].next = rdata + 1;
-
-		rdata[1].buffer = pBuffer;
-		rdata[1].buffer_std = FALSE;
-		rdata[1].data = NULL;
-		rdata[1].len = 0;
-		rdata[1].next = rdata + 2;
-
-		if (leftBlkno != InvalidBlockNumber)
-		{
-			rdata[2].buffer = lBuffer;
-			rdata[2].buffer_std = FALSE;
-			rdata[2].data = NULL;
-			rdata[2].len = 0;
-			rdata[2].next = rdata + 3;
-			n = 3;
-		}
-		else
-			n = 2;
-
-		rdata[n].buffer = InvalidBuffer;
-		rdata[n].buffer_std = FALSE;
-		rdata[n].len = sizeof(ginxlogDeletePage);
-		rdata[n].data = (char *) &data;
-		rdata[n].next = NULL;
-
-		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_DELETE_PAGE, rdata);
-		PageSetLSN(page, recptr);
-		PageSetLSN(parentPage, recptr);
-		if (leftBlkno != InvalidBlockNumber)
-		{
-			page = BufferGetPage(lBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-			PageSetLSN(page, recptr);
-		}
-	}
+// 	if (RelationNeedsWAL(gvs->index))
+// 	{
+// 		XLogRecPtr	recptr;
+// 		XLogRecData rdata[4];
+// 		ginxlogDeletePage data;
+// 		int			n;
+//
+// 		data.node = gvs->index->rd_node;
+// 		data.blkno = deleteBlkno;
+// 		data.parentBlkno = parentBlkno;
+// 		data.parentOffset = myoff;
+// 		data.leftBlkno = leftBlkno;
+// 		data.rightLink = GinPageGetOpaque(page)->rightlink;
+//
+// 		rdata[0].buffer = dBuffer;
+// 		rdata[0].buffer_std = FALSE;
+// 		rdata[0].data = NULL;
+// 		rdata[0].len = 0;
+// 		rdata[0].next = rdata + 1;
+//
+// 		rdata[1].buffer = pBuffer;
+// 		rdata[1].buffer_std = FALSE;
+// 		rdata[1].data = NULL;
+// 		rdata[1].len = 0;
+// 		rdata[1].next = rdata + 2;
+//
+// 		if (leftBlkno != InvalidBlockNumber)
+// 		{
+// 			rdata[2].buffer = lBuffer;
+// 			rdata[2].buffer_std = FALSE;
+// 			rdata[2].data = NULL;
+// 			rdata[2].len = 0;
+// 			rdata[2].next = rdata + 3;
+// 			n = 3;
+// 		}
+// 		else
+// 			n = 2;
+//
+// 		rdata[n].buffer = InvalidBuffer;
+// 		rdata[n].buffer_std = FALSE;
+// 		rdata[n].len = sizeof(ginxlogDeletePage);
+// 		rdata[n].data = (char *) &data;
+// 		rdata[n].next = NULL;
+//
+// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_DELETE_PAGE, rdata);
+// 		PageSetLSN(page, recptr);
+// 		PageSetLSN(parentPage, recptr);
+// 		if (leftBlkno != InvalidBlockNumber)
+// 		{
+// 			page = BufferGetPage(lBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+// 			PageSetLSN(page, recptr);
+// 		}
+// 	}
 
 	if (!isParentRoot)
 		LockBuffer(pBuffer, GIN_UNLOCK);
@@ -709,13 +709,11 @@ ginVacuumEntryPage(GinVacuumState *gvs, Buffer buffer, BlockNumber *roots, Offse
 	return (tmppage == origpage) ? NULL : tmppage;
 }
 
-Datum
-ginbulkdelete(PG_FUNCTION_ARGS)
+IndexBulkDeleteResult *
+ginbulkdelete(IndexVacuumInfo *info,
+			  IndexBulkDeleteResult *stats, IndexBulkDeleteCallback callback,
+			  void *callback_state)
 {
-	IndexVacuumInfo *info = (IndexVacuumInfo *) PG_GETARG_POINTER(0);
-	IndexBulkDeleteResult *stats = (IndexBulkDeleteResult *) PG_GETARG_POINTER(1);
-	IndexBulkDeleteCallback callback = (IndexBulkDeleteCallback) PG_GETARG_POINTER(2);
-	void	   *callback_state = (void *) PG_GETARG_POINTER(3);
 	Relation	index = info->index;
 	BlockNumber blkno = GIN_ROOT_BLKNO;
 	GinVacuumState gvs;
@@ -826,14 +824,12 @@ ginbulkdelete(PG_FUNCTION_ARGS)
 		LockBuffer(buffer, GIN_EXCLUSIVE);
 	}
 
-	PG_RETURN_POINTER(gvs.result);
+	return gvs.result;
 }
 
-Datum
-ginvacuumcleanup(PG_FUNCTION_ARGS)
+IndexBulkDeleteResult *
+ginvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 {
-	IndexVacuumInfo *info = (IndexVacuumInfo *) PG_GETARG_POINTER(0);
-	IndexBulkDeleteResult *stats = (IndexBulkDeleteResult *) PG_GETARG_POINTER(1);
 	Relation	index = info->index;
 	bool		needLock;
 	BlockNumber npages,
@@ -853,7 +849,7 @@ ginvacuumcleanup(PG_FUNCTION_ARGS)
 			initGinState(&ginstate, index);
 			ginInsertCleanup(&ginstate, true, stats);
 		}
-		PG_RETURN_POINTER(stats);
+		return stats;
 	}
 
 	/*
@@ -938,5 +934,5 @@ ginvacuumcleanup(PG_FUNCTION_ARGS)
 	if (needLock)
 		UnlockRelationForExtension(index, ExclusiveLock);
 
-	PG_RETURN_POINTER(stats);
+	return stats;
 }

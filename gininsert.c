@@ -52,7 +52,7 @@ createPostingTree(GinState *ginstate, OffsetNumber attnum, Relation index,
 	int			i;
 	Pointer		ptr;
 	ItemPointerData prev_iptr = {{0,0},0};
-	static char	pageCopy[BLCKSZ];
+// 	static char	pageCopy[BLCKSZ];
 
 	/* Assert that the items[] array will fit on one page */
 
@@ -76,38 +76,38 @@ createPostingTree(GinState *ginstate, OffsetNumber attnum, Relation index,
 
 	MarkBufferDirty(buffer);
 
-	if (RelationNeedsWAL(index))
-	{
-		XLogRecPtr	recptr;
-		XLogRecData rdata[2];
-		ginxlogCreatePostingTree data;
-
-		data.node = index->rd_node;
-		data.blkno = blkno;
-		data.nitem = nitems;
-
-		if (ginstate->addAttrs[attnum - 1])
-		{
-			data.typlen = ginstate->addAttrs[attnum - 1]->attlen;
-			data.typalign = ginstate->addAttrs[attnum - 1]->attalign;
-			data.typbyval = ginstate->addAttrs[attnum - 1]->attbyval;
-			data.typstorage = ginstate->addAttrs[attnum - 1]->attstorage;
-		}
-
-		rdata[0].buffer = InvalidBuffer;
-		rdata[0].data = (char *) &data;
-		rdata[0].len = MAXALIGN(sizeof(ginxlogCreatePostingTree));
-		rdata[0].next = &rdata[1];
-
-		memcpy(pageCopy, page, BLCKSZ);
-		rdata[1].buffer = InvalidBuffer;
-		rdata[1].data = GinDataPageGetData(pageCopy);
-		rdata[1].len = GinDataPageSize - GinPageGetOpaque(pageCopy)->freespace;
-		rdata[1].next = NULL;
-
-		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_CREATE_PTREE, rdata);
-		PageSetLSN(page, recptr);
-	}
+// 	if (RelationNeedsWAL(index))
+// 	{
+// 		XLogRecPtr	recptr;
+// 		XLogRecData rdata[2];
+// 		ginxlogCreatePostingTree data;
+//
+// 		data.node = index->rd_node;
+// 		data.blkno = blkno;
+// 		data.nitem = nitems;
+//
+// 		if (ginstate->addAttrs[attnum - 1])
+// 		{
+// 			data.typlen = ginstate->addAttrs[attnum - 1]->attlen;
+// 			data.typalign = ginstate->addAttrs[attnum - 1]->attalign;
+// 			data.typbyval = ginstate->addAttrs[attnum - 1]->attbyval;
+// 			data.typstorage = ginstate->addAttrs[attnum - 1]->attstorage;
+// 		}
+//
+// 		rdata[0].buffer = InvalidBuffer;
+// 		rdata[0].data = (char *) &data;
+// 		rdata[0].len = MAXALIGN(sizeof(ginxlogCreatePostingTree));
+// 		rdata[0].next = &rdata[1];
+//
+// 		memcpy(pageCopy, page, BLCKSZ);
+// 		rdata[1].buffer = InvalidBuffer;
+// 		rdata[1].data = GinDataPageGetData(pageCopy);
+// 		rdata[1].len = GinDataPageSize - GinPageGetOpaque(pageCopy)->freespace;
+// 		rdata[1].next = NULL;
+//
+// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_CREATE_PTREE, rdata);
+// 		PageSetLSN(page, recptr);
+// 	}
 
 	UnlockReleaseBuffer(buffer);
 
@@ -618,12 +618,9 @@ ginBuildCallback(Relation index, HeapTuple htup, Datum *values,
 	MemoryContextSwitchTo(oldCtx);
 }
 
-Datum
-ginbuild(PG_FUNCTION_ARGS)
+IndexBuildResult *
+ginbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 {
-	Relation	heap = (Relation) PG_GETARG_POINTER(0);
-	Relation	index = (Relation) PG_GETARG_POINTER(1);
-	IndexInfo  *indexInfo = (IndexInfo *) PG_GETARG_POINTER(2);
 	IndexBuildResult *result;
 	double		reltuples;
 	GinBuildState buildstate;
@@ -656,25 +653,25 @@ ginbuild(PG_FUNCTION_ARGS)
 	GinInitBuffer(RootBuffer, GIN_LEAF);
 	MarkBufferDirty(RootBuffer);
 
-	if (RelationNeedsWAL(index))
-	{
-		XLogRecPtr	recptr;
-		XLogRecData rdata;
-		Page		page;
-
-		rdata.buffer = InvalidBuffer;
-		rdata.data = (char *) &(index->rd_node);
-		rdata.len = sizeof(RelFileNode);
-		rdata.next = NULL;
-
-		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_CREATE_INDEX, &rdata);
-
-		page = BufferGetPage(RootBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-		PageSetLSN(page, recptr);
-
-		page = BufferGetPage(MetaBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-		PageSetLSN(page, recptr);
-	}
+// 	if (RelationNeedsWAL(index))
+// 	{
+// 		XLogRecPtr	recptr;
+// 		XLogRecData rdata;
+// 		Page		page;
+//
+// 		rdata.buffer = InvalidBuffer;
+// 		rdata.data = (char *) &(index->rd_node);
+// 		rdata.len = sizeof(RelFileNode);
+// 		rdata.next = NULL;
+//
+// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_CREATE_INDEX, &rdata);
+//
+// 		page = BufferGetPage(RootBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+// 		PageSetLSN(page, recptr);
+//
+// 		page = BufferGetPage(MetaBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+// 		PageSetLSN(page, recptr);
+// 	}
 
 	UnlockReleaseBuffer(MetaBuffer);
 	UnlockReleaseBuffer(RootBuffer);
@@ -750,16 +747,15 @@ ginbuild(PG_FUNCTION_ARGS)
 	result->heap_tuples = reltuples;
 	result->index_tuples = buildstate.indtuples;
 
-	PG_RETURN_POINTER(result);
+	return result;
 }
 
 /*
  *	ginbuildempty() -- build an empty gin index in the initialization fork
  */
-Datum
-ginbuildempty(PG_FUNCTION_ARGS)
+void
+ginbuildempty(Relation index)
 {
-	Relation	index = (Relation) PG_GETARG_POINTER(0);
 	Buffer		RootBuffer,
 				MetaBuffer;
 
@@ -775,17 +771,17 @@ ginbuildempty(PG_FUNCTION_ARGS)
 	START_CRIT_SECTION();
 	GinInitMetabuffer(MetaBuffer);
 	MarkBufferDirty(MetaBuffer);
-	log_newpage_buffer(MetaBuffer);
+	log_newpage_buffer(MetaBuffer, false);
 	GinInitBuffer(RootBuffer, GIN_LEAF);
 	MarkBufferDirty(RootBuffer);
-	log_newpage_buffer(RootBuffer);
+	log_newpage_buffer(RootBuffer, false);
 	END_CRIT_SECTION();
 
 	/* Unlock and release the buffers. */
 	UnlockReleaseBuffer(MetaBuffer);
 	UnlockReleaseBuffer(RootBuffer);
 
-	PG_RETURN_VOID();
+	return ;
 }
 
 /*
@@ -812,18 +808,11 @@ ginHeapTupleInsert(GinState *ginstate, OffsetNumber attnum,
 					   item, &addInfo[i], &addInfoIsNull[i], 1, NULL);
 }
 
-Datum
-gininsert(PG_FUNCTION_ARGS)
+bool
+gininsert(Relation index, Datum *values, bool *isnull,
+		  ItemPointer ht_ctid, Relation heapRel,
+		  IndexUniqueCheck checkUnique)
 {
-	Relation	index = (Relation) PG_GETARG_POINTER(0);
-	Datum	   *values = (Datum *) PG_GETARG_POINTER(1);
-	bool	   *isnull = (bool *) PG_GETARG_POINTER(2);
-	ItemPointer ht_ctid = (ItemPointer) PG_GETARG_POINTER(3);
-
-#ifdef NOT_USED
-	Relation	heapRel = (Relation) PG_GETARG_POINTER(4);
-	IndexUniqueCheck checkUnique = (IndexUniqueCheck) PG_GETARG_INT32(5);
-#endif
 	GinState	ginstate;
 	MemoryContext oldCtx;
 	MemoryContext insertCtx;
@@ -864,5 +853,5 @@ gininsert(PG_FUNCTION_ARGS)
 	MemoryContextSwitchTo(oldCtx);
 	MemoryContextDelete(insertCtx);
 
-	PG_RETURN_BOOL(false);
+	return false;
 }

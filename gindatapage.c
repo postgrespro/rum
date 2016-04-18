@@ -739,6 +739,7 @@ dataPlaceToPage(GinBtree btree, Buffer buf, OffsetNumber off, XLogRecData **prda
 	rdata[0].data = NULL;
 	rdata[0].len = 0;
 	rdata[0].next = &rdata[1];
+	XLogBeginInsert();
 
 	rdata[1].buffer = InvalidBuffer;
 	rdata[1].data = (char *) &data;
@@ -747,13 +748,15 @@ dataPlaceToPage(GinBtree btree, Buffer buf, OffsetNumber off, XLogRecData **prda
 
 	if (GinPageIsLeaf(page))
 	{
-		int i = 0, j, max_j;
-		Pointer ptr = GinDataPageGetData(page), copy_ptr, insertStart;
+		int			i = 0, j, max_j;
+		Pointer		ptr = GinDataPageGetData(page),
+					copy_ptr = NULL,
+					insertStart;
 		ItemPointerData iptr = {{0,0},0}, copy_iptr;
-		char pageCopy[BLCKSZ];
-		Datum addInfo = 0;
-		bool addInfoIsNull = false;
-		int maxoff = GinPageGetOpaque(page)->maxoff;
+		char		pageCopy[BLCKSZ];
+		Datum		addInfo = 0;
+		bool		addInfoIsNull = false;
+		int			maxoff = GinPageGetOpaque(page)->maxoff;
 
 		/*
 		 * We're going to prevent var-byte re-encoding of whole page.

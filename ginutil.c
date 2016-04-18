@@ -23,6 +23,54 @@
 
 #include "rum.h"
 
+PG_MODULE_MAGIC;
+
+PG_FUNCTION_INFO_V1(rumhandler);
+
+/*
+ * GIN handler function: return IndexAmRoutine with access method parameters
+ * and callbacks.
+ */
+Datum
+rumhandler(PG_FUNCTION_ARGS)
+{
+	IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
+
+	amroutine->amstrategies = 0;
+	amroutine->amsupport = 6;
+	amroutine->amcanorder = false;
+	amroutine->amcanorderbyop = false;
+	amroutine->amcanbackward = false;
+	amroutine->amcanunique = false;
+	amroutine->amcanmulticol = true;
+	amroutine->amoptionalkey = true;
+	amroutine->amsearcharray = false;
+	amroutine->amsearchnulls = false;
+	amroutine->amstorage = true;
+	amroutine->amclusterable = false;
+	amroutine->ampredlocks = false;
+	amroutine->amkeytype = InvalidOid;
+
+	amroutine->ambuild = ginbuild;
+	amroutine->ambuildempty = ginbuildempty;
+	amroutine->aminsert = gininsert;
+	amroutine->ambulkdelete = ginbulkdelete;
+	amroutine->amvacuumcleanup = ginvacuumcleanup;
+	amroutine->amcanreturn = NULL;
+// 	amroutine->amcostestimate = gincostestimate;
+	amroutine->amoptions = ginoptions;
+// 	amroutine->amvalidate = ginvalidate;
+	amroutine->ambeginscan = ginbeginscan;
+	amroutine->amrescan = ginrescan;
+	amroutine->amgettuple = NULL;
+	amroutine->amgetbitmap = gingetbitmap;
+	amroutine->amendscan = ginendscan;
+	amroutine->ammarkpos = NULL;
+	amroutine->amrestrpos = NULL;
+
+	PG_RETURN_POINTER(amroutine);
+}
+
 /*
  * initGinState: fill in an empty GinState struct to describe the index
  *
@@ -604,11 +652,9 @@ ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
 	return entries;
 }
 
-Datum
-ginoptions(PG_FUNCTION_ARGS)
+bytea *
+ginoptions(Datum reloptions, bool validate)
 {
-	Datum		reloptions = PG_GETARG_DATUM(0);
-	bool		validate = PG_GETARG_BOOL(1);
 	relopt_value *options;
 	GinOptions *rdopts;
 	int			numoptions;
@@ -621,7 +667,7 @@ ginoptions(PG_FUNCTION_ARGS)
 
 	/* if none set, we're done */
 	if (numoptions == 0)
-		PG_RETURN_NULL();
+		return NULL;
 
 	rdopts = allocateReloptStruct(sizeof(GinOptions), options, numoptions);
 
@@ -630,7 +676,7 @@ ginoptions(PG_FUNCTION_ARGS)
 
 	pfree(options);
 
-	PG_RETURN_BYTEA_P(rdopts);
+	return (bytea *) rdopts;
 }
 
 /*
@@ -687,27 +733,68 @@ ginUpdateStats(Relation index, const GinStatsData *stats)
 
 	MarkBufferDirty(metabuffer);
 
-	if (RelationNeedsWAL(index))
-	{
-		XLogRecPtr	recptr;
-		ginxlogUpdateMeta data;
-		XLogRecData rdata;
-
-		data.node = index->rd_node;
-		data.ntuples = 0;
-		data.newRightlink = data.prevTail = InvalidBlockNumber;
-		memcpy(&data.metadata, metadata, sizeof(GinMetaPageData));
-
-		rdata.buffer = InvalidBuffer;
-		rdata.data = (char *) &data;
-		rdata.len = sizeof(ginxlogUpdateMeta);
-		rdata.next = NULL;
-
-		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_UPDATE_META_PAGE, &rdata);
-		PageSetLSN(metapage, recptr);
-	}
+// 	if (RelationNeedsWAL(index))
+// 	{
+// 		XLogRecPtr	recptr;
+// 		ginxlogUpdateMeta data;
+// 		XLogRecData rdata;
+//
+// 		data.node = index->rd_node;
+// 		data.ntuples = 0;
+// 		data.newRightlink = data.prevTail = InvalidBlockNumber;
+// 		memcpy(&data.metadata, metadata, sizeof(GinMetaPageData));
+//
+// 		rdata.buffer = InvalidBuffer;
+// 		rdata.data = (char *) &data;
+// 		rdata.len = sizeof(ginxlogUpdateMeta);
+// 		rdata.next = NULL;
+//
+// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_UPDATE_META_PAGE, &rdata);
+// 		PageSetLSN(metapage, recptr);
+// 	}
 
 	UnlockReleaseBuffer(metabuffer);
 
 	END_CRIT_SECTION();
+}
+
+Datum
+FunctionCall10Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
+				  Datum arg3, Datum arg4, Datum arg5,
+				  Datum arg6, Datum arg7, Datum arg8,
+				  Datum arg9, Datum arg10)
+{
+	FunctionCallInfoData fcinfo;
+	Datum		result;
+
+	InitFunctionCallInfoData(fcinfo, flinfo, 10, collation, NULL, NULL);
+
+	fcinfo.arg[0] = arg1;
+	fcinfo.arg[1] = arg2;
+	fcinfo.arg[2] = arg3;
+	fcinfo.arg[3] = arg4;
+	fcinfo.arg[4] = arg5;
+	fcinfo.arg[5] = arg6;
+	fcinfo.arg[6] = arg7;
+	fcinfo.arg[7] = arg8;
+	fcinfo.arg[8] = arg9;
+	fcinfo.arg[9] = arg10;
+	fcinfo.argnull[0] = false;
+	fcinfo.argnull[1] = false;
+	fcinfo.argnull[2] = false;
+	fcinfo.argnull[3] = false;
+	fcinfo.argnull[4] = false;
+	fcinfo.argnull[5] = false;
+	fcinfo.argnull[6] = false;
+	fcinfo.argnull[7] = false;
+	fcinfo.argnull[8] = false;
+	fcinfo.argnull[9] = false;
+
+	result = FunctionCallInvoke(&fcinfo);
+
+	/* Check for null result, since caller is clearly not expecting one */
+	if (fcinfo.isnull)
+		elog(ERROR, "function %u returned NULL", fcinfo.flinfo->fn_oid);
+
+	return result;
 }

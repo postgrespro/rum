@@ -107,30 +107,30 @@ writeListPage(Relation index, Buffer buffer,
 
 	MarkBufferDirty(buffer);
 
-	if (RelationNeedsWAL(index))
-	{
-		XLogRecData rdata[2];
-		ginxlogInsertListPage data;
-		XLogRecPtr	recptr;
-
-		data.node = index->rd_node;
-		data.blkno = BufferGetBlockNumber(buffer);
-		data.rightlink = rightlink;
-		data.ntuples = ntuples;
-
-		rdata[0].buffer = InvalidBuffer;
-		rdata[0].data = (char *) &data;
-		rdata[0].len = sizeof(ginxlogInsertListPage);
-		rdata[0].next = rdata + 1;
-
-		rdata[1].buffer = InvalidBuffer;
-		rdata[1].data = workspace;
-		rdata[1].len = size;
-		rdata[1].next = NULL;
-
-		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_INSERT_LISTPAGE, rdata);
-		PageSetLSN(page, recptr);
-	}
+// 	if (RelationNeedsWAL(index))
+// 	{
+// 		XLogRecData rdata[2];
+// 		ginxlogInsertListPage data;
+// 		XLogRecPtr	recptr;
+//
+// 		data.node = index->rd_node;
+// 		data.blkno = BufferGetBlockNumber(buffer);
+// 		data.rightlink = rightlink;
+// 		data.ntuples = ntuples;
+//
+// 		rdata[0].buffer = InvalidBuffer;
+// 		rdata[0].data = (char *) &data;
+// 		rdata[0].len = sizeof(ginxlogInsertListPage);
+// 		rdata[0].next = rdata + 1;
+//
+// 		rdata[1].buffer = InvalidBuffer;
+// 		rdata[1].data = workspace;
+// 		rdata[1].len = size;
+// 		rdata[1].next = NULL;
+//
+// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_INSERT_LISTPAGE, rdata);
+// 		PageSetLSN(page, recptr);
+// 	}
 
 	/* get free space before releasing buffer */
 	freesize = PageGetExactFreeSpace(page);
@@ -402,20 +402,20 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 	 */
 	MarkBufferDirty(metabuffer);
 
-	if (RelationNeedsWAL(index))
-	{
-		XLogRecPtr	recptr;
-
-		memcpy(&data.metadata, metadata, sizeof(GinMetaPageData));
-
-		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_UPDATE_META_PAGE, rdata);
-		PageSetLSN(metapage, recptr);
-
-		if (buffer != InvalidBuffer)
-		{
-			PageSetLSN(page, recptr);
-		}
-	}
+// 	if (RelationNeedsWAL(index))
+// 	{
+// 		XLogRecPtr	recptr;
+//
+// 		memcpy(&data.metadata, metadata, sizeof(GinMetaPageData));
+//
+// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_UPDATE_META_PAGE, rdata);
+// 		PageSetLSN(metapage, recptr);
+//
+// 		if (buffer != InvalidBuffer)
+// 		{
+// 			PageSetLSN(page, recptr);
+// 		}
+// 	}
 
 	if (buffer != InvalidBuffer)
 		UnlockReleaseBuffer(buffer);
@@ -614,15 +614,15 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		int			i;
 		int64		nDeletedHeapTuples = 0;
 		ginxlogDeleteListPages data;
-		XLogRecData rdata[1];
+// 		XLogRecData rdata[1];
 		Buffer		buffers[GIN_NDELETE_AT_ONCE];
 
 		data.node = index->rd_node;
 
-		rdata[0].buffer = InvalidBuffer;
-		rdata[0].data = (char *) &data;
-		rdata[0].len = sizeof(ginxlogDeleteListPages);
-		rdata[0].next = NULL;
+// 		rdata[0].buffer = InvalidBuffer;
+// 		rdata[0].data = (char *) &data;
+// 		rdata[0].len = sizeof(ginxlogDeleteListPages);
+// 		rdata[0].next = NULL;
 
 		data.ndeleted = 0;
 		while (data.ndeleted < GIN_NDELETE_AT_ONCE && blknoToDelete != newHead)
@@ -677,22 +677,22 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 			MarkBufferDirty(buffers[i]);
 		}
 
-		if (RelationNeedsWAL(index))
-		{
-			XLogRecPtr	recptr;
-
-			memcpy(&data.metadata, metadata, sizeof(GinMetaPageData));
-
-			recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_DELETE_LISTPAGE, rdata);
-			PageSetLSN(metapage, recptr);
-
-			for (i = 0; i < data.ndeleted; i++)
-			{
-				page = BufferGetPage(buffers[i], NULL, NULL,
-									 BGP_NO_SNAPSHOT_TEST);
-				PageSetLSN(page, recptr);
-			}
-		}
+// 		if (RelationNeedsWAL(index))
+// 		{
+// 			XLogRecPtr	recptr;
+//
+// 			memcpy(&data.metadata, metadata, sizeof(GinMetaPageData));
+//
+// 			recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_DELETE_LISTPAGE, rdata);
+// 			PageSetLSN(metapage, recptr);
+//
+// 			for (i = 0; i < data.ndeleted; i++)
+// 			{
+// 				page = BufferGetPage(buffers[i], NULL, NULL,
+// 									 BGP_NO_SNAPSHOT_TEST);
+// 				PageSetLSN(page, recptr);
+// 			}
+// 		}
 
 		for (i = 0; i < data.ndeleted; i++)
 			UnlockReleaseBuffer(buffers[i]);
