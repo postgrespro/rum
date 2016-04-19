@@ -13,6 +13,7 @@
 
 #include "postgres.h"
 
+#include "access/generic_xlog.h"
 #include "access/heapam_xlog.h"
 #include "catalog/index.h"
 #include "miscadmin.h"
@@ -75,38 +76,42 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 
 	MarkBufferDirty(buffer);
 
-// 	if (RelationNeedsWAL(index))
-// 	{
-// 		XLogRecPtr	recptr;
-// 		XLogRecData rdata[2];
-// 		rumxlogCreatePostingTree data;
-//
-// 		data.node = index->rd_node;
-// 		data.blkno = blkno;
-// 		data.nitem = nitems;
-//
-// 		if (rumstate->addAttrs[attnum - 1])
-// 		{
-// 			data.typlen = rumstate->addAttrs[attnum - 1]->attlen;
-// 			data.typalign = rumstate->addAttrs[attnum - 1]->attalign;
-// 			data.typbyval = rumstate->addAttrs[attnum - 1]->attbyval;
-// 			data.typstorage = rumstate->addAttrs[attnum - 1]->attstorage;
-// 		}
-//
-// 		rdata[0].buffer = InvalidBuffer;
-// 		rdata[0].data = (char *) &data;
-// 		rdata[0].len = MAXALIGN(sizeof(rumxlogCreatePostingTree));
-// 		rdata[0].next = &rdata[1];
-//
-// 		memcpy(pageCopy, page, BLCKSZ);
-// 		rdata[1].buffer = InvalidBuffer;
-// 		rdata[1].data = RumDataPageGetData(pageCopy);
-// 		rdata[1].len = RumDataPageSize - RumPageGetOpaque(pageCopy)->freespace;
-// 		rdata[1].next = NULL;
-//
-// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_CREATE_PTREE, rdata);
-// 		PageSetLSN(page, recptr);
-// 	}
+	if (RelationNeedsWAL(index))
+	{
+		XLogRecPtr	recptr;
+		XLogRecData rdata[2];
+		rumxlogCreatePostingTree data;
+		GenericXLogState *state;
+
+		state = GenericXLogStart(index);
+		GenericXLogFinish(state);
+
+		data.node = index->rd_node;
+		data.blkno = blkno;
+		data.nitem = nitems;
+
+		if (rumstate->addAttrs[attnum - 1])
+		{
+			data.typlen = rumstate->addAttrs[attnum - 1]->attlen;
+			data.typalign = rumstate->addAttrs[attnum - 1]->attalign;
+			data.typbyval = rumstate->addAttrs[attnum - 1]->attbyval;
+			data.typstorage = rumstate->addAttrs[attnum - 1]->attstorage;
+		}
+
+		rdata[0].buffer = InvalidBuffer;
+		rdata[0].data = (char *) &data;
+		rdata[0].len = MAXALIGN(sizeof(rumxlogCreatePostingTree));
+		rdata[0].next = &rdata[1];
+
+		memcpy(pageCopy, page, BLCKSZ);
+		rdata[1].buffer = InvalidBuffer;
+		rdata[1].data = RumDataPageGetData(pageCopy);
+		rdata[1].len = RumDataPageSize - RumPageGetOpaque(pageCopy)->freespace;
+		rdata[1].next = NULL;
+
+		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_CREATE_PTREE, rdata);
+		PageSetLSN(page, recptr);
+	}
 
 	UnlockReleaseBuffer(buffer);
 
@@ -654,25 +659,18 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	RumInitBuffer(RootBuffer, RUM_LEAF);
 	MarkBufferDirty(RootBuffer);
 
-// 	if (RelationNeedsWAL(index))
-// 	{
-// 		XLogRecPtr	recptr;
-// 		XLogRecData rdata;
-// 		Page		page;
-//
-// 		rdata.buffer = InvalidBuffer;
-// 		rdata.data = (char *) &(index->rd_node);
-// 		rdata.len = sizeof(RelFileNode);
-// 		rdata.next = NULL;
-//
-// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_CREATE_INDEX, &rdata);
-//
-// 		page = BufferGetPage(RootBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-// 		PageSetLSN(page, recptr);
-//
-// 		page = BufferGetPage(MetaBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-// 		PageSetLSN(page, recptr);
-// 	}
+	if (RelationNeedsWAL(index))
+	{
+		GenericXLogState *state;
+
+		state = GenericXLogStart(index);
+		GenericXLogRegisterBuffer(state, RootBuffer, GENERIC_XLOG_FULL_IMAGE);
+		GenericXLogFinish(state);
+
+		state = GenericXLogStart(index);
+		GenericXLogRegisterBuffer(state, MetaBuffer, GENERIC_XLOG_FULL_IMAGE);
+		GenericXLogFinish(state);
+	}
 
 	UnlockReleaseBuffer(MetaBuffer);
 	UnlockReleaseBuffer(RootBuffer);

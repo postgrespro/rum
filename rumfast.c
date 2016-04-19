@@ -223,7 +223,7 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 	Buffer		metabuffer;
 	Page		metapage;
 	RumMetaPageData *metadata = NULL;
-	XLogRecData rdata[2];
+	RumXLogRecData rdata[2];
 	Buffer		buffer = InvalidBuffer;
 	Page		page = NULL;
 	rumxlogUpdateMeta data;

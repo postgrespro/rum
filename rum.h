@@ -21,14 +21,14 @@
 #include "storage/bufmgr.h"
 #include "utils/tuplesort.h"
 
-typedef struct XLogRecData
+typedef struct RumXLogRecData
 {
 	char	   *data;			/* start of rmgr data to include */
 	uint32		len;			/* length of rmgr data to include */
 	Buffer		buffer;			/* buffer associated with data, if any */
 	bool		buffer_std;		/* buffer has standard pd_lower/pd_upper */
-	struct XLogRecData *next;	/* next struct in chain, or NULL */
-} XLogRecData;
+	struct RumXLogRecData *next;	/* next struct in chain, or NULL */
+} RumXLogRecData;
 
 /*
  * Page opaque data in a inverted index page.
@@ -565,8 +565,8 @@ typedef struct RumBtreeData
 	OffsetNumber (*findChildPtr) (RumBtree, Page, BlockNumber, OffsetNumber);
 	BlockNumber (*getLeftMostPage) (RumBtree, Page);
 	bool		(*isEnoughSpace) (RumBtree, Buffer, OffsetNumber);
-	void		(*placeToPage) (RumBtree, Buffer, OffsetNumber, XLogRecData **);
-	Page		(*splitPage) (RumBtree, Buffer, Buffer, OffsetNumber, XLogRecData **);
+	void		(*placeToPage) (RumBtree, Buffer, OffsetNumber, RumXLogRecData **);
+	Page		(*splitPage) (RumBtree, Buffer, Buffer, OffsetNumber, RumXLogRecData **);
 	void		(*fillRoot) (RumBtree, Buffer, Buffer, Buffer);
 
 	bool		isData;

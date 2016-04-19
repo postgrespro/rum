@@ -376,13 +376,13 @@ entryPreparePage(RumBtree btree, Page page, OffsetNumber off)
  * Place tuple on page and fills WAL record
  */
 static void
-entryPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, XLogRecData **prdata)
+entryPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, RumXLogRecData **prdata)
 {
 	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	OffsetNumber placed;
 
 	/* these must be static so they can be returned to caller */
-	static XLogRecData rdata[3];
+	static RumXLogRecData rdata[3];
 	static rumxlogInsert data;
 
 	*prdata = rdata;
@@ -404,7 +404,7 @@ entryPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, XLogRecData **prd
 	/*
 	 * For incomplete-split tracking, we need updateBlkno information and the
 	 * inserted item even when we make a full page image of the page, so put
-	 * the buffer reference in a separate XLogRecData entry.
+	 * the buffer reference in a separate RumXLogRecData entry.
 	 */
 	rdata[0].buffer = buf;
 	rdata[0].buffer_std = TRUE;
@@ -432,7 +432,8 @@ entryPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, XLogRecData **prd
  * an equal number!
  */
 static Page
-entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off, XLogRecData **prdata)
+entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
+			   RumXLogRecData **prdata)
 {
 	OffsetNumber i,
 				maxoff,
@@ -450,7 +451,7 @@ entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off, XLogR
 	Size		pageSize = PageGetPageSize(lpage);
 
 	/* these must be static so they can be returned to caller */
-	static XLogRecData rdata[2];
+	static RumXLogRecData rdata[2];
 	static rumxlogSplit data;
 	static char tupstore[2 * BLCKSZ];
 

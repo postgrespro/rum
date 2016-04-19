@@ -698,13 +698,13 @@ dataPrepareData(RumBtree btree, Page page, OffsetNumber off)
  * build mode puts all ItemPointers to page.
  */
 static void
-dataPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, XLogRecData **prdata)
+dataPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, RumXLogRecData **prdata)
 {
 	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	Form_pg_attribute attr = btree->rumstate->addAttrs[btree->entryAttnum - 1];
 
 	/* these must be static so they can be returned to caller */
-	static XLogRecData rdata[3];
+	static RumXLogRecData rdata[3];
 	static rumxlogInsert data;
 	static char insertData[BLCKSZ];
 
@@ -731,7 +731,7 @@ dataPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, XLogRecData **prda
 	/*
 	 * For incomplete-split tracking, we need updateBlkno information and the
 	 * inserted item even when we make a full page image of the page, so put
-	 * the buffer reference in a separate XLogRecData entry.
+	 * the buffer reference in a separate RumXLogRecData entry.
 	 */
 	rdata[0].buffer = buf;
 	rdata[0].buffer_std = FALSE;
@@ -883,7 +883,7 @@ dataPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, XLogRecData **prda
  */
 static Page
 dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
-														XLogRecData **prdata)
+														RumXLogRecData **prdata)
 {
 	OffsetNumber i, j,
 				maxoff;
@@ -903,7 +903,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
 	Form_pg_attribute attr = btree->rumstate->addAttrs[btree->entryAttnum - 1];
 
 	/* these must be static so they can be returned to caller */
-	static XLogRecData rdata[3];
+	static RumXLogRecData rdata[3];
 	static rumxlogSplit data;
 	static char lpageCopy[BLCKSZ];
 	static char rpageCopy[BLCKSZ];
@@ -1127,7 +1127,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
  */
 static Page
 dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
-										OffsetNumber off, XLogRecData **prdata)
+					  OffsetNumber off, RumXLogRecData **prdata)
 {
 	char	   *ptr;
 	OffsetNumber separator;
@@ -1144,7 +1144,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	/* these must be static so they can be returned to caller */
 	static rumxlogSplit data;
-	static XLogRecData rdata[2];
+	static RumXLogRecData rdata[2];
 	static char vector[2 * BLCKSZ];
 
 	RumInitPage(rpage, RumPageGetOpaque(lpage)->flags, pageSize);
@@ -1253,7 +1253,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
  */
 static Page
 dataSplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
-														XLogRecData **prdata)
+			  RumXLogRecData **prdata)
 {
 	if (RumPageIsLeaf(BufferGetPage(lbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST)))
 		return dataSplitPageLeaf(btree, lbuf, rbuf, off, prdata);

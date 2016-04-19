@@ -366,7 +366,7 @@ rumInsertValue(RumBtree btree, RumBtreeStack *stack, GinStatsData *buildStats)
 	/* this loop crawls up the stack until the insertion is complete */
 	for (;;)
 	{
-		XLogRecData *rdata;
+		RumXLogRecData *rdata;
 		BlockNumber savedRightLink;
 
 		page = BufferGetPage(stack->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
