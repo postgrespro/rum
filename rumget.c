@@ -150,9 +150,9 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 	gdi = rumPrepareScanPostingTree(index, rootPostingTree, TRUE, attnum, rumstate);
 
 	buffer = rumScanBeginPostingTree(gdi);
-	IncrBufferRefCount(buffer); /* prevent unpin in freeGinBtreeStack */
+	IncrBufferRefCount(buffer); /* prevent unpin in freeRumBtreeStack */
 
-	freeGinBtreeStack(gdi->stack);
+	freeRumBtreeStack(gdi->stack);
 	pfree(gdi);
 
 	/*
@@ -449,7 +449,7 @@ restartScanEntry:
 				entry->matchBitmap = NULL;
 			}
 			LockBuffer(stackEntry->buffer, RUM_UNLOCK);
-			freeGinBtreeStack(stackEntry);
+			freeRumBtreeStack(stackEntry);
 			goto restartScanEntry;
 		}
 
@@ -494,7 +494,7 @@ restartScanEntry:
 			/*
 			 * We keep buffer pinned because we need to prevent deletion of
 			 * page during scan. See RUM's vacuum implementation. RefCount is
-			 * increased to keep buffer pinned after freeGinBtreeStack() call.
+			 * increased to keep buffer pinned after freeRumBtreeStack() call.
 			 */
 			page = BufferGetPage(entry->buffer, NULL, NULL,
 								 BGP_NO_SNAPSHOT_TEST);
@@ -539,7 +539,7 @@ restartScanEntry:
 
 	if (needUnlock)
 		LockBuffer(stackEntry->buffer, RUM_UNLOCK);
-	freeGinBtreeStack(stackEntry);
+	freeRumBtreeStack(stackEntry);
 }
 
 static void

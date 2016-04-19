@@ -369,9 +369,9 @@ typedef struct RumConfig
 
 /* XLog stuff */
 
-#define XLOG_GIN_CREATE_INDEX  0x00
+#define XLOG_RUM_CREATE_INDEX  0x00
 
-#define XLOG_GIN_CREATE_PTREE  0x10
+#define XLOG_RUM_CREATE_PTREE  0x10
 
 typedef struct rumxlogCreatePostingTree
 {
@@ -386,7 +386,7 @@ typedef struct rumxlogCreatePostingTree
 	/* follows list of heap's ItemPointer */
 } rumxlogCreatePostingTree;
 
-#define XLOG_GIN_INSERT  0x20
+#define XLOG_RUM_INSERT  0x20
 
 typedef struct rumxlogInsert
 {
@@ -410,7 +410,7 @@ typedef struct rumxlogInsert
 	 */
 } rumxlogInsert;
 
-#define XLOG_GIN_SPLIT	0x30
+#define XLOG_RUM_SPLIT	0x30
 
 typedef struct rumxlogSplit
 {
@@ -437,7 +437,7 @@ typedef struct rumxlogSplit
 	/* follows: list of tuple or ItemPointerData or PostingItem */
 } rumxlogSplit;
 
-#define XLOG_GIN_VACUUM_PAGE	0x40
+#define XLOG_RUM_VACUUM_PAGE	0x40
 
 typedef struct rumxlogVacuumPage
 {
@@ -452,7 +452,7 @@ typedef struct rumxlogVacuumPage
 	/* follows content of page */
 } rumxlogVacuumPage;
 
-#define XLOG_GIN_DELETE_PAGE	0x50
+#define XLOG_RUM_DELETE_PAGE	0x50
 
 typedef struct rumxlogDeletePage
 {
@@ -464,7 +464,7 @@ typedef struct rumxlogDeletePage
 	BlockNumber rightLink;
 } rumxlogDeletePage;
 
-#define XLOG_GIN_UPDATE_META_PAGE 0x60
+#define XLOG_RUM_UPDATE_META_PAGE 0x60
 
 typedef struct rumxlogUpdateMeta
 {
@@ -478,7 +478,7 @@ typedef struct rumxlogUpdateMeta
 	/* array of inserted tuples follows */
 } rumxlogUpdateMeta;
 
-#define XLOG_GIN_INSERT_LISTPAGE  0x70
+#define XLOG_RUM_INSERT_LISTPAGE  0x70
 
 typedef struct rumxlogInsertListPage
 {
@@ -489,7 +489,7 @@ typedef struct rumxlogInsertListPage
 	/* array of inserted tuples follows */
 } rumxlogInsertListPage;
 
-#define XLOG_GIN_DELETE_LISTPAGE  0x80
+#define XLOG_RUM_DELETE_LISTPAGE  0x80
 
 #define RUM_NDELETE_AT_ONCE 16
 typedef struct rumxlogDeleteListPages
@@ -504,7 +504,7 @@ typedef struct rumxlogDeleteListPages
 /* rumutil.c */
 extern bytea *rumoptions(Datum reloptions, bool validate);
 extern Datum rumhandler(PG_FUNCTION_ARGS);
-extern void initGinState(RumState *state, Relation index);
+extern void initRumState(RumState *state, Relation index);
 extern Buffer RumNewBuffer(Relation index);
 extern void RumInitBuffer(Buffer b, uint32 f);
 extern void RumInitPage(Page page, uint32 f, Size pageSize);
@@ -601,7 +601,7 @@ extern RumBtreeStack *rumPrepareFindLeafPage(RumBtree btree, BlockNumber blkno);
 extern RumBtreeStack *rumFindLeafPage(RumBtree btree, RumBtreeStack *stack);
 extern RumBtreeStack *rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack);
 extern Buffer rumStepRight(Buffer buffer, Relation index, int lockmode);
-extern void freeGinBtreeStack(RumBtreeStack *stack);
+extern void freeRumBtreeStack(RumBtreeStack *stack);
 extern void rumInsertValue(RumBtree btree, RumBtreeStack *stack,
 			   GinStatsData *buildStats);
 extern void rumFindParents(RumBtree btree, RumBtreeStack *stack, BlockNumber rootBlkno);

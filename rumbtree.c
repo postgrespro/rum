@@ -227,7 +227,7 @@ rumStepRight(Buffer buffer, Relation index, int lockmode)
 }
 
 void
-freeGinBtreeStack(RumBtreeStack *stack)
+freeRumBtreeStack(RumBtreeStack *stack)
 {
 	while (stack)
 	{
@@ -344,7 +344,7 @@ rumFindParents(RumBtree btree, RumBtreeStack *stack,
  * During an index build, buildStats is non-null and the counters
  * it contains should be incremented as needed.
  *
- * NB: the passed-in stack is freed, as though by freeGinBtreeStack.
+ * NB: the passed-in stack is freed, as though by freeRumBtreeStack.
  */
 void
 rumInsertValue(RumBtree btree, RumBtreeStack *stack, GinStatsData *buildStats)
@@ -390,7 +390,7 @@ rumInsertValue(RumBtree btree, RumBtreeStack *stack, GinStatsData *buildStats)
 			LockBuffer(stack->buffer, RUM_UNLOCK);
 			END_CRIT_SECTION();
 
-			freeGinBtreeStack(stack);
+			freeRumBtreeStack(stack);
 
 			return;
 		}
@@ -465,7 +465,7 @@ rumInsertValue(RumBtree btree, RumBtreeStack *stack, GinStatsData *buildStats)
 				LockBuffer(stack->buffer, RUM_UNLOCK);
 				END_CRIT_SECTION();
 
-				freeGinBtreeStack(stack);
+				freeRumBtreeStack(stack);
 
 				/* During index build, count the newly-added root page */
 				if (buildStats)

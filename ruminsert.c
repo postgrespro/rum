@@ -491,7 +491,7 @@ rumEntryInsert(RumState *rumstate,
 
 			/* release all stack */
 			LockBuffer(stack->buffer, RUM_UNLOCK);
-			freeGinBtreeStack(stack);
+			freeRumBtreeStack(stack);
 
 			/* insert into posting tree */
 			gdi = rumPrepareScanPostingTree(rumstate->index, rootPostingTree, FALSE, attnum, rumstate);
@@ -638,7 +638,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 		elog(ERROR, "index \"%s\" already contains data",
 			 RelationGetRelationName(index));
 
-	initGinState(&buildstate.rumstate, index);
+	initRumState(&buildstate.rumstate, index);
 	buildstate.indtuples = 0;
 	memset(&buildstate.buildStats, 0, sizeof(GinStatsData));
 
@@ -831,7 +831,7 @@ ruminsert(Relation index, Datum *values, bool *isnull,
 
 	oldCtx = MemoryContextSwitchTo(insertCtx);
 
-	initGinState(&rumstate, index);
+	initRumState(&rumstate, index);
 
 	if (RumGetUseFastUpdate(index))
 	{

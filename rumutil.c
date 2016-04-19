@@ -91,12 +91,12 @@ rumhandler(PG_FUNCTION_ARGS)
 }
 
 /*
- * initGinState: fill in an empty RumState struct to describe the index
+ * initRumState: fill in an empty RumState struct to describe the index
  *
  * Note: assorted subsidiary data is allocated in the CurrentMemoryContext.
  */
 void
-initGinState(RumState *state, Relation index)
+initRumState(RumState *state, Relation index)
 {
 	TupleDesc	origTupdesc = RelationGetDescr(index);
 	int			i;

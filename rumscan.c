@@ -41,7 +41,7 @@ rumbeginscan(Relation rel, int nkeys, int norderbys)
 										ALLOCSET_DEFAULT_MINSIZE,
 										ALLOCSET_DEFAULT_INITSIZE,
 										ALLOCSET_DEFAULT_MAXSIZE);
-	initGinState(&so->rumstate, scan->indexRelation);
+	initRumState(&so->rumstate, scan->indexRelation);
 
 	scan->opaque = so;
 
@@ -250,7 +250,7 @@ freeScanKeys(RumScanOpaque so)
 
 		if (entry->gdi)
 		{
-			freeGinBtreeStack(entry->gdi->stack);
+			freeRumBtreeStack(entry->gdi->stack);
 			pfree(entry->gdi);
 		}
 		else

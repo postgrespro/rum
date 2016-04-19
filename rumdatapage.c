@@ -1405,7 +1405,7 @@ rumInsertItemPointers(RumState *rumstate,
 			 */
 			gdi->btree.curitem++;
 			LockBuffer(gdi->stack->buffer, RUM_UNLOCK);
-			freeGinBtreeStack(gdi->stack);
+			freeRumBtreeStack(gdi->stack);
 		}
 		else
 			rumInsertValue(&(gdi->btree), gdi->stack, buildStats);

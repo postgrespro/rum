@@ -727,7 +727,7 @@ rumbulkdelete(IndexVacuumInfo *info,
 	gvs.callback = callback;
 	gvs.callback_state = callback_state;
 	gvs.strategy = info->strategy;
-	initGinState(&gvs.rumstate, index);
+	initRumState(&gvs.rumstate, index);
 
 	/* first time through? */
 	if (stats == NULL)
@@ -849,7 +849,7 @@ rumvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 	{
 		if (IsAutoVacuumWorkerProcess())
 		{
-			initGinState(&rumstate, index);
+			initRumState(&rumstate, index);
 			rumInsertCleanup(&rumstate, true, stats);
 		}
 		return stats;
@@ -862,7 +862,7 @@ rumvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 	if (stats == NULL)
 	{
 		stats = (IndexBulkDeleteResult *) palloc0(sizeof(IndexBulkDeleteResult));
-		initGinState(&rumstate, index);
+		initRumState(&rumstate, index);
 		rumInsertCleanup(&rumstate, true, stats);
 	}
 
