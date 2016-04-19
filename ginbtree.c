@@ -380,13 +380,13 @@ ginInsertValue(GinBtree btree, GinBtreeStack *stack, GinStatsData *buildStats)
 
 			MarkBufferDirty(stack->buffer);
 
-			if (RelationNeedsWAL(btree->index))
-			{
-				XLogRecPtr	recptr;
-
-				recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_INSERT);
-				PageSetLSN(page, recptr);
-			}
+// 			if (RelationNeedsWAL(btree->index))
+// 			{
+// 				XLogRecPtr	recptr;
+//
+// 				recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_INSERT);
+// 				PageSetLSN(page, recptr);
+// 			}
 
 			LockBuffer(stack->buffer, GIN_UNLOCK);
 			END_CRIT_SECTION();
@@ -451,15 +451,15 @@ ginInsertValue(GinBtree btree, GinBtreeStack *stack, GinStatsData *buildStats)
 				MarkBufferDirty(lbuffer);
 				MarkBufferDirty(stack->buffer);
 
-				if (RelationNeedsWAL(btree->index))
-				{
-					XLogRecPtr	recptr;
-
-					recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_SPLIT);
-					PageSetLSN(page, recptr);
-					PageSetLSN(lpage, recptr);
-					PageSetLSN(rpage, recptr);
-				}
+// 				if (RelationNeedsWAL(btree->index))
+// 				{
+// 					XLogRecPtr	recptr;
+//
+// 					recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_SPLIT);
+// 					PageSetLSN(page, recptr);
+// 					PageSetLSN(lpage, recptr);
+// 					PageSetLSN(rpage, recptr);
+// 				}
 
 				UnlockReleaseBuffer(rbuffer);
 				UnlockReleaseBuffer(lbuffer);
@@ -499,14 +499,14 @@ ginInsertValue(GinBtree btree, GinBtreeStack *stack, GinStatsData *buildStats)
 				MarkBufferDirty(rbuffer);
 				MarkBufferDirty(stack->buffer);
 
-				if (RelationNeedsWAL(btree->index))
-				{
-					XLogRecPtr	recptr;
-
-					recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_SPLIT);
-					PageSetLSN(lpage, recptr);
-					PageSetLSN(rpage, recptr);
-				}
+// 				if (RelationNeedsWAL(btree->index))
+// 				{
+// 					XLogRecPtr	recptr;
+//
+// 					recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_SPLIT);
+// 					PageSetLSN(lpage, recptr);
+// 					PageSetLSN(rpage, recptr);
+// 				}
 				UnlockReleaseBuffer(rbuffer);
 				END_CRIT_SECTION();
 			}
