@@ -862,9 +862,11 @@ extern void ginInsertCleanup(GinState *ginstate,
 #define GIN_PRE_CONSISTENT_PROC		   8
 #define GIN_ORDERING_PROC			   9
 
-extern Datum gin_tsvector_config(PG_FUNCTION_ARGS);
-extern Datum gin_tsquery_pre_consistent(PG_FUNCTION_ARGS);
-extern Datum gin_tsquery_distance(PG_FUNCTION_ARGS);
+extern Datum rum_extract_tsvector(PG_FUNCTION_ARGS);
+extern Datum rum_extract_tsquery(PG_FUNCTION_ARGS);
+extern Datum rum_tsvector_config(PG_FUNCTION_ARGS);
+extern Datum rum_tsquery_pre_consistent(PG_FUNCTION_ARGS);
+extern Datum rum_tsquery_distance(PG_FUNCTION_ARGS);
 
 /*
  * Functions for reading ItemPointers with additional information. Used in

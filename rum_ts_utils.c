@@ -13,14 +13,17 @@
 #include "catalog/pg_type.h"
 #include "tsearch/ts_type.h"
 #include "tsearch/ts_utils.h"
+#include "utils/builtins.h"
 
 #include "rum.h"
 
 #include <math.h>
 
-PG_FUNCTION_INFO_V1(gin_tsvector_config);
-PG_FUNCTION_INFO_V1(gin_tsquery_pre_consistent);
-PG_FUNCTION_INFO_V1(gin_tsquery_distance);
+PG_FUNCTION_INFO_V1(rum_extract_tsvector);
+PG_FUNCTION_INFO_V1(rum_extract_tsquery);
+PG_FUNCTION_INFO_V1(rum_tsvector_config);
+PG_FUNCTION_INFO_V1(rum_tsquery_pre_consistent);
+PG_FUNCTION_INFO_V1(rum_tsquery_distance);
 
 static float calc_rank_and(float *w, Datum *addInfo, bool *addInfoIsNull,
 						   int size);
@@ -53,7 +56,7 @@ checkcondition_gin(void *checkval, QueryOperand *val, ExecPhraseData *data)
 }
 
 Datum
-gin_tsquery_pre_consistent(PG_FUNCTION_ARGS)
+rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 {
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
 
@@ -95,6 +98,7 @@ static WordEntryPosVector POSNULL = {
 	{0}
 };
 
+#define SIXTHBIT 0x20
 #define LOWERMASK 0x1F
 
 /*
@@ -107,6 +111,38 @@ word_distance(int32 w)
 		return 1e-30f;
 
 	return 1.0 / (1.005 + 0.05 * exp(((float4) w) / 1.5 - 2));
+}
+
+static int
+compress_pos(char *target, uint16 *pos, int npos)
+{
+	int i;
+	uint16 prev = 0, delta;
+	char *ptr;
+
+	ptr = target;
+	for (i = 0; i < npos; i++)
+	{
+		delta = WEP_GETPOS(pos[i]) - WEP_GETPOS(prev);
+
+		while (true)
+		{
+			if (delta >= SIXTHBIT)
+			{
+				*ptr = (delta & (~HIGHBIT)) | HIGHBIT;
+				ptr++;
+				delta >>= 7;
+			}
+			else
+			{
+				*ptr = delta | (WEP_GETWEIGHT(pos[i]) << 5);
+				ptr++;
+				break;
+			}
+		}
+		prev = pos[i];
+	}
+	return ptr - target;
 }
 
 static char *
@@ -293,7 +329,220 @@ calc_rank(float *w, TSQuery q, Datum *addInfo, bool *addInfoIsNull, int size)
 }
 
 Datum
-gin_tsquery_distance(PG_FUNCTION_ARGS)
+rum_extract_tsvector(PG_FUNCTION_ARGS)
+{
+	TSVector	vector = PG_GETARG_TSVECTOR(0);
+	int32	   *nentries = (int32 *) PG_GETARG_POINTER(1);
+	Datum	   **addInfo = (Datum **) PG_GETARG_POINTER(3);
+	bool	   **addInfoIsNull = (bool **) PG_GETARG_POINTER(4);
+	Datum	   *entries = NULL;
+
+	*nentries = vector->size;
+	if (vector->size > 0)
+	{
+		int			i;
+		WordEntry  *we = ARRPTR(vector);
+		WordEntryPosVector *posVec;
+
+		entries = (Datum *) palloc(sizeof(Datum) * vector->size);
+		*addInfo = (Datum *) palloc(sizeof(Datum) * vector->size);
+		*addInfoIsNull = (bool *) palloc(sizeof(bool) * vector->size);
+
+		for (i = 0; i < vector->size; i++)
+		{
+			text	   *txt;
+			bytea	   *posData;
+			int			posDataSize;
+
+			txt = cstring_to_text_with_len(STRPTR(vector) + we->pos, we->len);
+			entries[i] = PointerGetDatum(txt);
+
+			if (we->haspos)
+			{
+				posVec = _POSVECPTR(vector, we);
+				posDataSize = VARHDRSZ + 2 * posVec->npos * sizeof(WordEntryPos);
+				posData = (bytea *)palloc(posDataSize);
+				posDataSize = compress_pos(posData->vl_dat, posVec->pos, posVec->npos) + VARHDRSZ;
+				SET_VARSIZE(posData, posDataSize);
+
+				(*addInfo)[i] = PointerGetDatum(posData);
+				(*addInfoIsNull)[i] = false;
+			}
+			else
+			{
+				(*addInfo)[i] = (Datum)0;
+				(*addInfoIsNull)[i] = true;
+			}
+			we++;
+		}
+	}
+
+	PG_FREE_IF_COPY(vector, 0);
+	PG_RETURN_POINTER(entries);
+}
+
+/*
+ * sort QueryOperands by (length, word)
+ */
+static int
+compareQueryOperand(const void *a, const void *b, void *arg)
+{
+	char	   *operand = (char *) arg;
+	QueryOperand *qa = (*(QueryOperand *const *) a);
+	QueryOperand *qb = (*(QueryOperand *const *) b);
+
+	return tsCompareString(operand + qa->distance, qa->length,
+						   operand + qb->distance, qb->length,
+						   false);
+}
+
+/*
+ * Returns a sorted, de-duplicated array of QueryOperands in a query.
+ * The returned QueryOperands are pointers to the original QueryOperands
+ * in the query.
+ *
+ * Length of the returned array is stored in *size
+ */
+static QueryOperand **
+SortAndUniqItems(TSQuery q, int *size)
+{
+	char	   *operand = GETOPERAND(q);
+	QueryItem  *item = GETQUERY(q);
+	QueryOperand **res,
+			  **ptr,
+			  **prevptr;
+
+	ptr = res = (QueryOperand **) palloc(sizeof(QueryOperand *) * *size);
+
+	/* Collect all operands from the tree to res */
+	while ((*size)--)
+	{
+		if (item->type == QI_VAL)
+		{
+			*ptr = (QueryOperand *) item;
+			ptr++;
+		}
+		item++;
+	}
+
+	*size = ptr - res;
+	if (*size < 2)
+		return res;
+
+	qsort_arg(res, *size, sizeof(QueryOperand *), compareQueryOperand, (void *) operand);
+
+	ptr = res + 1;
+	prevptr = res;
+
+	/* remove duplicates */
+	while (ptr - res < *size)
+	{
+		if (compareQueryOperand((void *) ptr, (void *) prevptr, (void *) operand) != 0)
+		{
+			prevptr++;
+			*prevptr = *ptr;
+		}
+		ptr++;
+	}
+
+	*size = prevptr + 1 - res;
+	return res;
+}
+
+Datum
+rum_extract_tsquery(PG_FUNCTION_ARGS)
+{
+	TSQuery		query = PG_GETARG_TSQUERY(0);
+	int32	   *nentries = (int32 *) PG_GETARG_POINTER(1);
+
+	/* StrategyNumber strategy = PG_GETARG_UINT16(2); */
+	bool	  **ptr_partialmatch = (bool **) PG_GETARG_POINTER(3);
+	Pointer   **extra_data = (Pointer **) PG_GETARG_POINTER(4);
+
+	/* bool   **nullFlags = (bool **) PG_GETARG_POINTER(5); */
+	int32	   *searchMode = (int32 *) PG_GETARG_POINTER(6);
+	Datum	   *entries = NULL;
+
+	*nentries = 0;
+
+	if (query->size > 0)
+	{
+		QueryItem  *item = GETQUERY(query);
+		int32		i,
+					j;
+		bool	   *partialmatch;
+		int		   *map_item_operand;
+		char       *operand = GETOPERAND(query);
+		QueryOperand **operands;
+
+		/*
+		 * If the query doesn't have any required positive matches (for
+		 * instance, it's something like '! foo'), we have to do a full index
+		 * scan.
+		 */
+		if (tsquery_requires_match(item))
+			*searchMode = GIN_SEARCH_MODE_DEFAULT;
+		else
+			*searchMode = GIN_SEARCH_MODE_ALL;
+
+		*nentries = query->size;
+		operands = SortAndUniqItems(query, nentries);
+
+		entries = (Datum *) palloc(sizeof(Datum) * (*nentries));
+		partialmatch = *ptr_partialmatch = (bool *) palloc(sizeof(bool) * (*nentries));
+
+		/*
+		 * Make map to convert item's number to corresponding operand's (the
+		 * same, entry's) number. Entry's number is used in check array in
+		 * consistent method. We use the same map for each entry.
+		 */
+		*extra_data = (Pointer *) palloc(sizeof(Pointer) * (*nentries));
+		map_item_operand = (int *) palloc0(sizeof(int) * query->size);
+
+		for (i = 0; i < (*nentries); i++)
+		{
+			text	   *txt;
+
+			txt = cstring_to_text_with_len(GETOPERAND(query) + operands[i]->distance,
+											operands[i]->length);
+			entries[i] = PointerGetDatum(txt);
+			partialmatch[i] = operands[i]->prefix;
+			(*extra_data)[i] = (Pointer) map_item_operand;
+		}
+
+		/* Now rescan the VAL items and fill in the arrays */
+		for (j = 0; j < query->size; j++)
+		{
+			if (item[j].type == QI_VAL)
+			{
+				QueryOperand *val = &item[j].qoperand;
+				bool found = false;
+
+				for (i = 0; i < (*nentries); i++)
+				{
+					if (!tsCompareString(operand + operands[i]->distance, operands[i]->length,
+							operand + val->distance, val->length,
+							false))
+					{
+						map_item_operand[j] = i;
+						found = true;
+						break;
+					}
+				}
+
+				if (!found)
+					elog(ERROR, "Operand not found!");
+			}
+		}
+	}
+
+	PG_FREE_IF_COPY(query, 0);
+
+	PG_RETURN_POINTER(entries);
+}
+
+Datum
+rum_tsquery_distance(PG_FUNCTION_ARGS)
 {
 	/* bool	   *check = (bool *) PG_GETARG_POINTER(0); */
 
@@ -312,7 +561,7 @@ gin_tsquery_distance(PG_FUNCTION_ARGS)
 }
 
 Datum
-gin_tsvector_config(PG_FUNCTION_ARGS)
+rum_tsvector_config(PG_FUNCTION_ARGS)
 {
 	GinConfig *config = (GinConfig *)PG_GETARG_POINTER(0);
 	config->addInfoTypeOid = BYTEAOID;
