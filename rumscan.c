@@ -26,8 +26,6 @@ rumbeginscan(Relation rel, int nkeys, int norderbys)
 	IndexScanDesc scan;
 	RumScanOpaque so;
 
-	elog(LOG, "rumbeginscan");
-
 	scan = RelationGetIndexScan(rel, nkeys, norderbys);
 
 	/* allocate private workspace */
@@ -438,8 +436,6 @@ rumrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 	/* remaining arguments are ignored */
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 
-	elog(LOG, "rumrescan");
-
 	so->firstCall = true;
 
 	freeScanKeys(so);
@@ -457,8 +453,6 @@ void
 rumendscan(IndexScanDesc scan)
 {
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
-
-	elog(LOG, "rumendscan");
 
 	freeScanKeys(so);
 

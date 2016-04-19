@@ -13,6 +13,7 @@
 
 #include "postgres.h"
 
+#include "access/generic_xlog.h"
 #include "access/reloptions.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_type.h"
@@ -388,21 +389,34 @@ RumInitPage(Page page, uint32 f, Size pageSize)
 }
 
 void
-RumInitBuffer(Buffer b, uint32 f)
+RumInitBuffer(Relation index, Buffer buffer, uint32 flags)
 {
-	RumInitPage(BufferGetPage(b, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
-				f, BufferGetPageSize(b));
+	Page		page;
+	GenericXLogState   *state;
+
+	state = GenericXLogStart(index);
+	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
+
+	RumInitPage(page, flags, BufferGetPageSize(buffer));
+
+	GenericXLogFinish(state);
 }
 
 void
-RumInitMetabuffer(Buffer b)
+RumInitMetabuffer(Relation index, Buffer metaBuffer)
 {
-	RumMetaPageData *metadata;
-	Page		page = BufferGetPage(b, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	Page		metaPage;
+	RumMetaPageData	   *metadata;
+	GenericXLogState   *state;
 
-	RumInitPage(page, RUM_META, BufferGetPageSize(b));
+	/* Initialize contents of meta page */
+	state = GenericXLogStart(index);
+	metaPage = GenericXLogRegisterBuffer(state, metaBuffer,
+										 GENERIC_XLOG_FULL_IMAGE);
 
-	metadata = RumPageGetMeta(page);
+	RumInitPage(metaPage, RUM_META, BufferGetPageSize(metaBuffer));
+	metadata = RumPageGetMeta(metaPage);
+	memset(metadata, 0, sizeof(RumMetaPageData));
 
 	metadata->head = metadata->tail = InvalidBlockNumber;
 	metadata->tailFreeSize = 0;
@@ -413,6 +427,8 @@ RumInitMetabuffer(Buffer b)
 	metadata->nDataPages = 0;
 	metadata->nEntries = 0;
 	metadata->rumVersion = RUM_CURRENT_VERSION;
+
+	GenericXLogFinish(state);
 }
 
 /*
@@ -681,8 +697,6 @@ rumoptions(Datum reloptions, bool validate)
 		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(RumOptions, useFastUpdate)}
 	};
 
-	elog(LOG, "rumoptions");
-
 	options = parseRelOptions(reloptions, validate, RELOPT_KIND_GIN,
 							  &numoptions);
 
@@ -738,11 +752,15 @@ rumUpdateStats(Relation index, const GinStatsData *stats)
 {
 	Buffer		metabuffer;
 	Page		metapage;
-	RumMetaPageData *metadata;
+	RumMetaPageData	   *metadata;
+	GenericXLogState   *state;
+
+	state = GenericXLogStart(index);
 
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
 	LockBuffer(metabuffer, RUM_EXCLUSIVE);
-	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	metapage = GenericXLogRegisterBuffer(state, metabuffer,
+										 GENERIC_XLOG_FULL_IMAGE);
 	metadata = RumPageGetMeta(metapage);
 
 	START_CRIT_SECTION();
@@ -754,25 +772,7 @@ rumUpdateStats(Relation index, const GinStatsData *stats)
 
 	MarkBufferDirty(metabuffer);
 
-// 	if (RelationNeedsWAL(index))
-// 	{
-// 		XLogRecPtr	recptr;
-// 		rumxlogUpdateMeta data;
-// 		XLogRecData rdata;
-//
-// 		data.node = index->rd_node;
-// 		data.ntuples = 0;
-// 		data.newRightlink = data.prevTail = InvalidBlockNumber;
-// 		memcpy(&data.metadata, metadata, sizeof(RumMetaPageData));
-//
-// 		rdata.buffer = InvalidBuffer;
-// 		rdata.data = (char *) &data;
-// 		rdata.len = sizeof(rumxlogUpdateMeta);
-// 		rdata.next = NULL;
-//
-// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_UPDATE_META_PAGE, &rdata);
-// 		PageSetLSN(metapage, recptr);
-// 	}
+	GenericXLogFinish(state);
 
 	UnlockReleaseBuffer(metabuffer);
 

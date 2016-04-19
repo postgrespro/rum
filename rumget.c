@@ -2082,8 +2082,6 @@ rumgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 	int64		ntids;
 	bool		recheck;
 
-	elog(LOG, "rumgetbitmap");
-
 	/*
 	 * Set up the scan keys, and check for unsatisfiable query.
 	 */

@@ -13,6 +13,7 @@
 
 #include "postgres.h"
 
+#include "access/generic_xlog.h"
 #include "miscadmin.h"
 #include "utils/rel.h"
 
@@ -347,13 +348,15 @@ rumFindParents(RumBtree btree, RumBtreeStack *stack,
  * NB: the passed-in stack is freed, as though by freeRumBtreeStack.
  */
 void
-rumInsertValue(RumBtree btree, RumBtreeStack *stack, GinStatsData *buildStats)
+rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
+			   GinStatsData *buildStats)
 {
 	RumBtreeStack *parent;
 	BlockNumber rootBlkno;
 	Page		page,
 				rpage,
 				lpage;
+	GenericXLogState   *state;
 
 	/* extract root BlockNumber from stack */
 	Assert(stack != NULL);
@@ -374,21 +377,12 @@ rumInsertValue(RumBtree btree, RumBtreeStack *stack, GinStatsData *buildStats)
 
 		if (btree->isEnoughSpace(btree, stack->buffer, stack->off))
 		{
-			START_CRIT_SECTION();
 			btree->placeToPage(btree, stack->buffer, stack->off, &rdata);
 
-			MarkBufferDirty(stack->buffer);
-
-// 			if (RelationNeedsWAL(btree->index))
-// 			{
-// 				XLogRecPtr	recptr;
-//
-// 				recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_INSERT);
-// 				PageSetLSN(page, recptr);
-// 			}
-
-			LockBuffer(stack->buffer, RUM_UNLOCK);
-			END_CRIT_SECTION();
+			state = GenericXLogStart(index);
+			page = GenericXLogRegisterBuffer(state, stack->buffer,
+											 GENERIC_XLOG_FULL_IMAGE);
+			GenericXLogFinish(state);
 
 			freeRumBtreeStack(stack);
 
@@ -429,41 +423,32 @@ rumInsertValue(RumBtree btree, RumBtreeStack *stack, GinStatsData *buildStats)
 				((rumxlogSplit *) (rdata->data))->isRootSplit = TRUE;
 				((rumxlogSplit *) (rdata->data))->rrlink = InvalidBlockNumber;
 
-				page = BufferGetPage(stack->buffer, NULL, NULL,
-									 BGP_NO_SNAPSHOT_TEST);
-				lpage = BufferGetPage(lbuffer, NULL, NULL,
-									  BGP_NO_SNAPSHOT_TEST);
-				rpage = BufferGetPage(rbuffer, NULL, NULL,
-									  BGP_NO_SNAPSHOT_TEST);
+				state = GenericXLogStart(index);
+
+				page = GenericXLogRegisterBuffer(state, stack->buffer,
+												 GENERIC_XLOG_FULL_IMAGE);
+
+				lpage = GenericXLogRegisterBuffer(state, lbuffer,
+												  GENERIC_XLOG_FULL_IMAGE);
+
+				rpage = GenericXLogRegisterBuffer(state, rbuffer,
+												  GENERIC_XLOG_FULL_IMAGE);
+
 
 				RumPageGetOpaque(rpage)->rightlink = InvalidBlockNumber;
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
 				((rumxlogSplit *) (rdata->data))->lblkno = BufferGetBlockNumber(lbuffer);
 
-				START_CRIT_SECTION();
-
-				RumInitBuffer(stack->buffer, RumPageGetOpaque(newlpage)->flags & ~RUM_LEAF);
+				RumInitPage(page, RumPageGetOpaque(newlpage)->flags & ~RUM_LEAF,
+							BufferGetPageSize(stack->buffer));
 				PageRestoreTempPage(newlpage, lpage);
 				btree->fillRoot(btree, stack->buffer, lbuffer, rbuffer);
 
-				MarkBufferDirty(rbuffer);
-				MarkBufferDirty(lbuffer);
-				MarkBufferDirty(stack->buffer);
-
-// 				if (RelationNeedsWAL(btree->index))
-// 				{
-// 					XLogRecPtr	recptr;
-//
-// 					recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_SPLIT);
-// 					PageSetLSN(page, recptr);
-// 					PageSetLSN(lpage, recptr);
-// 					PageSetLSN(rpage, recptr);
-// 				}
+				GenericXLogFinish(state);
 
 				UnlockReleaseBuffer(rbuffer);
 				UnlockReleaseBuffer(lbuffer);
 				LockBuffer(stack->buffer, RUM_UNLOCK);
-				END_CRIT_SECTION();
 
 				freeRumBtreeStack(stack);
 
@@ -484,30 +469,20 @@ rumInsertValue(RumBtree btree, RumBtreeStack *stack, GinStatsData *buildStats)
 				((rumxlogSplit *) (rdata->data))->isRootSplit = FALSE;
 				((rumxlogSplit *) (rdata->data))->rrlink = savedRightLink;
 
-				lpage = BufferGetPage(stack->buffer, NULL, NULL,
-									  BGP_NO_SNAPSHOT_TEST);
-				rpage = BufferGetPage(rbuffer, NULL, NULL,
-									  BGP_NO_SNAPSHOT_TEST);
+				state = GenericXLogStart(index);
+
+				lpage = GenericXLogRegisterBuffer(state, stack->buffer,
+												  GENERIC_XLOG_FULL_IMAGE);
+
+				rpage = GenericXLogRegisterBuffer(state, rbuffer,
+												  GENERIC_XLOG_FULL_IMAGE);
 
 				RumPageGetOpaque(rpage)->rightlink = savedRightLink;
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
 
-				START_CRIT_SECTION();
 				PageRestoreTempPage(newlpage, lpage);
 
-				MarkBufferDirty(rbuffer);
-				MarkBufferDirty(stack->buffer);
-
-// 				if (RelationNeedsWAL(btree->index))
-// 				{
-// 					XLogRecPtr	recptr;
-//
-// 					recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_SPLIT);
-// 					PageSetLSN(lpage, recptr);
-// 					PageSetLSN(rpage, recptr);
-// 				}
-				UnlockReleaseBuffer(rbuffer);
-				END_CRIT_SECTION();
+				GenericXLogFinish(state);
 			}
 		}
 

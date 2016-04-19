@@ -1408,7 +1408,7 @@ rumInsertItemPointers(RumState *rumstate,
 			freeRumBtreeStack(gdi->stack);
 		}
 		else
-			rumInsertValue(&(gdi->btree), gdi->stack, buildStats);
+			rumInsertValue(rumstate->index, &(gdi->btree), gdi->stack, buildStats);
 
 		gdi->stack = NULL;
 	}

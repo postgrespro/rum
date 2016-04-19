@@ -506,9 +506,9 @@ extern bytea *rumoptions(Datum reloptions, bool validate);
 extern Datum rumhandler(PG_FUNCTION_ARGS);
 extern void initRumState(RumState *state, Relation index);
 extern Buffer RumNewBuffer(Relation index);
-extern void RumInitBuffer(Buffer b, uint32 f);
+extern void RumInitBuffer(Relation index, Buffer buffer, uint32 flags);
 extern void RumInitPage(Page page, uint32 f, Size pageSize);
-extern void RumInitMetabuffer(Buffer b);
+extern void RumInitMetabuffer(Relation index, Buffer metaBuffer);
 extern int rumCompareEntries(RumState *rumstate, OffsetNumber attnum,
 				  Datum a, RumNullCategory categorya,
 				  Datum b, RumNullCategory categoryb);
@@ -602,8 +602,8 @@ extern RumBtreeStack *rumFindLeafPage(RumBtree btree, RumBtreeStack *stack);
 extern RumBtreeStack *rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack);
 extern Buffer rumStepRight(Buffer buffer, Relation index, int lockmode);
 extern void freeRumBtreeStack(RumBtreeStack *stack);
-extern void rumInsertValue(RumBtree btree, RumBtreeStack *stack,
-			   GinStatsData *buildStats);
+extern void rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
+						   GinStatsData *buildStats);
 extern void rumFindParents(RumBtree btree, RumBtreeStack *stack, BlockNumber rootBlkno);
 
 /* rumentrypage.c */

@@ -13,6 +13,7 @@
 
 #include "postgres.h"
 
+#include "access/generic_xlog.h"
 #include "commands/vacuum.h"
 #include "miscadmin.h"
 #include "postmaster/autovacuum.h"
@@ -208,83 +209,40 @@ RumFormTuple(RumState *rumstate,
 static void
 xlogVacuumPage(Relation index, Buffer buffer, OffsetNumber attrnum, RumState *rumstate)
 {
-// 	Page		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-// 	XLogRecPtr	recptr;
-// 	XLogRecData rdata[3];
-// 	rumxlogVacuumPage data;
-// 	char	   *backup;
-// 	char		itups[BLCKSZ];
-// 	uint32		len = 0;
-//
-// 	Assert(RumPageIsLeaf(page));
+	Page		page;
+	char	   *backup;
+	char		itups[BLCKSZ];
+	GenericXLogState *state;
 
 	if (!RelationNeedsWAL(index))
 		return;
 
-// 	data.node = index->rd_node;
-// 	data.blkno = BufferGetBlockNumber(buffer);
-//
-// 	if (RumPageIsData(page))
-// 	{
-// 		Form_pg_attribute attr = rumstate->addAttrs[attrnum - 1];
-//
-// 		memcpy(itups, page, BLCKSZ);
-// 		backup = RumDataPageGetData(itups);
-// 		data.nitem = RumPageGetOpaque(itups)->maxoff;
-// 		if (attr)
-// 		{
-// 			data.typlen = attr->attlen;
-// 			data.typalign = attr->attalign;
-// 			data.typbyval = attr->attbyval;
-// 			data.typstorage = attr->attstorage;
-// 		}
-// 		if (data.nitem)
-// 			len = MAXALIGN(RumDataPageSize - RumPageGetOpaque(itups)->freespace);
-// 	}
-// 	else
-// 	{
-// 		char	   *ptr;
-// 		OffsetNumber i;
-//
-// 		ptr = backup = itups;
-// 		for (i = FirstOffsetNumber; i <= PageGetMaxOffsetNumber(page); i++)
-// 		{
-// 			IndexTuple	itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, i));
-//
-// 			memcpy(ptr, itup, IndexTupleSize(itup));
-// 			ptr += MAXALIGN(IndexTupleSize(itup));
-// 		}
-//
-// 		data.nitem = PageGetMaxOffsetNumber(page);
-// 		len = ptr - backup;
-// 	}
-//
-// 	rdata[0].buffer = buffer;
-// 	rdata[0].buffer_std = (RumPageIsData(page)) ? FALSE : TRUE;
-// 	rdata[0].len = 0;
-// 	rdata[0].data = NULL;
-// 	rdata[0].next = rdata + 1;
-//
-// 	rdata[1].buffer = InvalidBuffer;
-// 	rdata[1].len = sizeof(rumxlogVacuumPage);
-// 	rdata[1].data = (char *) &data;
-//
-// 	if (len == 0)
-// 	{
-// 		rdata[1].next = NULL;
-// 	}
-// 	else
-// 	{
-// 		rdata[1].next = rdata + 2;
-//
-// 		rdata[2].buffer = InvalidBuffer;
-// 		rdata[2].len = len;
-// 		rdata[2].data = backup;
-// 		rdata[2].next = NULL;
-// 	}
-//
-// 	recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_VACUUM_PAGE, rdata);
-// 	PageSetLSN(page, recptr);
+	state = GenericXLogStart(index);
+	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
+
+	Assert(RumPageIsLeaf(page));
+
+	if (RumPageIsData(page))
+	{
+		memcpy(itups, page, BLCKSZ);
+		backup = RumDataPageGetData(itups);
+	}
+	else
+	{
+		char	   *ptr;
+		OffsetNumber i;
+
+		ptr = backup = itups;
+		for (i = FirstOffsetNumber; i <= PageGetMaxOffsetNumber(page); i++)
+		{
+			IndexTuple	itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, i));
+
+			memcpy(ptr, itup, IndexTupleSize(itup));
+			ptr += MAXALIGN(IndexTupleSize(itup));
+		}
+	}
+
+	GenericXLogFinish(state);
 }
 
 static bool
@@ -392,6 +350,9 @@ rumDeletePage(RumVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 	Page		page,
 				parentPage;
 	BlockNumber	rightlink;
+	GenericXLogState *state;
+
+	state = GenericXLogStart(gvs->index);
 
 	/*
 	 * Lock the pages in the same order as an insertion would, to avoid
@@ -431,7 +392,7 @@ rumDeletePage(RumVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 #endif
 	RumPageDeletePostingItem(parentPage, myoff);
 
-	page = BufferGetPage(dBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	page = GenericXLogRegisterBuffer(state, dBuffer, GENERIC_XLOG_FULL_IMAGE);
 
 	/*
 	 * we shouldn't change rightlink field to save workability of running
@@ -444,59 +405,7 @@ rumDeletePage(RumVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 		MarkBufferDirty(lBuffer);
 	MarkBufferDirty(dBuffer);
 
-// 	if (RelationNeedsWAL(gvs->index))
-// 	{
-// 		XLogRecPtr	recptr;
-// 		XLogRecData rdata[4];
-// 		rumxlogDeletePage data;
-// 		int			n;
-//
-// 		data.node = gvs->index->rd_node;
-// 		data.blkno = deleteBlkno;
-// 		data.parentBlkno = parentBlkno;
-// 		data.parentOffset = myoff;
-// 		data.leftBlkno = leftBlkno;
-// 		data.rightLink = RumPageGetOpaque(page)->rightlink;
-//
-// 		rdata[0].buffer = dBuffer;
-// 		rdata[0].buffer_std = FALSE;
-// 		rdata[0].data = NULL;
-// 		rdata[0].len = 0;
-// 		rdata[0].next = rdata + 1;
-//
-// 		rdata[1].buffer = pBuffer;
-// 		rdata[1].buffer_std = FALSE;
-// 		rdata[1].data = NULL;
-// 		rdata[1].len = 0;
-// 		rdata[1].next = rdata + 2;
-//
-// 		if (leftBlkno != InvalidBlockNumber)
-// 		{
-// 			rdata[2].buffer = lBuffer;
-// 			rdata[2].buffer_std = FALSE;
-// 			rdata[2].data = NULL;
-// 			rdata[2].len = 0;
-// 			rdata[2].next = rdata + 3;
-// 			n = 3;
-// 		}
-// 		else
-// 			n = 2;
-//
-// 		rdata[n].buffer = InvalidBuffer;
-// 		rdata[n].buffer_std = FALSE;
-// 		rdata[n].len = sizeof(rumxlogDeletePage);
-// 		rdata[n].data = (char *) &data;
-// 		rdata[n].next = NULL;
-//
-// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_DELETE_PAGE, rdata);
-// 		PageSetLSN(page, recptr);
-// 		PageSetLSN(parentPage, recptr);
-// 		if (leftBlkno != InvalidBlockNumber)
-// 		{
-// 			page = BufferGetPage(lBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-// 			PageSetLSN(page, recptr);
-// 		}
-// 	}
+	GenericXLogFinish(state);
 
 	if (!isParentRoot)
 		LockBuffer(pBuffer, RUM_UNLOCK);
@@ -721,8 +630,6 @@ rumbulkdelete(IndexVacuumInfo *info,
 	OffsetNumber attnumOfPostingTree[BLCKSZ / (sizeof(IndexTupleData) + sizeof(ItemId))];
 	uint32		nRoot;
 
-	elog(LOG, "rumbulkdelete");
-
 	gvs.index = index;
 	gvs.callback = callback;
 	gvs.callback_state = callback_state;
@@ -838,8 +745,6 @@ rumvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 	BlockNumber totFreePages;
 	RumState	rumstate;
 	GinStatsData idxStat;
-
-	elog(LOG, "rumvacuumcleanup");
 
 	/*
 	 * In an autovacuum analyze, we want to clean up pending insertions.

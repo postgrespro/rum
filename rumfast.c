@@ -16,6 +16,7 @@
 
 #include "postgres.h"
 
+#include "access/generic_xlog.h"
 #include "access/htup_details.h"
 #include "commands/vacuum.h"
 #include "miscadmin.h"
@@ -62,7 +63,7 @@ writeListPage(Relation index, Buffer buffer,
 
 	START_CRIT_SECTION();
 
-	RumInitBuffer(buffer, RUM_LIST);
+	RumInitBuffer(index, buffer, RUM_LIST);
 
 	off = FirstOffsetNumber;
 	ptr = workspace;
@@ -104,31 +105,6 @@ writeListPage(Relation index, Buffer buffer,
 	}
 
 	MarkBufferDirty(buffer);
-
-// 	if (RelationNeedsWAL(index))
-// 	{
-// 		XLogRecData rdata[2];
-// 		rumxlogInsertListPage data;
-// 		XLogRecPtr	recptr;
-//
-// 		data.node = index->rd_node;
-// 		data.blkno = BufferGetBlockNumber(buffer);
-// 		data.rightlink = rightlink;
-// 		data.ntuples = ntuples;
-//
-// 		rdata[0].buffer = InvalidBuffer;
-// 		rdata[0].data = (char *) &data;
-// 		rdata[0].len = sizeof(rumxlogInsertListPage);
-// 		rdata[0].next = rdata + 1;
-//
-// 		rdata[1].buffer = InvalidBuffer;
-// 		rdata[1].data = workspace;
-// 		rdata[1].len = size;
-// 		rdata[1].next = NULL;
-//
-// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_INSERT_LISTPAGE, rdata);
-// 		PageSetLSN(page, recptr);
-// 	}
 
 	/* get free space before releasing buffer */
 	freesize = PageGetExactFreeSpace(page);
@@ -229,6 +205,7 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 	rumxlogUpdateMeta data;
 	bool		separateList = false;
 	bool		needCleanup = false;
+	GenericXLogState *state;
 
 	if (collector->ntuples == 0)
 		return;
@@ -242,8 +219,10 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 	rdata[0].len = sizeof(rumxlogUpdateMeta);
 	rdata[0].next = NULL;
 
+	state = GenericXLogStart(rumstate->index);
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
-	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	metapage = GenericXLogRegisterBuffer(state, metabuffer,
+										 GENERIC_XLOG_FULL_IMAGE);
 
 	if (collector->sumsize + collector->ntuples * sizeof(ItemIdData) > RumListPageSize)
 	{
@@ -311,7 +290,8 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 
 			buffer = ReadBuffer(index, metadata->tail);
 			LockBuffer(buffer, RUM_EXCLUSIVE);
-			page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+			page = GenericXLogRegisterBuffer(state, buffer,
+											 GENERIC_XLOG_FULL_IMAGE);
 
 			rdata[0].next = rdata + 1;
 
@@ -349,7 +329,8 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 
 		buffer = ReadBuffer(index, metadata->tail);
 		LockBuffer(buffer, RUM_EXCLUSIVE);
-		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = GenericXLogRegisterBuffer(state, buffer,
+										 GENERIC_XLOG_FULL_IMAGE);
 
 		off = (PageIsEmpty(page)) ? FirstOffsetNumber :
 			OffsetNumberNext(PageGetMaxOffsetNumber(page));
@@ -400,20 +381,7 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 	 */
 	MarkBufferDirty(metabuffer);
 
-// 	if (RelationNeedsWAL(index))
-// 	{
-// 		XLogRecPtr	recptr;
-//
-// 		memcpy(&data.metadata, metadata, sizeof(RumMetaPageData));
-//
-// 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_UPDATE_META_PAGE, rdata);
-// 		PageSetLSN(metapage, recptr);
-//
-// 		if (buffer != InvalidBuffer)
-// 		{
-// 			PageSetLSN(page, recptr);
-// 		}
-// 	}
+	GenericXLogFinish(state);
 
 	if (buffer != InvalidBuffer)
 		UnlockReleaseBuffer(buffer);
@@ -598,11 +566,14 @@ static bool
 shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		  IndexBulkDeleteResult *stats)
 {
-	Page		metapage;
-	RumMetaPageData *metadata;
-	BlockNumber blknoToDelete;
+	Page				metapage;
+	RumMetaPageData	   *metadata;
+	BlockNumber			blknoToDelete;
+	GenericXLogState   *metastate;
 
-	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	metastate = GenericXLogStart(index);
+	metapage = GenericXLogRegisterBuffer(metastate, metabuffer,
+										 GENERIC_XLOG_FULL_IMAGE);
 	metadata = RumPageGetMeta(metapage);
 	blknoToDelete = metadata->head;
 
@@ -612,15 +583,12 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		int			i;
 		int64		nDeletedHeapTuples = 0;
 		rumxlogDeleteListPages data;
-// 		XLogRecData rdata[1];
 		Buffer		buffers[RUM_NDELETE_AT_ONCE];
+		GenericXLogState   *state;
+
+		state = GenericXLogStart(index);
 
 		data.node = index->rd_node;
-
-// 		rdata[0].buffer = InvalidBuffer;
-// 		rdata[0].data = (char *) &data;
-// 		rdata[0].len = sizeof(rumxlogDeleteListPages);
-// 		rdata[0].next = NULL;
 
 		data.ndeleted = 0;
 		while (data.ndeleted < RUM_NDELETE_AT_ONCE && blknoToDelete != newHead)
@@ -628,13 +596,16 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 			data.toDelete[data.ndeleted] = blknoToDelete;
 			buffers[data.ndeleted] = ReadBuffer(index, blknoToDelete);
 			LockBuffer(buffers[data.ndeleted], RUM_EXCLUSIVE);
-			page = BufferGetPage(buffers[data.ndeleted], NULL, NULL,
-								 BGP_NO_SNAPSHOT_TEST);
+
+			page = GenericXLogRegisterBuffer(state, buffers[data.ndeleted],
+											 GENERIC_XLOG_FULL_IMAGE);
 
 			data.ndeleted++;
 
 			if (RumPageIsDeleted(page))
 			{
+				GenericXLogAbort(state);
+				GenericXLogAbort(metastate);
 				/* concurrent cleanup process is detected */
 				for (i = 0; i < data.ndeleted; i++)
 					UnlockReleaseBuffer(buffers[i]);
@@ -670,33 +641,22 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 
 		for (i = 0; i < data.ndeleted; i++)
 		{
-			page = BufferGetPage(buffers[i], NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+			page = GenericXLogRegisterBuffer(state, buffers[i],
+											 GENERIC_XLOG_FULL_IMAGE);
+
 			RumPageGetOpaque(page)->flags = RUM_DELETED;
 			MarkBufferDirty(buffers[i]);
 		}
 
-// 		if (RelationNeedsWAL(index))
-// 		{
-// 			XLogRecPtr	recptr;
-//
-// 			memcpy(&data.metadata, metadata, sizeof(RumMetaPageData));
-//
-// 			recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_DELETE_LISTPAGE, rdata);
-// 			PageSetLSN(metapage, recptr);
-//
-// 			for (i = 0; i < data.ndeleted; i++)
-// 			{
-// 				page = BufferGetPage(buffers[i], NULL, NULL,
-// 									 BGP_NO_SNAPSHOT_TEST);
-// 				PageSetLSN(page, recptr);
-// 			}
-// 		}
+		GenericXLogFinish(state);
 
 		for (i = 0; i < data.ndeleted; i++)
 			UnlockReleaseBuffer(buffers[i]);
 
 		END_CRIT_SECTION();
 	} while (blknoToDelete != newHead);
+
+	GenericXLogFinish(metastate);
 
 	return false;
 }

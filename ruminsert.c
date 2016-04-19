@@ -58,7 +58,7 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 
 	START_CRIT_SECTION();
 
-	RumInitBuffer(buffer, RUM_DATA | RUM_LEAF);
+	RumInitBuffer(index, buffer, RUM_DATA | RUM_LEAF);
 	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	blkno = BufferGetBlockNumber(buffer);
 
@@ -75,43 +75,6 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 	updateItemIndexes(page, attnum, rumstate);
 
 	MarkBufferDirty(buffer);
-
-	if (RelationNeedsWAL(index))
-	{
-		XLogRecPtr	recptr;
-		XLogRecData rdata[2];
-		rumxlogCreatePostingTree data;
-		GenericXLogState *state;
-
-		state = GenericXLogStart(index);
-		GenericXLogFinish(state);
-
-		data.node = index->rd_node;
-		data.blkno = blkno;
-		data.nitem = nitems;
-
-		if (rumstate->addAttrs[attnum - 1])
-		{
-			data.typlen = rumstate->addAttrs[attnum - 1]->attlen;
-			data.typalign = rumstate->addAttrs[attnum - 1]->attalign;
-			data.typbyval = rumstate->addAttrs[attnum - 1]->attbyval;
-			data.typstorage = rumstate->addAttrs[attnum - 1]->attstorage;
-		}
-
-		rdata[0].buffer = InvalidBuffer;
-		rdata[0].data = (char *) &data;
-		rdata[0].len = MAXALIGN(sizeof(rumxlogCreatePostingTree));
-		rdata[0].next = &rdata[1];
-
-		memcpy(pageCopy, page, BLCKSZ);
-		rdata[1].buffer = InvalidBuffer;
-		rdata[1].data = RumDataPageGetData(pageCopy);
-		rdata[1].len = RumDataPageSize - RumPageGetOpaque(pageCopy)->freespace;
-		rdata[1].next = NULL;
-
-		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_CREATE_PTREE, rdata);
-		PageSetLSN(page, recptr);
-	}
 
 	UnlockReleaseBuffer(buffer);
 
@@ -522,7 +485,7 @@ rumEntryInsert(RumState *rumstate,
 
 	/* Insert the new or modified leaf tuple */
 	btree.entry = itup;
-	rumInsertValue(&btree, stack, buildStats);
+	rumInsertValue(rumstate->index, &btree, stack, buildStats);
 	pfree(itup);
 }
 
@@ -637,8 +600,6 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	MemoryContext oldCtx;
 	OffsetNumber attnum;
 
-	elog(LOG, "rumbuild");
-
 	if (RelationGetNumberOfBlocks(index) != 0)
 		elog(ERROR, "index \"%s\" already contains data",
 			 RelationGetRelationName(index));
@@ -653,28 +614,11 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	/* initialize the root page */
 	RootBuffer = RumNewBuffer(index);
 
-	START_CRIT_SECTION();
-	RumInitMetabuffer(MetaBuffer);
-	MarkBufferDirty(MetaBuffer);
-	RumInitBuffer(RootBuffer, RUM_LEAF);
-	MarkBufferDirty(RootBuffer);
-
-	if (RelationNeedsWAL(index))
-	{
-		GenericXLogState *state;
-
-		state = GenericXLogStart(index);
-		GenericXLogRegisterBuffer(state, RootBuffer, GENERIC_XLOG_FULL_IMAGE);
-		GenericXLogFinish(state);
-
-		state = GenericXLogStart(index);
-		GenericXLogRegisterBuffer(state, MetaBuffer, GENERIC_XLOG_FULL_IMAGE);
-		GenericXLogFinish(state);
-	}
+	RumInitMetabuffer(index, MetaBuffer);
+	RumInitBuffer(index, RootBuffer, RUM_LEAF);
 
 	UnlockReleaseBuffer(MetaBuffer);
 	UnlockReleaseBuffer(RootBuffer);
-	END_CRIT_SECTION();
 
 	/* count the root as first entry page */
 	buildstate.buildStats.nEntryPages++;
@@ -758,8 +702,6 @@ rumbuildempty(Relation index)
 	Buffer		RootBuffer,
 				MetaBuffer;
 
-	elog(LOG, "rumbuildempty");
-
 	/* An empty RUM index has two pages. */
 	MetaBuffer =
 		ReadBufferExtended(index, INIT_FORKNUM, P_NEW, RBM_NORMAL, NULL);
@@ -769,14 +711,9 @@ rumbuildempty(Relation index)
 	LockBuffer(RootBuffer, BUFFER_LOCK_EXCLUSIVE);
 
 	/* Initialize and xlog metabuffer and root buffer. */
-	START_CRIT_SECTION();
-	RumInitMetabuffer(MetaBuffer);
-	MarkBufferDirty(MetaBuffer);
-	log_newpage_buffer(MetaBuffer, false);
-	RumInitBuffer(RootBuffer, RUM_LEAF);
-	MarkBufferDirty(RootBuffer);
-	log_newpage_buffer(RootBuffer, false);
-	END_CRIT_SECTION();
+	RumInitMetabuffer(index, MetaBuffer);
+
+	RumInitBuffer(index, RootBuffer, RUM_LEAF);
 
 	/* Unlock and release the buffers. */
 	UnlockReleaseBuffer(MetaBuffer);
@@ -818,8 +755,6 @@ ruminsert(Relation index, Datum *values, bool *isnull,
 	MemoryContext oldCtx;
 	MemoryContext insertCtx;
 	int			i;
-
-	elog(LOG, "ruminsert");
 
 	insertCtx = AllocSetContextCreate(CurrentMemoryContext,
 									  "Rum insert temporary context",
