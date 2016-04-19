@@ -1,14 +1,13 @@
 /*-------------------------------------------------------------------------
  *
- * ginscan.c
+ * rumscan.c
  *	  routines to manage scans of inverted index relations
  *
  *
- * Portions Copyright (c) 1996-2013, PostgreSQL Global Development Group
+ * Portions Copyright (c) 2015-2016, Postgres Professional
+ * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * IDENTIFICATION
- *			src/backend/access/gin/ginscan.c
  *-------------------------------------------------------------------------
  */
 
@@ -22,27 +21,27 @@
 #include "rum.h"
 
 IndexScanDesc
-ginbeginscan(Relation rel, int nkeys, int norderbys)
+rumbeginscan(Relation rel, int nkeys, int norderbys)
 {
 	IndexScanDesc scan;
-	GinScanOpaque so;
+	RumScanOpaque so;
 
-	elog(LOG, "ginbeginscan");
+	elog(LOG, "rumbeginscan");
 
 	scan = RelationGetIndexScan(rel, nkeys, norderbys);
 
 	/* allocate private workspace */
-	so = (GinScanOpaque) palloc(sizeof(GinScanOpaqueData));
+	so = (RumScanOpaque) palloc(sizeof(RumScanOpaqueData));
 	so->sortstate = NULL;
 	so->keys = NULL;
 	so->nkeys = 0;
 	so->firstCall = true;
 	so->tempCtx = AllocSetContextCreate(CurrentMemoryContext,
-										"Gin scan temporary context",
+										"Rum scan temporary context",
 										ALLOCSET_DEFAULT_MINSIZE,
 										ALLOCSET_DEFAULT_INITSIZE,
 										ALLOCSET_DEFAULT_MAXSIZE);
-	initGinState(&so->ginstate, scan->indexRelation);
+	initGinState(&so->rumstate, scan->indexRelation);
 
 	scan->opaque = so;
 
@@ -50,17 +49,17 @@ ginbeginscan(Relation rel, int nkeys, int norderbys)
 }
 
 /*
- * Create a new GinScanEntry, unless an equivalent one already exists,
+ * Create a new RumScanEntry, unless an equivalent one already exists,
  * in which case just return it
  */
-static GinScanEntry
-ginFillScanEntry(GinScanOpaque so, OffsetNumber attnum,
+static RumScanEntry
+rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 				 StrategyNumber strategy, int32 searchMode,
-				 Datum queryKey, GinNullCategory queryCategory,
+				 Datum queryKey, RumNullCategory queryCategory,
 				 bool isPartialMatch, Pointer extra_data)
 {
-	GinState   *ginstate = &so->ginstate;
-	GinScanEntry scanEntry;
+	RumState   *rumstate = &so->rumstate;
+	RumScanEntry scanEntry;
 	uint32		i;
 
 	/*
@@ -73,14 +72,14 @@ ginFillScanEntry(GinScanOpaque so, OffsetNumber attnum,
 	{
 		for (i = 0; i < so->totalentries; i++)
 		{
-			GinScanEntry prevEntry = so->entries[i];
+			RumScanEntry prevEntry = so->entries[i];
 
 			if (prevEntry->extra_data == NULL &&
 				prevEntry->isPartialMatch == isPartialMatch &&
 				prevEntry->strategy == strategy &&
 				prevEntry->searchMode == searchMode &&
 				prevEntry->attnum == attnum &&
-				ginCompareEntries(ginstate, attnum,
+				rumCompareEntries(rumstate, attnum,
 								  prevEntry->queryKey,
 								  prevEntry->queryCategory,
 								  queryKey,
@@ -93,7 +92,7 @@ ginFillScanEntry(GinScanOpaque so, OffsetNumber attnum,
 	}
 
 	/* Nope, create a new entry */
-	scanEntry = (GinScanEntry) palloc(sizeof(GinScanEntryData));
+	scanEntry = (RumScanEntry) palloc(sizeof(RumScanEntryData));
 	scanEntry->queryKey = queryKey;
 	scanEntry->queryCategory = queryCategory;
 	scanEntry->isPartialMatch = isPartialMatch;
@@ -117,8 +116,8 @@ ginFillScanEntry(GinScanOpaque so, OffsetNumber attnum,
 	if (so->totalentries >= so->allocentries)
 	{
 		so->allocentries *= 2;
-		so->entries = (GinScanEntry *)
-			repalloc(so->entries, so->allocentries * sizeof(GinScanEntry));
+		so->entries = (RumScanEntry *)
+			repalloc(so->entries, so->allocentries * sizeof(RumScanEntry));
 	}
 	so->entries[so->totalentries++] = scanEntry;
 
@@ -126,18 +125,18 @@ ginFillScanEntry(GinScanOpaque so, OffsetNumber attnum,
 }
 
 /*
- * Initialize the next GinScanKey using the output from the extractQueryFn
+ * Initialize the next RumScanKey using the output from the extractQueryFn
  */
 static void
-ginFillScanKey(GinScanOpaque so, OffsetNumber attnum,
+rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 			   StrategyNumber strategy, int32 searchMode,
 			   Datum query, uint32 nQueryValues,
-			   Datum *queryValues, GinNullCategory *queryCategories,
+			   Datum *queryValues, RumNullCategory *queryCategories,
 			   bool *partial_matches, Pointer *extra_data,
 			   bool orderBy)
 {
-	GinScanKey	key = &(so->keys[so->nkeys++]);
-	GinState   *ginstate = &so->ginstate;
+	RumScanKey	key = &(so->keys[so->nkeys++]);
+	RumState   *rumstate = &so->rumstate;
 	uint32		nUserQueryValues = nQueryValues;
 	uint32		i;
 
@@ -148,7 +147,7 @@ ginFillScanKey(GinScanOpaque so, OffsetNumber attnum,
 	key->nuserentries = nUserQueryValues;
 	key->orderBy = orderBy;
 
-	key->scanEntry = (GinScanEntry *) palloc(sizeof(GinScanEntry) * nQueryValues);
+	key->scanEntry = (RumScanEntry *) palloc(sizeof(RumScanEntry) * nQueryValues);
 	key->entryRes = (bool *) palloc0(sizeof(bool) * nQueryValues);
 	key->addInfo = (Datum *) palloc0(sizeof(Datum) * nQueryValues);
 	key->addInfoIsNull = (bool *) palloc(sizeof(bool) * nQueryValues);
@@ -171,7 +170,7 @@ ginFillScanKey(GinScanOpaque so, OffsetNumber attnum,
 	for (i = 0; i < nQueryValues; i++)
 	{
 		Datum		queryKey;
-		GinNullCategory queryCategory;
+		RumNullCategory queryCategory;
 		bool		isPartialMatch;
 		Pointer		this_extra;
 
@@ -181,7 +180,7 @@ ginFillScanKey(GinScanOpaque so, OffsetNumber attnum,
 			queryKey = queryValues[i];
 			queryCategory = queryCategories[i];
 			isPartialMatch =
-				(ginstate->canPartialMatch[attnum - 1] && partial_matches)
+				(rumstate->canPartialMatch[attnum - 1] && partial_matches)
 				? partial_matches[i] : false;
 			this_extra = (extra_data) ? extra_data[i] : NULL;
 		}
@@ -192,13 +191,13 @@ ginFillScanKey(GinScanOpaque so, OffsetNumber attnum,
 			switch (searchMode)
 			{
 				case GIN_SEARCH_MODE_INCLUDE_EMPTY:
-					queryCategory = GIN_CAT_EMPTY_ITEM;
+					queryCategory = RUM_CAT_EMPTY_ITEM;
 					break;
 				case GIN_SEARCH_MODE_ALL:
-					queryCategory = GIN_CAT_EMPTY_QUERY;
+					queryCategory = RUM_CAT_EMPTY_QUERY;
 					break;
 				case GIN_SEARCH_MODE_EVERYTHING:
-					queryCategory = GIN_CAT_EMPTY_QUERY;
+					queryCategory = RUM_CAT_EMPTY_QUERY;
 					break;
 				default:
 					elog(ERROR, "unexpected searchMode: %d", searchMode);
@@ -209,7 +208,7 @@ ginFillScanKey(GinScanOpaque so, OffsetNumber attnum,
 			this_extra = NULL;
 
 			/*
-			 * We set the strategy to a fixed value so that ginFillScanEntry
+			 * We set the strategy to a fixed value so that rumFillScanEntry
 			 * can combine these entries for different scan keys.  This is
 			 * safe because the strategy value in the entry struct is only
 			 * used for partial-match cases.  It's OK to overwrite our local
@@ -218,7 +217,7 @@ ginFillScanKey(GinScanOpaque so, OffsetNumber attnum,
 			strategy = InvalidStrategy;
 		}
 
-		key->scanEntry[i] = ginFillScanEntry(so, attnum,
+		key->scanEntry[i] = rumFillScanEntry(so, attnum,
 											 strategy, searchMode,
 											 queryKey, queryCategory,
 											 isPartialMatch, this_extra);
@@ -226,7 +225,7 @@ ginFillScanKey(GinScanOpaque so, OffsetNumber attnum,
 }
 
 static void
-freeScanKeys(GinScanOpaque so)
+freeScanKeys(RumScanOpaque so)
 {
 	uint32		i;
 
@@ -235,7 +234,7 @@ freeScanKeys(GinScanOpaque so)
 
 	for (i = 0; i < so->nkeys; i++)
 	{
-		GinScanKey	key = so->keys + i;
+		RumScanKey	key = so->keys + i;
 
 		pfree(key->scanEntry);
 		pfree(key->entryRes);
@@ -247,7 +246,7 @@ freeScanKeys(GinScanOpaque so)
 
 	for (i = 0; i < so->totalentries; i++)
 	{
-		GinScanEntry entry = so->entries[i];
+		RumScanEntry entry = so->entries[i];
 
 		if (entry->gdi)
 		{
@@ -274,7 +273,7 @@ freeScanKeys(GinScanOpaque so)
 }
 
 static void
-initScanKey(GinScanOpaque so, ScanKey skey, bool *hasNullQuery)
+initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 {
 	Datum	   *queryValues;
 	int32		nQueryValues = 0;
@@ -284,7 +283,7 @@ initScanKey(GinScanOpaque so, ScanKey skey, bool *hasNullQuery)
 	int32		searchMode = GIN_SEARCH_MODE_DEFAULT;
 
 	/*
-		* We assume that GIN-indexable operators are strict, so a null query
+		* We assume that RUM-indexable operators are strict, so a null query
 		* argument means an unsatisfiable query.
 		*/
 	if (skey->sk_flags & SK_ISNULL)
@@ -295,8 +294,8 @@ initScanKey(GinScanOpaque so, ScanKey skey, bool *hasNullQuery)
 
 	/* OK to call the extractQueryFn */
 	queryValues = (Datum *)
-		DatumGetPointer(FunctionCall7Coll(&so->ginstate.extractQueryFn[skey->sk_attno - 1],
-						so->ginstate.supportCollation[skey->sk_attno - 1],
+		DatumGetPointer(FunctionCall7Coll(&so->rumstate.extractQueryFn[skey->sk_attno - 1],
+						so->rumstate.supportCollation[skey->sk_attno - 1],
 											skey->sk_argument,
 											PointerGetDatum(&nQueryValues),
 										UInt16GetDatum(skey->sk_strategy),
@@ -306,9 +305,9 @@ initScanKey(GinScanOpaque so, ScanKey skey, bool *hasNullQuery)
 											PointerGetDatum(&searchMode)));
 
 	/*
-		* If bogus searchMode is returned, treat as GIN_SEARCH_MODE_ALL; note
+		* If bogus searchMode is returned, treat as RUM_SEARCH_MODE_ALL; note
 		* in particular we don't allow extractQueryFn to select
-		* GIN_SEARCH_MODE_EVERYTHING.
+		* RUM_SEARCH_MODE_EVERYTHING.
 		*/
 	if (searchMode < GIN_SEARCH_MODE_DEFAULT ||
 		searchMode > GIN_SEARCH_MODE_ALL)
@@ -335,7 +334,7 @@ initScanKey(GinScanOpaque so, ScanKey skey, bool *hasNullQuery)
 		* If the extractQueryFn didn't create a nullFlags array, create one,
 		* assuming that everything's non-null.  Otherwise, run through the
 		* array and make sure each value is exactly 0 or 1; this ensures
-		* binary compatibility with the GinNullCategory representation. While
+		* binary compatibility with the RumNullCategory representation. While
 		* at it, detect whether any null keys are present.
 		*/
 	if (nullFlags == NULL)
@@ -355,32 +354,32 @@ initScanKey(GinScanOpaque so, ScanKey skey, bool *hasNullQuery)
 	}
 	/* now we can use the nullFlags as category codes */
 
-	ginFillScanKey(so, skey->sk_attno,
+	rumFillScanKey(so, skey->sk_attno,
 					skey->sk_strategy, searchMode,
 					skey->sk_argument, nQueryValues,
-					queryValues, (GinNullCategory *) nullFlags,
+					queryValues, (RumNullCategory *) nullFlags,
 					partial_matches, extra_data,
 					(skey->sk_flags & SK_ORDER_BY) ? true: false);
 }
 
 void
-ginNewScanKey(IndexScanDesc scan)
+rumNewScanKey(IndexScanDesc scan)
 {
-	GinScanOpaque so = (GinScanOpaque) scan->opaque;
+	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	int			i;
 	bool		hasNullQuery = false;
 
-	/* if no scan keys provided, allocate extra EVERYTHING GinScanKey */
-	so->keys = (GinScanKey)
+	/* if no scan keys provided, allocate extra EVERYTHING RumScanKey */
+	so->keys = (RumScanKey)
 		palloc(Max(scan->numberOfKeys + scan->numberOfOrderBys, 1) *
-														sizeof(GinScanKeyData));
+														sizeof(RumScanKeyData));
 	so->nkeys = 0;
 
-	/* initialize expansible array of GinScanEntry pointers */
+	/* initialize expansible array of RumScanEntry pointers */
 	so->totalentries = 0;
 	so->allocentries = 32;
-	so->entries = (GinScanEntry *)
-		palloc0(so->allocentries * sizeof(GinScanEntry));
+	so->entries = (RumScanEntry *)
+		palloc0(so->allocentries * sizeof(RumScanEntry));
 
 	so->isVoidRes = false;
 
@@ -405,7 +404,7 @@ ginNewScanKey(IndexScanDesc scan)
 	if (so->nkeys == 0 && !so->isVoidRes)
 	{
 		hasNullQuery = true;
-		ginFillScanKey(so, FirstOffsetNumber,
+		rumFillScanKey(so, FirstOffsetNumber,
 					   InvalidStrategy, GIN_SEARCH_MODE_EVERYTHING,
 					   (Datum) 0, 0,
 					   NULL, NULL, NULL, NULL, false);
@@ -418,13 +417,13 @@ ginNewScanKey(IndexScanDesc scan)
 	 */
 	if (hasNullQuery && !so->isVoidRes)
 	{
-		GinStatsData ginStats;
+		GinStatsData rumStats;
 
-		ginGetStats(scan->indexRelation, &ginStats);
-		if (ginStats.ginVersion < 1)
+		rumGetStats(scan->indexRelation, &rumStats);
+		if (rumStats.ginVersion < 1)
 			ereport(ERROR,
 					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("old GIN indexes do not support whole-index scans nor searches for nulls"),
+					 errmsg("old RUM indexes do not support whole-index scans nor searches for nulls"),
 					 errhint("To fix this, do REINDEX INDEX \"%s\".",
 							 RelationGetRelationName(scan->indexRelation))));
 	}
@@ -433,13 +432,13 @@ ginNewScanKey(IndexScanDesc scan)
 }
 
 void
-ginrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
+rumrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 		  ScanKey orderbys, int norderbys)
 {
 	/* remaining arguments are ignored */
-	GinScanOpaque so = (GinScanOpaque) scan->opaque;
+	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 
-	elog(LOG, "ginrescan");
+	elog(LOG, "rumrescan");
 
 	so->firstCall = true;
 
@@ -455,11 +454,11 @@ ginrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 }
 
 void
-ginendscan(IndexScanDesc scan)
+rumendscan(IndexScanDesc scan)
 {
-	GinScanOpaque so = (GinScanOpaque) scan->opaque;
+	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 
-	elog(LOG, "ginendscan");
+	elog(LOG, "rumendscan");
 
 	freeScanKeys(so);
 
@@ -472,15 +471,15 @@ ginendscan(IndexScanDesc scan)
 }
 
 Datum
-ginmarkpos(PG_FUNCTION_ARGS)
+rummarkpos(PG_FUNCTION_ARGS)
 {
-	elog(ERROR, "GIN does not support mark/restore");
+	elog(ERROR, "RUM does not support mark/restore");
 	PG_RETURN_VOID();
 }
 
 Datum
-ginrestrpos(PG_FUNCTION_ARGS)
+rumrestrpos(PG_FUNCTION_ARGS)
 {
-	elog(ERROR, "GIN does not support mark/restore");
+	elog(ERROR, "RUM does not support mark/restore");
 	PG_RETURN_VOID();
 }

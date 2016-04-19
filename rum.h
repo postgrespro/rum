@@ -33,45 +33,45 @@ typedef struct XLogRecData
 /*
  * Page opaque data in a inverted index page.
  *
- * Note: GIN does not include a page ID word as do the other index types.
+ * Note: RUM does not include a page ID word as do the other index types.
  * This is OK because the opaque data is only 8 bytes and so can be reliably
  * distinguished by size.  Revisit this if the size ever increases.
  * Further note: as of 9.2, SP-GiST also uses 8-byte special space.  This is
- * still OK, as long as GIN isn't using all of the high-order bits in its
+ * still OK, as long as RUM isn't using all of the high-order bits in its
  * flags word, because that way the flags word cannot match the page ID used
  * by SP-GiST.
  */
-typedef struct GinPageOpaqueData
+typedef struct RumPageOpaqueData
 {
 	BlockNumber rightlink;		/* next page if any */
-	OffsetNumber maxoff;		/* number entries on GIN_DATA page: number of
-								 * heap ItemPointers on GIN_DATA|GIN_LEAF page
-								 * or number of PostingItems on GIN_DATA &
-								 * ~GIN_LEAF page. On GIN_LIST page, number of
+	OffsetNumber maxoff;		/* number entries on RUM_DATA page: number of
+								 * heap ItemPointers on RUM_DATA|RUM_LEAF page
+								 * or number of PostingItems on RUM_DATA &
+								 * ~RUM_LEAF page. On RUM_LIST page, number of
 								 * heap tuples. */
 	OffsetNumber freespace;
 	uint16		flags;			/* see bit definitions below */
-} GinPageOpaqueData;
+} RumPageOpaqueData;
 
-typedef GinPageOpaqueData *GinPageOpaque;
+typedef RumPageOpaqueData *RumPageOpaque;
 
-#define GIN_DATA		  (1 << 0)
-#define GIN_LEAF		  (1 << 1)
-#define GIN_DELETED		  (1 << 2)
-#define GIN_META		  (1 << 3)
-#define GIN_LIST		  (1 << 4)
-#define GIN_LIST_FULLROW  (1 << 5)		/* makes sense only on GIN_LIST page */
+#define RUM_DATA		  (1 << 0)
+#define RUM_LEAF		  (1 << 1)
+#define RUM_DELETED		  (1 << 2)
+#define RUM_META		  (1 << 3)
+#define RUM_LIST		  (1 << 4)
+#define RUM_LIST_FULLROW  (1 << 5)		/* makes sense only on RUM_LIST page */
 
 /* Page numbers of fixed-location pages */
-#define GIN_METAPAGE_BLKNO	(0)
-#define GIN_ROOT_BLKNO		(1)
+#define RUM_METAPAGE_BLKNO	(0)
+#define RUM_ROOT_BLKNO		(1)
 
-typedef struct GinMetaPageData
+typedef struct RumMetaPageData
 {
 	/*
-	 * Pointers to head and tail of pending list, which consists of GIN_LIST
+	 * Pointers to head and tail of pending list, which consists of RUM_LIST
 	 * pages.  These store fast-inserted entries that haven't yet been moved
-	 * into the regular GIN structure.
+	 * into the regular RUM structure.
 	 */
 	BlockNumber head;
 	BlockNumber tail;
@@ -97,7 +97,7 @@ typedef struct GinMetaPageData
 	int64		nEntries;
 
 	/*
-	 * GIN version number (ideally this should have been at the front, but too
+	 * RUM version number (ideally this should have been at the front, but too
 	 * late now.  Don't move it!)
 	 *
 	 * Currently 1 (for indexes initialized in 9.1 or later)
@@ -106,47 +106,47 @@ typedef struct GinMetaPageData
 	 * be missing null entries, including both null keys and placeholders.
 	 * Reject full-index-scan attempts on such indexes.
 	 */
-	int32		ginVersion;
-} GinMetaPageData;
+	int32		rumVersion;
+} RumMetaPageData;
 
-#define GIN_CURRENT_VERSION		1
+#define RUM_CURRENT_VERSION		1
 
-#define GinPageGetMeta(p) \
-	((GinMetaPageData *) PageGetContents(p))
+#define RumPageGetMeta(p) \
+	((RumMetaPageData *) PageGetContents(p))
 
 /*
- * Macros for accessing a GIN index page's opaque data
+ * Macros for accessing a RUM index page's opaque data
  */
-#define GinPageGetOpaque(page) ( (GinPageOpaque) PageGetSpecialPointer(page) )
+#define RumPageGetOpaque(page) ( (RumPageOpaque) PageGetSpecialPointer(page) )
 
-#define GinPageIsLeaf(page)    ( (GinPageGetOpaque(page)->flags & GIN_LEAF) != 0 )
-#define GinPageSetLeaf(page)   ( GinPageGetOpaque(page)->flags |= GIN_LEAF )
-#define GinPageSetNonLeaf(page)    ( GinPageGetOpaque(page)->flags &= ~GIN_LEAF )
-#define GinPageIsData(page)    ( (GinPageGetOpaque(page)->flags & GIN_DATA) != 0 )
-#define GinPageSetData(page)   ( GinPageGetOpaque(page)->flags |= GIN_DATA )
-#define GinPageIsList(page)    ( (GinPageGetOpaque(page)->flags & GIN_LIST) != 0 )
-#define GinPageSetList(page)   ( GinPageGetOpaque(page)->flags |= GIN_LIST )
-#define GinPageHasFullRow(page)    ( (GinPageGetOpaque(page)->flags & GIN_LIST_FULLROW) != 0 )
-#define GinPageSetFullRow(page)   ( GinPageGetOpaque(page)->flags |= GIN_LIST_FULLROW )
+#define RumPageIsLeaf(page)    ( (RumPageGetOpaque(page)->flags & RUM_LEAF) != 0 )
+#define RumPageSetLeaf(page)   ( RumPageGetOpaque(page)->flags |= RUM_LEAF )
+#define RumPageSetNonLeaf(page)    ( RumPageGetOpaque(page)->flags &= ~RUM_LEAF )
+#define RumPageIsData(page)    ( (RumPageGetOpaque(page)->flags & RUM_DATA) != 0 )
+#define RumPageSetData(page)   ( RumPageGetOpaque(page)->flags |= RUM_DATA )
+#define RumPageIsList(page)    ( (RumPageGetOpaque(page)->flags & RUM_LIST) != 0 )
+#define RumPageSetList(page)   ( RumPageGetOpaque(page)->flags |= RUM_LIST )
+#define RumPageHasFullRow(page)    ( (RumPageGetOpaque(page)->flags & RUM_LIST_FULLROW) != 0 )
+#define RumPageSetFullRow(page)   ( RumPageGetOpaque(page)->flags |= RUM_LIST_FULLROW )
 
-#define GinPageIsDeleted(page) ( (GinPageGetOpaque(page)->flags & GIN_DELETED) != 0 )
-#define GinPageSetDeleted(page)    ( GinPageGetOpaque(page)->flags |= GIN_DELETED)
-#define GinPageSetNonDeleted(page) ( GinPageGetOpaque(page)->flags &= ~GIN_DELETED)
+#define RumPageIsDeleted(page) ( (RumPageGetOpaque(page)->flags & RUM_DELETED) != 0 )
+#define RumPageSetDeleted(page)    ( RumPageGetOpaque(page)->flags |= RUM_DELETED)
+#define RumPageSetNonDeleted(page) ( RumPageGetOpaque(page)->flags &= ~RUM_DELETED)
 
-#define GinPageRightMost(page) ( GinPageGetOpaque(page)->rightlink == InvalidBlockNumber)
+#define RumPageRightMost(page) ( RumPageGetOpaque(page)->rightlink == InvalidBlockNumber)
 
 /*
  * We use our own ItemPointerGet(BlockNumber|GetOffsetNumber)
  * to avoid Asserts, since sometimes the ip_posid isn't "valid"
  */
-#define GinItemPointerGetBlockNumber(pointer) \
+#define RumItemPointerGetBlockNumber(pointer) \
 	BlockIdGetBlockNumber(&(pointer)->ip_blkid)
 
-#define GinItemPointerGetOffsetNumber(pointer) \
+#define RumItemPointerGetOffsetNumber(pointer) \
 	((pointer)->ip_posid)
 
 /*
- * Special-case item pointer values needed by the GIN search logic.
+ * Special-case item pointer values needed by the RUM search logic.
  *	MIN: sorts less than any valid item pointer
  *	MAX: sorts greater than any valid item pointer
  *	LOSSY PAGE: indicates a whole heap page, sorts after normal item
@@ -158,18 +158,18 @@ typedef struct GinMetaPageData
 #define ItemPointerSetMin(p)  \
 	ItemPointerSet((p), (BlockNumber)0, (OffsetNumber)0)
 #define ItemPointerIsMin(p)  \
-	(GinItemPointerGetOffsetNumber(p) == (OffsetNumber)0 && \
-	 GinItemPointerGetBlockNumber(p) == (BlockNumber)0)
+	(RumItemPointerGetOffsetNumber(p) == (OffsetNumber)0 && \
+	 RumItemPointerGetBlockNumber(p) == (BlockNumber)0)
 #define ItemPointerSetMax(p)  \
 	ItemPointerSet((p), InvalidBlockNumber, (OffsetNumber)0xffff)
 #define ItemPointerIsMax(p)  \
-	(GinItemPointerGetOffsetNumber(p) == (OffsetNumber)0xffff && \
-	 GinItemPointerGetBlockNumber(p) == InvalidBlockNumber)
+	(RumItemPointerGetOffsetNumber(p) == (OffsetNumber)0xffff && \
+	 RumItemPointerGetBlockNumber(p) == InvalidBlockNumber)
 #define ItemPointerSetLossyPage(p, b)  \
 	ItemPointerSet((p), (b), (OffsetNumber)0xffff)
 #define ItemPointerIsLossyPage(p)  \
-	(GinItemPointerGetOffsetNumber(p) == (OffsetNumber)0xffff && \
-	 GinItemPointerGetBlockNumber(p) != InvalidBlockNumber)
+	(RumItemPointerGetOffsetNumber(p) == (OffsetNumber)0xffff && \
+	 RumItemPointerGetBlockNumber(p) != InvalidBlockNumber)
 
 /*
  * Posting item in a non-leaf posting-tree page
@@ -192,135 +192,135 @@ typedef struct
  * Note that the datatype size and the first two code values are chosen to be
  * compatible with the usual usage of bool isNull flags.
  *
- * GIN_CAT_EMPTY_QUERY is never stored in the index; and notice that it is
+ * RUM_CAT_EMPTY_QUERY is never stored in the index; and notice that it is
  * chosen to sort before not after regular key values.
  */
-typedef signed char GinNullCategory;
+typedef signed char RumNullCategory;
 
-#define GIN_CAT_NORM_KEY		0		/* normal, non-null key value */
-#define GIN_CAT_NULL_KEY		1		/* null key value */
-#define GIN_CAT_EMPTY_ITEM		2		/* placeholder for zero-key item */
-#define GIN_CAT_NULL_ITEM		3		/* placeholder for null item */
-#define GIN_CAT_EMPTY_QUERY		(-1)	/* placeholder for full-scan query */
+#define RUM_CAT_NORM_KEY		0		/* normal, non-null key value */
+#define RUM_CAT_NULL_KEY		1		/* null key value */
+#define RUM_CAT_EMPTY_ITEM		2		/* placeholder for zero-key item */
+#define RUM_CAT_NULL_ITEM		3		/* placeholder for null item */
+#define RUM_CAT_EMPTY_QUERY		(-1)	/* placeholder for full-scan query */
 
 /*
  * Access macros for null category byte in entry tuples
  */
-#define GinCategoryOffset(itup,ginstate) \
+#define RumCategoryOffset(itup,rumstate) \
 	(IndexInfoFindDataOffset((itup)->t_info) + \
-	 ((ginstate)->oneCol ? 0 : sizeof(int16)))
-/*#define GinGetNullCategory(itup,ginstate) \
-  	(*((GinNullCategory *) ((char*)(itup) + GinCategoryOffset(itup,ginstate))))
-  #define GinSetNullCategory(itup,ginstate,c) \
-	(*((GinNullCategory *) ((char*)(itup) + GinCategoryOffset(itup,ginstate))) = (c))*/
+	 ((rumstate)->oneCol ? 0 : sizeof(int16)))
+/*#define RumGetNullCategory(itup,rumstate) \
+  	(*((RumNullCategory *) ((char*)(itup) + RumCategoryOffset(itup,rumstate))))
+  #define RumSetNullCategory(itup,rumstate,c) \
+	(*((RumNullCategory *) ((char*)(itup) + RumCategoryOffset(itup,rumstate))) = (c))*/
 
-#define GinGetNullCategory(itup,ginstate) \
-      (*((GinNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(GinNullCategory))))
-#define GinSetNullCategory(itup,ginstate,c) \
-      (*((GinNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(GinNullCategory))) = (c))
+#define RumGetNullCategory(itup,rumstate) \
+      (*((RumNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(RumNullCategory))))
+#define RumSetNullCategory(itup,rumstate,c) \
+      (*((RumNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(RumNullCategory))) = (c))
 
 /*
  * Access macros for leaf-page entry tuples (see discussion in README)
  */
-#define GinGetNPosting(itup)	GinItemPointerGetOffsetNumber(&(itup)->t_tid)
-#define GinSetNPosting(itup,n)	ItemPointerSetOffsetNumber(&(itup)->t_tid,n)
-#define GIN_TREE_POSTING		((OffsetNumber)0xffff)
-#define GinIsPostingTree(itup)	(GinGetNPosting(itup) == GIN_TREE_POSTING)
-#define GinSetPostingTree(itup, blkno)	( GinSetNPosting((itup),GIN_TREE_POSTING), ItemPointerSetBlockNumber(&(itup)->t_tid, blkno) )
-#define GinGetPostingTree(itup) GinItemPointerGetBlockNumber(&(itup)->t_tid)
+#define RumGetNPosting(itup)	RumItemPointerGetOffsetNumber(&(itup)->t_tid)
+#define RumSetNPosting(itup,n)	ItemPointerSetOffsetNumber(&(itup)->t_tid,n)
+#define RUM_TREE_POSTING		((OffsetNumber)0xffff)
+#define RumIsPostingTree(itup)	(RumGetNPosting(itup) == RUM_TREE_POSTING)
+#define RumSetPostingTree(itup, blkno)	( RumSetNPosting((itup),RUM_TREE_POSTING), ItemPointerSetBlockNumber(&(itup)->t_tid, blkno) )
+#define RumGetPostingTree(itup) RumItemPointerGetBlockNumber(&(itup)->t_tid)
 
-#define GinGetPostingOffset(itup)	GinItemPointerGetBlockNumber(&(itup)->t_tid)
-#define GinSetPostingOffset(itup,n) ItemPointerSetBlockNumber(&(itup)->t_tid,n)
-#define GinGetPosting(itup)			((Pointer) ((char*)(itup) + GinGetPostingOffset(itup)))
+#define RumGetPostingOffset(itup)	RumItemPointerGetBlockNumber(&(itup)->t_tid)
+#define RumSetPostingOffset(itup,n) ItemPointerSetBlockNumber(&(itup)->t_tid,n)
+#define RumGetPosting(itup)			((Pointer) ((char*)(itup) + RumGetPostingOffset(itup)))
 
-#define GinMaxItemSize \
+#define RumMaxItemSize \
 	MAXALIGN_DOWN(((BLCKSZ - SizeOfPageHeaderData - \
-		MAXALIGN(sizeof(GinPageOpaqueData))) / 6 - sizeof(ItemIdData)))
+		MAXALIGN(sizeof(RumPageOpaqueData))) / 6 - sizeof(ItemIdData)))
 
 /*
  * Access macros for non-leaf entry tuples
  */
-#define GinGetDownlink(itup)	GinItemPointerGetBlockNumber(&(itup)->t_tid)
-#define GinSetDownlink(itup,blkno)	ItemPointerSet(&(itup)->t_tid, blkno, InvalidOffsetNumber)
+#define RumGetDownlink(itup)	RumItemPointerGetBlockNumber(&(itup)->t_tid)
+#define RumSetDownlink(itup,blkno)	ItemPointerSet(&(itup)->t_tid, blkno, InvalidOffsetNumber)
 
 
 /*
  * Data (posting tree) pages
  */
-#define GinDataPageGetRightBound(page)	((ItemPointer) PageGetContents(page))
-#define GinDataPageGetData(page)	\
+#define RumDataPageGetRightBound(page)	((ItemPointer) PageGetContents(page))
+#define RumDataPageGetData(page)	\
 	(PageGetContents(page) + MAXALIGN(sizeof(ItemPointerData)))
-#define GinSizeOfDataPageItem(page) \
-	(GinPageIsLeaf(page) ? sizeof(ItemPointerData) : sizeof(PostingItem))
-#define GinDataPageGetItem(page,i)	\
-	(GinDataPageGetData(page) + ((i)-1) * GinSizeOfDataPageItem(page))
+#define RumSizeOfDataPageItem(page) \
+	(RumPageIsLeaf(page) ? sizeof(ItemPointerData) : sizeof(PostingItem))
+#define RumDataPageGetItem(page,i)	\
+	(RumDataPageGetData(page) + ((i)-1) * RumSizeOfDataPageItem(page))
 
-#define GinDataPageGetFreeSpace(page)	\
+#define RumDataPageGetFreeSpace(page)	\
 	(BLCKSZ - MAXALIGN(SizeOfPageHeaderData) \
 	 - MAXALIGN(sizeof(ItemPointerData)) \
-	 - GinPageGetOpaque(page)->maxoff * GinSizeOfDataPageItem(page) \
-	 - MAXALIGN(sizeof(GinPageOpaqueData)))
+	 - RumPageGetOpaque(page)->maxoff * RumSizeOfDataPageItem(page) \
+	 - MAXALIGN(sizeof(RumPageOpaqueData)))
 
-#define GinMaxLeafDataItems \
+#define RumMaxLeafDataItems \
 	((BLCKSZ - MAXALIGN(SizeOfPageHeaderData) - \
 	  MAXALIGN(sizeof(ItemPointerData)) - \
-	  MAXALIGN(sizeof(GinPageOpaqueData))) \
+	  MAXALIGN(sizeof(RumPageOpaqueData))) \
 	 / sizeof(ItemPointerData))
 
 /*
  * List pages
  */
-#define GinListPageSize  \
-	( BLCKSZ - SizeOfPageHeaderData - MAXALIGN(sizeof(GinPageOpaqueData)) )
+#define RumListPageSize  \
+	( BLCKSZ - SizeOfPageHeaderData - MAXALIGN(sizeof(RumPageOpaqueData)) )
 
 typedef struct
 {
 	ItemPointerData iptr;
 	OffsetNumber offsetNumer;
 	uint16 pageOffset;
-} GinDataLeafItemIndex;
+} RumDataLeafItemIndex;
 
-#define GinDataLeafIndexCount 32
+#define RumDataLeafIndexCount 32
 
-#define GinDataPageSize	\
+#define RumDataPageSize	\
 	(BLCKSZ - MAXALIGN(SizeOfPageHeaderData) \
 	 - MAXALIGN(sizeof(ItemPointerData)) \
-	 - MAXALIGN(sizeof(GinPageOpaqueData)) \
-	 - MAXALIGN(sizeof(GinDataLeafItemIndex) * GinDataLeafIndexCount))
+	 - MAXALIGN(sizeof(RumPageOpaqueData)) \
+	 - MAXALIGN(sizeof(RumDataLeafItemIndex) * RumDataLeafIndexCount))
 
-#define GinDataPageFreeSpacePre(page,ptr) \
-	(GinDataPageSize \
-	 - ((ptr) - GinDataPageGetData(page)))
+#define RumDataPageFreeSpacePre(page,ptr) \
+	(RumDataPageSize \
+	 - ((ptr) - RumDataPageGetData(page)))
 
-#define GinPageGetIndexes(page) \
-	((GinDataLeafItemIndex *)(GinDataPageGetData(page) + GinDataPageSize))
+#define RumPageGetIndexes(page) \
+	((RumDataLeafItemIndex *)(RumDataPageGetData(page) + RumDataPageSize))
 
 
 /*
- * Storage type for GIN's reloptions
+ * Storage type for RUM's reloptions
  */
-typedef struct GinOptions
+typedef struct RumOptions
 {
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	bool		useFastUpdate;	/* use fast updates? */
-} GinOptions;
+} RumOptions;
 
-#define GIN_DEFAULT_USE_FASTUPDATE	true
-#define GinGetUseFastUpdate(relation) \
+#define RUM_DEFAULT_USE_FASTUPDATE	true
+#define RumGetUseFastUpdate(relation) \
 	((relation)->rd_options ? \
-	 ((GinOptions *) (relation)->rd_options)->useFastUpdate : GIN_DEFAULT_USE_FASTUPDATE)
+	 ((RumOptions *) (relation)->rd_options)->useFastUpdate : RUM_DEFAULT_USE_FASTUPDATE)
 
 
 /* Macros for buffer lock/unlock operations */
-#define GIN_UNLOCK	BUFFER_LOCK_UNLOCK
-#define GIN_SHARE	BUFFER_LOCK_SHARE
-#define GIN_EXCLUSIVE  BUFFER_LOCK_EXCLUSIVE
+#define RUM_UNLOCK	BUFFER_LOCK_UNLOCK
+#define RUM_SHARE	BUFFER_LOCK_SHARE
+#define RUM_EXCLUSIVE  BUFFER_LOCK_EXCLUSIVE
 
 
 /*
- * GinState: working data structure describing the index being worked on
+ * RumState: working data structure describing the index being worked on
  */
-typedef struct GinState
+typedef struct RumState
 {
 	Relation	index;
 	bool		oneCol;			/* true if single-column index */
@@ -360,12 +360,12 @@ typedef struct GinState
 	bool		canOrdering[INDEX_MAX_KEYS];
 	/* Collations to pass to the support functions */
 	Oid			supportCollation[INDEX_MAX_KEYS];
-} GinState;
+} RumState;
 
-typedef struct GinConfig
+typedef struct RumConfig
 {
 	Oid			addInfoTypeOid;
-} GinConfig;
+} RumConfig;
 
 /* XLog stuff */
 
@@ -373,7 +373,7 @@ typedef struct GinConfig
 
 #define XLOG_GIN_CREATE_PTREE  0x10
 
-typedef struct ginxlogCreatePostingTree
+typedef struct rumxlogCreatePostingTree
 {
 	RelFileNode node;
 	BlockNumber blkno;
@@ -384,11 +384,11 @@ typedef struct ginxlogCreatePostingTree
 	char		typalign;
 	char		typstorage;
 	/* follows list of heap's ItemPointer */
-} ginxlogCreatePostingTree;
+} rumxlogCreatePostingTree;
 
 #define XLOG_GIN_INSERT  0x20
 
-typedef struct ginxlogInsert
+typedef struct rumxlogInsert
 {
 	RelFileNode node;
 	BlockNumber blkno;
@@ -408,11 +408,11 @@ typedef struct ginxlogInsert
 	 * follows: tuples or ItemPointerData or PostingItem or list of
 	 * ItemPointerData
 	 */
-} ginxlogInsert;
+} rumxlogInsert;
 
 #define XLOG_GIN_SPLIT	0x30
 
-typedef struct ginxlogSplit
+typedef struct rumxlogSplit
 {
 	RelFileNode node;
 	BlockNumber lblkno;
@@ -435,11 +435,11 @@ typedef struct ginxlogSplit
 
 	ItemPointerData rightbound; /* used only in posting tree */
 	/* follows: list of tuple or ItemPointerData or PostingItem */
-} ginxlogSplit;
+} rumxlogSplit;
 
 #define XLOG_GIN_VACUUM_PAGE	0x40
 
-typedef struct ginxlogVacuumPage
+typedef struct rumxlogVacuumPage
 {
 	RelFileNode node;
 	BlockNumber blkno;
@@ -450,11 +450,11 @@ typedef struct ginxlogVacuumPage
 	char		typalign;
 	char		typstorage;
 	/* follows content of page */
-} ginxlogVacuumPage;
+} rumxlogVacuumPage;
 
 #define XLOG_GIN_DELETE_PAGE	0x50
 
-typedef struct ginxlogDeletePage
+typedef struct rumxlogDeletePage
 {
 	RelFileNode node;
 	BlockNumber blkno;
@@ -462,115 +462,118 @@ typedef struct ginxlogDeletePage
 	OffsetNumber parentOffset;
 	BlockNumber leftBlkno;
 	BlockNumber rightLink;
-} ginxlogDeletePage;
+} rumxlogDeletePage;
 
 #define XLOG_GIN_UPDATE_META_PAGE 0x60
 
-typedef struct ginxlogUpdateMeta
+typedef struct rumxlogUpdateMeta
 {
 	RelFileNode node;
-	GinMetaPageData metadata;
+	RumMetaPageData metadata;
 	BlockNumber prevTail;
 	BlockNumber newRightlink;
 	int32		ntuples;		/* if ntuples > 0 then metadata.tail was
 								 * updated with that many tuples; else new sub
 								 * list was inserted */
 	/* array of inserted tuples follows */
-} ginxlogUpdateMeta;
+} rumxlogUpdateMeta;
 
 #define XLOG_GIN_INSERT_LISTPAGE  0x70
 
-typedef struct ginxlogInsertListPage
+typedef struct rumxlogInsertListPage
 {
 	RelFileNode node;
 	BlockNumber blkno;
 	BlockNumber rightlink;
 	int32		ntuples;
 	/* array of inserted tuples follows */
-} ginxlogInsertListPage;
+} rumxlogInsertListPage;
 
 #define XLOG_GIN_DELETE_LISTPAGE  0x80
 
-#define GIN_NDELETE_AT_ONCE 16
-typedef struct ginxlogDeleteListPages
+#define RUM_NDELETE_AT_ONCE 16
+typedef struct rumxlogDeleteListPages
 {
 	RelFileNode node;
-	GinMetaPageData metadata;
+	RumMetaPageData metadata;
 	int32		ndeleted;
-	BlockNumber toDelete[GIN_NDELETE_AT_ONCE];
-} ginxlogDeleteListPages;
+	BlockNumber toDelete[RUM_NDELETE_AT_ONCE];
+} rumxlogDeleteListPages;
 
 
-/* ginutil.c */
-extern bytea *ginoptions(Datum reloptions, bool validate);
+/* rumutil.c */
+extern bytea *rumoptions(Datum reloptions, bool validate);
 extern Datum rumhandler(PG_FUNCTION_ARGS);
-extern void initGinState(GinState *state, Relation index);
-extern Buffer GinNewBuffer(Relation index);
-extern void GinInitBuffer(Buffer b, uint32 f);
-extern void GinInitPage(Page page, uint32 f, Size pageSize);
-extern void GinInitMetabuffer(Buffer b);
-extern int ginCompareEntries(GinState *ginstate, OffsetNumber attnum,
-				  Datum a, GinNullCategory categorya,
-				  Datum b, GinNullCategory categoryb);
-extern int ginCompareAttEntries(GinState *ginstate,
-					 OffsetNumber attnuma, Datum a, GinNullCategory categorya,
-				   OffsetNumber attnumb, Datum b, GinNullCategory categoryb);
-extern Datum *ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
+extern void initGinState(RumState *state, Relation index);
+extern Buffer RumNewBuffer(Relation index);
+extern void RumInitBuffer(Buffer b, uint32 f);
+extern void RumInitPage(Page page, uint32 f, Size pageSize);
+extern void RumInitMetabuffer(Buffer b);
+extern int rumCompareEntries(RumState *rumstate, OffsetNumber attnum,
+				  Datum a, RumNullCategory categorya,
+				  Datum b, RumNullCategory categoryb);
+extern int rumCompareAttEntries(RumState *rumstate,
+					 OffsetNumber attnuma, Datum a, RumNullCategory categorya,
+				   OffsetNumber attnumb, Datum b, RumNullCategory categoryb);
+extern Datum *rumExtractEntries(RumState *rumstate, OffsetNumber attnum,
 				  Datum value, bool isNull,
-				  int32 *nentries, GinNullCategory **categories,
+				  int32 *nentries, RumNullCategory **categories,
 				  Datum **addInfo, bool **addInfoIsNull);
 
-extern OffsetNumber gintuple_get_attrnum(GinState *ginstate, IndexTuple tuple);
-extern Datum gintuple_get_key(GinState *ginstate, IndexTuple tuple,
-				 GinNullCategory *category);
+extern OffsetNumber rumtuple_get_attrnum(RumState *rumstate, IndexTuple tuple);
+extern Datum rumtuple_get_key(RumState *rumstate, IndexTuple tuple,
+				 RumNullCategory *category);
 
-/* gininsert.c */
-extern IndexBuildResult *ginbuild(Relation heap, Relation index,
+extern void rumGetStats(Relation index, GinStatsData *stats);
+extern void rumUpdateStats(Relation index, const GinStatsData *stats);
+
+/* ruminsert.c */
+extern IndexBuildResult *rumbuild(Relation heap, Relation index,
 								  struct IndexInfo *indexInfo);
-extern void ginbuildempty(Relation index);
-extern bool gininsert(Relation index, Datum *values, bool *isnull,
+extern void rumbuildempty(Relation index);
+extern bool ruminsert(Relation index, Datum *values, bool *isnull,
 					  ItemPointer ht_ctid, Relation heapRel,
 					  IndexUniqueCheck checkUnique);
-extern void ginEntryInsert(GinState *ginstate,
-			   OffsetNumber attnum, Datum key, GinNullCategory category,
+extern void rumEntryInsert(RumState *rumstate,
+			   OffsetNumber attnum, Datum key, RumNullCategory category,
 			   ItemPointerData *items, Datum *addInfo,
 			   bool *addInfoIsNull, uint32 nitem,
 			   GinStatsData *buildStats);
 
-/* ginbtree.c */
+/* rumbtree.c */
 
-typedef struct GinBtreeStack
+typedef struct RumBtreeStack
 {
 	BlockNumber blkno;
 	Buffer		buffer;
 	OffsetNumber off;
 	/* predictNumber contains predicted number of pages on current level */
 	uint32		predictNumber;
-	struct GinBtreeStack *parent;
-} GinBtreeStack;
+	struct RumBtreeStack *parent;
+} RumBtreeStack;
 
-typedef struct GinBtreeData *GinBtree;
+typedef struct RumBtreeData *RumBtree;
 
-typedef struct GinBtreeData
+typedef struct RumBtreeData
 {
 	/* search methods */
-	BlockNumber (*findChildPage) (GinBtree, GinBtreeStack *);
-	bool		(*isMoveRight) (GinBtree, Page);
-	bool		(*findItem) (GinBtree, GinBtreeStack *);
+	BlockNumber (*findChildPage) (RumBtree, RumBtreeStack *);
+	bool		(*isMoveRight) (RumBtree, Page);
+	bool		(*findItem) (RumBtree, RumBtreeStack *);
 
 	/* insert methods */
-	OffsetNumber (*findChildPtr) (GinBtree, Page, BlockNumber, OffsetNumber);
-	BlockNumber (*getLeftMostPage) (GinBtree, Page);
-	bool		(*isEnoughSpace) (GinBtree, Buffer, OffsetNumber);
-	void		(*placeToPage) (GinBtree, Buffer, OffsetNumber, XLogRecData **);
-	Page		(*splitPage) (GinBtree, Buffer, Buffer, OffsetNumber, XLogRecData **);
-	void		(*fillRoot) (GinBtree, Buffer, Buffer, Buffer);
+	OffsetNumber (*findChildPtr) (RumBtree, Page, BlockNumber, OffsetNumber);
+	BlockNumber (*getLeftMostPage) (RumBtree, Page);
+	bool		(*isEnoughSpace) (RumBtree, Buffer, OffsetNumber);
+	void		(*placeToPage) (RumBtree, Buffer, OffsetNumber, XLogRecData **);
+	Page		(*splitPage) (RumBtree, Buffer, Buffer, OffsetNumber, XLogRecData **);
+	void		(*fillRoot) (RumBtree, Buffer, Buffer, Buffer);
 
 	bool		isData;
 	bool		searchMode;
 
 	Relation	index;
-	GinState   *ginstate;		/* not valid in a data scan */
+	RumState   *rumstate;		/* not valid in a data scan */
 	bool		fullScan;
 	bool		isBuild;
 
@@ -579,7 +582,7 @@ typedef struct GinBtreeData
 	/* Entry options */
 	OffsetNumber entryAttnum;
 	Datum		entryKey;
-	GinNullCategory entryCategory;
+	RumNullCategory entryCategory;
 	IndexTuple	entry;
 	bool		isDelete;
 
@@ -592,92 +595,92 @@ typedef struct GinBtreeData
 	uint32		curitem;
 
 	PostingItem pitem;
-} GinBtreeData;
+} RumBtreeData;
 
-extern GinBtreeStack *ginPrepareFindLeafPage(GinBtree btree, BlockNumber blkno);
-extern GinBtreeStack *ginFindLeafPage(GinBtree btree, GinBtreeStack *stack);
-extern GinBtreeStack *ginReFindLeafPage(GinBtree btree, GinBtreeStack *stack);
-extern Buffer ginStepRight(Buffer buffer, Relation index, int lockmode);
-extern void freeGinBtreeStack(GinBtreeStack *stack);
-extern void ginInsertValue(GinBtree btree, GinBtreeStack *stack,
+extern RumBtreeStack *rumPrepareFindLeafPage(RumBtree btree, BlockNumber blkno);
+extern RumBtreeStack *rumFindLeafPage(RumBtree btree, RumBtreeStack *stack);
+extern RumBtreeStack *rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack);
+extern Buffer rumStepRight(Buffer buffer, Relation index, int lockmode);
+extern void freeGinBtreeStack(RumBtreeStack *stack);
+extern void rumInsertValue(RumBtree btree, RumBtreeStack *stack,
 			   GinStatsData *buildStats);
-extern void ginFindParents(GinBtree btree, GinBtreeStack *stack, BlockNumber rootBlkno);
+extern void rumFindParents(RumBtree btree, RumBtreeStack *stack, BlockNumber rootBlkno);
 
-/* ginentrypage.c */
-extern void ginPrepareEntryScan(GinBtree btree, OffsetNumber attnum,
-					Datum key, GinNullCategory category,
-					GinState *ginstate);
-extern void ginEntryFillRoot(GinBtree btree, Buffer root, Buffer lbuf, Buffer rbuf);
-extern IndexTuple ginPageGetLinkItup(Buffer buf);
-extern void ginReadTuple(GinState *ginstate, OffsetNumber attnum,
+/* rumentrypage.c */
+extern void rumPrepareEntryScan(RumBtree btree, OffsetNumber attnum,
+					Datum key, RumNullCategory category,
+					RumState *rumstate);
+extern void rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf);
+extern IndexTuple rumPageGetLinkItup(Buffer buf);
+extern void rumReadTuple(RumState *rumstate, OffsetNumber attnum,
 	IndexTuple itup, ItemPointerData *ipd, Datum *addInfo, bool *addInfoIsNull);
-extern ItemPointerData updateItemIndexes(Page page, OffsetNumber attnum, GinState *ginstate);
+extern ItemPointerData updateItemIndexes(Page page, OffsetNumber attnum, RumState *rumstate);
 
-/* gindatapage.c */
-extern int ginCompareItemPointers(ItemPointer a, ItemPointer b);
-extern char *ginDataPageLeafWriteItemPointer(char *ptr, ItemPointer iptr, ItemPointer prev, bool addInfoIsNull);
-extern Pointer ginPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
+/* rumdatapage.c */
+extern int rumCompareItemPointers(ItemPointer a, ItemPointer b);
+extern char *rumDataPageLeafWriteItemPointer(char *ptr, ItemPointer iptr, ItemPointer prev, bool addInfoIsNull);
+extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
 	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
-	GinState *ginstate);
-extern Size ginCheckPlaceToDataPageLeaf(OffsetNumber attnum,
+	RumState *rumstate);
+extern Size rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
 	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
-	GinState *ginstate, Size size);
-extern uint32 ginMergeItemPointers(ItemPointerData *dst, Datum *dst2, bool *dst3,
+	RumState *rumstate, Size size);
+extern uint32 rumMergeItemPointers(ItemPointerData *dst, Datum *dst2, bool *dst3,
 					 ItemPointerData *a, Datum *a2, bool *a3, uint32 na,
 					 ItemPointerData *b, Datum * b2, bool *b3, uint32 nb);
-extern void GinDataPageAddItem(Page page, void *data, OffsetNumber offset);
-extern void GinPageDeletePostingItem(Page page, OffsetNumber offset);
+extern void RumDataPageAddItem(Page page, void *data, OffsetNumber offset);
+extern void RumPageDeletePostingItem(Page page, OffsetNumber offset);
 
 typedef struct
 {
-	GinBtreeData btree;
-	GinBtreeStack *stack;
-} GinPostingTreeScan;
+	RumBtreeData btree;
+	RumBtreeStack *stack;
+} RumPostingTreeScan;
 
-extern GinPostingTreeScan *ginPrepareScanPostingTree(Relation index,
-						  BlockNumber rootBlkno, bool searchMode, OffsetNumber attnum, GinState *ginstate);
-extern void ginInsertItemPointers(GinState *ginstate,
+extern RumPostingTreeScan *rumPrepareScanPostingTree(Relation index,
+						  BlockNumber rootBlkno, bool searchMode, OffsetNumber attnum, RumState *rumstate);
+extern void rumInsertItemPointers(RumState *rumstate,
 					  OffsetNumber attnum,
-					  GinPostingTreeScan *gdi,
+					  RumPostingTreeScan *gdi,
 					  ItemPointerData *items,
 					  Datum *addInfo,
 					  bool *addInfoIsNull,
 					  uint32 nitem,
 					  GinStatsData *buildStats);
-extern Buffer ginScanBeginPostingTree(GinPostingTreeScan *gdi);
-extern void ginDataFillRoot(GinBtree btree, Buffer root, Buffer lbuf, Buffer rbuf);
-extern void ginPrepareDataScan(GinBtree btree, Relation index, OffsetNumber attnum, GinState *ginstate);
+extern Buffer rumScanBeginPostingTree(RumPostingTreeScan *gdi);
+extern void rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf);
+extern void rumPrepareDataScan(RumBtree btree, Relation index, OffsetNumber attnum, RumState *rumstate);
 
-/* ginscan.c */
+/* rumscan.c */
 
 /*
- * GinScanKeyData describes a single GIN index qualifier expression.
+ * RumScanKeyData describes a single RUM index qualifier expression.
  *
  * From each qual expression, we extract one or more specific index search
- * conditions, which are represented by GinScanEntryData.  It's quite
+ * conditions, which are represented by RumScanEntryData.  It's quite
  * possible for identical search conditions to be requested by more than
  * one qual expression, in which case we merge such conditions to have just
- * one unique GinScanEntry --- this is particularly important for efficiency
+ * one unique RumScanEntry --- this is particularly important for efficiency
  * when dealing with full-index-scan entries.  So there can be multiple
- * GinScanKeyData.scanEntry pointers to the same GinScanEntryData.
+ * RumScanKeyData.scanEntry pointers to the same RumScanEntryData.
  *
- * In each GinScanKeyData, nentries is the true number of entries, while
+ * In each RumScanKeyData, nentries is the true number of entries, while
  * nuserentries is the number that extractQueryFn returned (which is what
  * we report to consistentFn).  The "user" entries must come first.
  */
-typedef struct GinScanKeyData *GinScanKey;
+typedef struct RumScanKeyData *RumScanKey;
 
-typedef struct GinScanEntryData *GinScanEntry;
+typedef struct RumScanEntryData *RumScanEntry;
 
-typedef struct GinScanKeyData
+typedef struct RumScanKeyData
 {
 	/* Real number of entries in scanEntry[] (always > 0) */
 	uint32		nentries;
 	/* Number of entries that extractQueryFn and consistentFn know about */
 	uint32		nuserentries;
 
-	/* array of GinScanEntry pointers, one per extracted search condition */
-	GinScanEntry *scanEntry;
+	/* array of RumScanEntry pointers, one per extracted search condition */
+	RumScanEntry *scanEntry;
 
 	/* array of check flags, reported to consistentFn */
 	bool	   *entryRes;
@@ -688,7 +691,7 @@ typedef struct GinScanKeyData
 	Datum		query;
 	/* NB: these three arrays have only nuserentries elements! */
 	Datum	   *queryValues;
-	GinNullCategory *queryCategories;
+	RumNullCategory *queryCategories;
 	Pointer    *extra_data;
 	StrategyNumber strategy;
 	int32		searchMode;
@@ -706,13 +709,13 @@ typedef struct GinScanKeyData
 	bool		recheckCurItem;
 	bool		isFinished;
 	bool		orderBy;
-}	GinScanKeyData;
+}	RumScanKeyData;
 
-typedef struct GinScanEntryData
+typedef struct RumScanEntryData
 {
 	/* query key and other information from extractQueryFn */
 	Datum		queryKey;
-	GinNullCategory queryCategory;
+	RumNullCategory queryCategory;
 	bool		isPartialMatch;
 	Pointer		extra_data;
 	StrategyNumber strategy;
@@ -744,27 +747,27 @@ typedef struct GinScanEntryData
 	bool		reduceResult;
 	bool		preValue;
 	uint32		predictNumberResult;
-	GinPostingTreeScan *gdi;
-}	GinScanEntryData;
+	RumPostingTreeScan *gdi;
+}	RumScanEntryData;
 
 typedef struct
 {
 	ItemPointerData iptr;
 	float8			distance;
 	bool			recheck;
-} GinOrderingItem;
+} RumOrderingItem;
 
-typedef struct GinScanOpaqueData
+typedef struct RumScanOpaqueData
 {
 	MemoryContext tempCtx;
-	GinState	ginstate;
+	RumState	rumstate;
 
-	GinScanKey	keys;			/* one per scan qualifier expr */
+	RumScanKey	keys;			/* one per scan qualifier expr */
 	uint32		nkeys;
 	int			norderbys;
 
-	GinScanEntry *entries;		/* one per index search condition */
-	GinScanEntry *sortedEntries;		/* one per index search condition */
+	RumScanEntry *entries;		/* one per index search condition */
+	RumScanEntry *sortedEntries;		/* one per index search condition */
 	int			entriesIncrIndex;
 	uint32		totalentries;
 	uint32		allocentries;	/* allocated length of entries[] */
@@ -776,27 +779,27 @@ typedef struct GinScanOpaqueData
 	bool		isVoidRes;		/* true if query is unsatisfiable */
 	bool		useFastScan;
 	TIDBitmap  *tbm;
-} GinScanOpaqueData;
+} RumScanOpaqueData;
 
-typedef GinScanOpaqueData *GinScanOpaque;
+typedef RumScanOpaqueData *RumScanOpaque;
 
-extern IndexScanDesc ginbeginscan(Relation rel, int nkeys, int norderbys);
-extern void ginendscan(IndexScanDesc scan);
-extern void ginrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
+extern IndexScanDesc rumbeginscan(Relation rel, int nkeys, int norderbys);
+extern void rumendscan(IndexScanDesc scan);
+extern void rumrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 					  ScanKey orderbys, int norderbys);
-extern Datum ginmarkpos(PG_FUNCTION_ARGS);
-extern Datum ginrestrpos(PG_FUNCTION_ARGS);
-extern void ginNewScanKey(IndexScanDesc scan);
+extern Datum rummarkpos(PG_FUNCTION_ARGS);
+extern Datum rumrestrpos(PG_FUNCTION_ARGS);
+extern void rumNewScanKey(IndexScanDesc scan);
 
-/* ginget.c */
-extern int64 gingetbitmap(IndexScanDesc scan, TIDBitmap *tbm);
-extern Datum gingettuple(PG_FUNCTION_ARGS);
+/* rumget.c */
+extern int64 rumgetbitmap(IndexScanDesc scan, TIDBitmap *tbm);
+extern Datum rumgettuple(PG_FUNCTION_ARGS);
 
-/* ginvacuum.c */
-extern IndexBulkDeleteResult *ginbulkdelete(IndexVacuumInfo *info,
+/* rumvacuum.c */
+extern IndexBulkDeleteResult *rumbulkdelete(IndexVacuumInfo *info,
 			 IndexBulkDeleteResult *stats, IndexBulkDeleteCallback callback,
 			 void *callback_state);
-extern IndexBulkDeleteResult *ginvacuumcleanup(IndexVacuumInfo *info,
+extern IndexBulkDeleteResult *rumvacuumcleanup(IndexVacuumInfo *info,
 											   IndexBulkDeleteResult *stats);
 
 typedef struct
@@ -804,69 +807,72 @@ typedef struct
 	ItemPointerData	iptr;
 	Datum			addInfo;
 	bool			addInfoIsNull;
-} GinEntryAccumulatorItem;
+} RumEntryAccumulatorItem;
 
-/* ginbulk.c */
-typedef struct GinEntryAccumulator
+/* rumbulk.c */
+typedef struct RumEntryAccumulator
 {
 	RBNode		rbnode;
 	Datum		key;
-	GinNullCategory category;
+	RumNullCategory category;
 	OffsetNumber attnum;
 	bool		shouldSort;
-	GinEntryAccumulatorItem *list;
+	RumEntryAccumulatorItem *list;
 	uint32		maxcount;		/* allocated size of list[] */
 	uint32		count;			/* current number of list[] entries */
-} GinEntryAccumulator;
+} RumEntryAccumulator;
 
 typedef struct
 {
-	GinState   *ginstate;
+	RumState   *rumstate;
 	long		allocatedMemory;
-	GinEntryAccumulator *entryallocator;
+	RumEntryAccumulator *entryallocator;
 	uint32		eas_used;
 	RBTree	   *tree;
 } BuildAccumulator;
 
-extern void ginInitBA(BuildAccumulator *accum);
-extern void ginInsertBAEntries(BuildAccumulator *accum,
+extern void rumInitBA(BuildAccumulator *accum);
+extern void rumInsertBAEntries(BuildAccumulator *accum,
 				   ItemPointer heapptr, OffsetNumber attnum,
 				   Datum *entries, Datum *addInfo, bool *addInfoIsNull,
-				   GinNullCategory *categories, int32 nentries);
-extern void ginBeginBAScan(BuildAccumulator *accum);
-extern GinEntryAccumulatorItem *ginGetBAEntry(BuildAccumulator *accum,
-			  OffsetNumber *attnum, Datum *key, GinNullCategory *category,
+				   RumNullCategory *categories, int32 nentries);
+extern void rumBeginBAScan(BuildAccumulator *accum);
+extern RumEntryAccumulatorItem *rumGetBAEntry(BuildAccumulator *accum,
+			  OffsetNumber *attnum, Datum *key, RumNullCategory *category,
 			  uint32 *n);
 
-/* ginfast.c */
+/* rumfast.c */
 
-typedef struct GinTupleCollector
+typedef struct RumTupleCollector
 {
 	IndexTuple *tuples;
 	uint32		ntuples;
 	uint32		lentuples;
 	uint32		sumsize;
-} GinTupleCollector;
+} RumTupleCollector;
 
-extern void ginHeapTupleFastInsert(GinState *ginstate,
-					   GinTupleCollector *collector);
-extern void ginHeapTupleFastCollect(GinState *ginstate,
-						GinTupleCollector *collector,
+extern void rumHeapTupleFastInsert(RumState *rumstate,
+					   RumTupleCollector *collector);
+extern void rumHeapTupleFastCollect(RumState *rumstate,
+						RumTupleCollector *collector,
 						OffsetNumber attnum, Datum value, bool isNull,
 						ItemPointer ht_ctid);
-extern void ginInsertCleanup(GinState *ginstate,
+extern void rumInsertCleanup(RumState *rumstate,
 				 bool vac_delay, IndexBulkDeleteResult *stats);
 
 /* rum_ts_utils.c */
-#define GIN_CONFIG_PROC				   7
-#define GIN_PRE_CONSISTENT_PROC		   8
-#define GIN_ORDERING_PROC			   9
+#define RUM_CONFIG_PROC				   7
+#define RUM_PRE_CONSISTENT_PROC		   8
+#define RUM_ORDERING_PROC			   9
 
 extern Datum rum_extract_tsvector(PG_FUNCTION_ARGS);
 extern Datum rum_extract_tsquery(PG_FUNCTION_ARGS);
 extern Datum rum_tsvector_config(PG_FUNCTION_ARGS);
 extern Datum rum_tsquery_pre_consistent(PG_FUNCTION_ARGS);
 extern Datum rum_tsquery_distance(PG_FUNCTION_ARGS);
+
+/* GUC parameters */
+extern PGDLLIMPORT int RumFuzzySearchLimit;
 
 /*
  * Functions for reading ItemPointers with additional information. Used in
@@ -883,7 +889,7 @@ extern Datum rum_tsquery_distance(PG_FUNCTION_ARGS);
  * with item pointer.
  */
 static inline char *
-ginDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
+rumDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
 {
 	uint32 blockNumberIncr = 0;
 	uint16 offset = 0;
@@ -943,13 +949,13 @@ ginDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
  * passed in order to read the first item pointer.
  */
 static inline Pointer
-ginDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
-	Datum *addInfo, bool *addInfoIsNull, GinState *ginstate)
+rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
+	Datum *addInfo, bool *addInfoIsNull, RumState *rumstate)
 {
 	Form_pg_attribute attr;
 	bool isNull;
 
-	ptr = ginDataPageLeafReadItemPointer(ptr, iptr, &isNull);
+	ptr = rumDataPageLeafReadItemPointer(ptr, iptr, &isNull);
 
 	Assert(iptr->ip_posid != InvalidOffsetNumber);
 
@@ -958,7 +964,7 @@ ginDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
 
 	if (!isNull)
 	{
-		attr = ginstate->addAttrs[attnum - 1];
+		attr = rumstate->addAttrs[attnum - 1];
 		ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen, ptr);
 		if (addInfo)
 			*addInfo = fetch_att(ptr,  attr->attbyval,  attr->attlen);

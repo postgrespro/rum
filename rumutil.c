@@ -1,14 +1,13 @@
 /*-------------------------------------------------------------------------
  *
- * ginutil.c
+ * rumutil.c
  *	  utilities routines for the postgres inverted index access method.
  *
  *
- * Portions Copyright (c) 1996-2013, PostgreSQL Global Development Group
+ * Portions Copyright (c) 2015-2016, Postgres Professional
+ * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * IDENTIFICATION
- *			src/backend/access/gin/ginutil.c
  *-------------------------------------------------------------------------
  */
 
@@ -20,16 +19,35 @@
 #include "miscadmin.h"
 #include "storage/indexfsm.h"
 #include "storage/lmgr.h"
+#include "utils/guc.h"
 #include "utils/index_selfuncs.h"
 
 #include "rum.h"
 
 PG_MODULE_MAGIC;
 
+void		_PG_init(void);
+
 PG_FUNCTION_INFO_V1(rumhandler);
 
 /*
- * GIN handler function: return IndexAmRoutine with access method parameters
+ * Module load callback
+ */
+void
+_PG_init(void)
+{
+	/* Define custom GUC variables. */
+	DefineCustomIntVariable("rum_fuzzy_search_limit",
+					"Sets the maximum allowed result for exact search by RUM.",
+					NULL,
+					&RumFuzzySearchLimit,
+					0, 0, INT_MAX,
+					PGC_USERSET, 0,
+					NULL, NULL, NULL);
+}
+
+/*
+ * RUM handler function: return IndexAmRoutine with access method parameters
  * and callbacks.
  */
 Datum
@@ -52,20 +70,20 @@ rumhandler(PG_FUNCTION_ARGS)
 	amroutine->ampredlocks = false;
 	amroutine->amkeytype = InvalidOid;
 
-	amroutine->ambuild = ginbuild;
-	amroutine->ambuildempty = ginbuildempty;
-	amroutine->aminsert = gininsert;
-	amroutine->ambulkdelete = ginbulkdelete;
-	amroutine->amvacuumcleanup = ginvacuumcleanup;
+	amroutine->ambuild = rumbuild;
+	amroutine->ambuildempty = rumbuildempty;
+	amroutine->aminsert = ruminsert;
+	amroutine->ambulkdelete = rumbulkdelete;
+	amroutine->amvacuumcleanup = rumvacuumcleanup;
 	amroutine->amcanreturn = NULL;
 	amroutine->amcostestimate = gincostestimate;
-	amroutine->amoptions = ginoptions;
-// 	amroutine->amvalidate = ginvalidate;
-	amroutine->ambeginscan = ginbeginscan;
-	amroutine->amrescan = ginrescan;
+	amroutine->amoptions = rumoptions;
+// 	amroutine->amvalidate = rumvalidate;
+	amroutine->ambeginscan = rumbeginscan;
+	amroutine->amrescan = rumrescan;
 	amroutine->amgettuple = NULL;
-	amroutine->amgetbitmap = gingetbitmap;
-	amroutine->amendscan = ginendscan;
+	amroutine->amgetbitmap = rumgetbitmap;
+	amroutine->amendscan = rumendscan;
 	amroutine->ammarkpos = NULL;
 	amroutine->amrestrpos = NULL;
 
@@ -73,17 +91,17 @@ rumhandler(PG_FUNCTION_ARGS)
 }
 
 /*
- * initGinState: fill in an empty GinState struct to describe the index
+ * initGinState: fill in an empty RumState struct to describe the index
  *
  * Note: assorted subsidiary data is allocated in the CurrentMemoryContext.
  */
 void
-initGinState(GinState *state, Relation index)
+initGinState(RumState *state, Relation index)
 {
 	TupleDesc	origTupdesc = RelationGetDescr(index);
 	int			i;
 
-	MemSet(state, 0, sizeof(GinState));
+	MemSet(state, 0, sizeof(RumState));
 
 	state->index = index;
 	state->oneCol = (origTupdesc->natts == 1) ? true : false;
@@ -91,19 +109,19 @@ initGinState(GinState *state, Relation index)
 
 	for (i = 0; i < origTupdesc->natts; i++)
 	{
-		GinConfig ginConfig;
+		RumConfig rumConfig;
 
-		ginConfig.addInfoTypeOid = InvalidOid;
+		rumConfig.addInfoTypeOid = InvalidOid;
 
-		if (index_getprocid(index, i + 1, GIN_CONFIG_PROC) != InvalidOid)
+		if (index_getprocid(index, i + 1, RUM_CONFIG_PROC) != InvalidOid)
 		{
 			fmgr_info_copy(&(state->configFn[i]),
-						   index_getprocinfo(index, i + 1, GIN_CONFIG_PROC),
+						   index_getprocinfo(index, i + 1, RUM_CONFIG_PROC),
 						   CurrentMemoryContext);
 
-			FunctionCall1(&state->configFn[i], PointerGetDatum(&ginConfig));
+			FunctionCall1(&state->configFn[i], PointerGetDatum(&rumConfig));
 		}
-		state->addInfoTypeOid[i] = ginConfig.addInfoTypeOid;
+		state->addInfoTypeOid[i] = rumConfig.addInfoTypeOid;
 
 		if (state->oneCol)
 		{
@@ -181,10 +199,10 @@ initGinState(GinState *state, Relation index)
 		/*
 		 * Check opclass capability to do pre consistent check.
 		 */
-		if (index_getprocid(index, i + 1, GIN_PRE_CONSISTENT_PROC) != InvalidOid)
+		if (index_getprocid(index, i + 1, RUM_PRE_CONSISTENT_PROC) != InvalidOid)
 		{
 			fmgr_info_copy(&(state->preConsistentFn[i]),
-				   index_getprocinfo(index, i + 1, GIN_PRE_CONSISTENT_PROC),
+				   index_getprocinfo(index, i + 1, RUM_PRE_CONSISTENT_PROC),
 						   CurrentMemoryContext);
 			state->canPreConsistent[i] = true;
 		}
@@ -196,10 +214,10 @@ initGinState(GinState *state, Relation index)
   		/*
 		 * Check opclass capability to do order by.
 		 */
-		if (index_getprocid(index, i + 1, GIN_ORDERING_PROC) != InvalidOid)
+		if (index_getprocid(index, i + 1, RUM_ORDERING_PROC) != InvalidOid)
 		{
 			fmgr_info_copy(&(state->orderingFn[i]),
-				   index_getprocinfo(index, i + 1, GIN_ORDERING_PROC),
+				   index_getprocinfo(index, i + 1, RUM_ORDERING_PROC),
 						   CurrentMemoryContext);
 			state->canOrdering[i] = true;
 		}
@@ -217,7 +235,7 @@ initGinState(GinState *state, Relation index)
 		 * collation.  This is harmless if the support functions don't care
 		 * about collation, so we just do it unconditionally.  (We could
 		 * alternatively call get_typcollation, but that seems like expensive
-		 * overkill --- there aren't going to be any cases where a GIN storage
+		 * overkill --- there aren't going to be any cases where a RUM storage
 		 * type has a nondefault collation.)
 		 */
 		if (OidIsValid(index->rd_indcollation[i]))
@@ -228,14 +246,14 @@ initGinState(GinState *state, Relation index)
 }
 
 /*
- * Extract attribute (column) number of stored entry from GIN tuple
+ * Extract attribute (column) number of stored entry from RUM tuple
  */
 OffsetNumber
-gintuple_get_attrnum(GinState *ginstate, IndexTuple tuple)
+rumtuple_get_attrnum(RumState *rumstate, IndexTuple tuple)
 {
 	OffsetNumber colN;
 
-	if (ginstate->oneCol)
+	if (rumstate->oneCol)
 	{
 		/* column number is not stored explicitly */
 		colN = FirstOffsetNumber;
@@ -249,33 +267,33 @@ gintuple_get_attrnum(GinState *ginstate, IndexTuple tuple)
 		 * First attribute is always int16, so we can safely use any tuple
 		 * descriptor to obtain first attribute of tuple
 		 */
-		res = index_getattr(tuple, FirstOffsetNumber, ginstate->tupdesc[0],
+		res = index_getattr(tuple, FirstOffsetNumber, rumstate->tupdesc[0],
 							&isnull);
 		Assert(!isnull);
 
 		colN = DatumGetUInt16(res);
-		Assert(colN >= FirstOffsetNumber && colN <= ginstate->origTupdesc->natts);
+		Assert(colN >= FirstOffsetNumber && colN <= rumstate->origTupdesc->natts);
 	}
 
 	return colN;
 }
 
 /*
- * Extract stored datum (and possible null category) from GIN tuple
+ * Extract stored datum (and possible null category) from RUM tuple
  */
 Datum
-gintuple_get_key(GinState *ginstate, IndexTuple tuple,
-				 GinNullCategory *category)
+rumtuple_get_key(RumState *rumstate, IndexTuple tuple,
+				 RumNullCategory *category)
 {
 	Datum		res;
 	bool		isnull;
 
-	if (ginstate->oneCol)
+	if (rumstate->oneCol)
 	{
 		/*
 		 * Single column index doesn't store attribute numbers in tuples
 		 */
-		res = index_getattr(tuple, FirstOffsetNumber, ginstate->origTupdesc,
+		res = index_getattr(tuple, FirstOffsetNumber, rumstate->origTupdesc,
 							&isnull);
 	}
 	else
@@ -284,17 +302,17 @@ gintuple_get_key(GinState *ginstate, IndexTuple tuple,
 		 * Since the datum type depends on which index column it's from, we
 		 * must be careful to use the right tuple descriptor here.
 		 */
-		OffsetNumber colN = gintuple_get_attrnum(ginstate, tuple);
+		OffsetNumber colN = rumtuple_get_attrnum(rumstate, tuple);
 
 		res = index_getattr(tuple, OffsetNumberNext(FirstOffsetNumber),
-							ginstate->tupdesc[colN - 1],
+							rumstate->tupdesc[colN - 1],
 							&isnull);
 	}
 
 	if (isnull)
-		*category = GinGetNullCategory(tuple, ginstate);
+		*category = RumGetNullCategory(tuple, rumstate);
 	else
-		*category = GIN_CAT_NORM_KEY;
+		*category = RUM_CAT_NORM_KEY;
 
 	return res;
 }
@@ -302,10 +320,10 @@ gintuple_get_key(GinState *ginstate, IndexTuple tuple,
 /*
  * Allocate a new page (either by recycling, or by extending the index file)
  * The returned buffer is already pinned and exclusive-locked
- * Caller is responsible for initializing the page by calling GinInitBuffer
+ * Caller is responsible for initializing the page by calling RumInitBuffer
  */
 Buffer
-GinNewBuffer(Relation index)
+RumNewBuffer(Relation index)
 {
 	Buffer		buffer;
 	bool		needLock;
@@ -332,10 +350,10 @@ GinNewBuffer(Relation index)
 			if (PageIsNew(page))
 				return buffer;	/* OK to use, if never initialized */
 
-			if (GinPageIsDeleted(page))
+			if (RumPageIsDeleted(page))
 				return buffer;	/* OK to use */
 
-			LockBuffer(buffer, GIN_UNLOCK);
+			LockBuffer(buffer, RUM_UNLOCK);
 		}
 
 		/* Can't use it, so release buffer and try again */
@@ -348,7 +366,7 @@ GinNewBuffer(Relation index)
 		LockRelationForExtension(index, ExclusiveLock);
 
 	buffer = ReadBuffer(index, P_NEW);
-	LockBuffer(buffer, GIN_EXCLUSIVE);
+	LockBuffer(buffer, RUM_EXCLUSIVE);
 
 	if (needLock)
 		UnlockRelationForExtension(index, ExclusiveLock);
@@ -357,34 +375,34 @@ GinNewBuffer(Relation index)
 }
 
 void
-GinInitPage(Page page, uint32 f, Size pageSize)
+RumInitPage(Page page, uint32 f, Size pageSize)
 {
-	GinPageOpaque opaque;
+	RumPageOpaque opaque;
 
-	PageInit(page, pageSize, sizeof(GinPageOpaqueData));
+	PageInit(page, pageSize, sizeof(RumPageOpaqueData));
 
-	opaque = GinPageGetOpaque(page);
-	memset(opaque, 0, sizeof(GinPageOpaqueData));
+	opaque = RumPageGetOpaque(page);
+	memset(opaque, 0, sizeof(RumPageOpaqueData));
 	opaque->flags = f;
 	opaque->rightlink = InvalidBlockNumber;
 }
 
 void
-GinInitBuffer(Buffer b, uint32 f)
+RumInitBuffer(Buffer b, uint32 f)
 {
-	GinInitPage(BufferGetPage(b, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
+	RumInitPage(BufferGetPage(b, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
 				f, BufferGetPageSize(b));
 }
 
 void
-GinInitMetabuffer(Buffer b)
+RumInitMetabuffer(Buffer b)
 {
-	GinMetaPageData *metadata;
+	RumMetaPageData *metadata;
 	Page		page = BufferGetPage(b, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
-	GinInitPage(page, GIN_META, BufferGetPageSize(b));
+	RumInitPage(page, RUM_META, BufferGetPageSize(b));
 
-	metadata = GinPageGetMeta(page);
+	metadata = RumPageGetMeta(page);
 
 	metadata->head = metadata->tail = InvalidBlockNumber;
 	metadata->tailFreeSize = 0;
@@ -394,28 +412,28 @@ GinInitMetabuffer(Buffer b)
 	metadata->nEntryPages = 0;
 	metadata->nDataPages = 0;
 	metadata->nEntries = 0;
-	metadata->ginVersion = GIN_CURRENT_VERSION;
+	metadata->rumVersion = RUM_CURRENT_VERSION;
 }
 
 /*
  * Compare two keys of the same index column
  */
 int
-ginCompareEntries(GinState *ginstate, OffsetNumber attnum,
-				  Datum a, GinNullCategory categorya,
-				  Datum b, GinNullCategory categoryb)
+rumCompareEntries(RumState *rumstate, OffsetNumber attnum,
+				  Datum a, RumNullCategory categorya,
+				  Datum b, RumNullCategory categoryb)
 {
 	/* if not of same null category, sort by that first */
 	if (categorya != categoryb)
 		return (categorya < categoryb) ? -1 : 1;
 
 	/* all null items in same category are equal */
-	if (categorya != GIN_CAT_NORM_KEY)
+	if (categorya != RUM_CAT_NORM_KEY)
 		return 0;
 
 	/* both not null, so safe to call the compareFn */
-	return DatumGetInt32(FunctionCall2Coll(&ginstate->compareFn[attnum - 1],
-									  ginstate->supportCollation[attnum - 1],
+	return DatumGetInt32(FunctionCall2Coll(&rumstate->compareFn[attnum - 1],
+									  rumstate->supportCollation[attnum - 1],
 										   a, b));
 }
 
@@ -423,23 +441,23 @@ ginCompareEntries(GinState *ginstate, OffsetNumber attnum,
  * Compare two keys of possibly different index columns
  */
 int
-ginCompareAttEntries(GinState *ginstate,
-					 OffsetNumber attnuma, Datum a, GinNullCategory categorya,
-					 OffsetNumber attnumb, Datum b, GinNullCategory categoryb)
+rumCompareAttEntries(RumState *rumstate,
+					 OffsetNumber attnuma, Datum a, RumNullCategory categorya,
+					 OffsetNumber attnumb, Datum b, RumNullCategory categoryb)
 {
 	/* attribute number is the first sort key */
 	if (attnuma != attnumb)
 		return (attnuma < attnumb) ? -1 : 1;
 
-	return ginCompareEntries(ginstate, attnuma, a, categorya, b, categoryb);
+	return rumCompareEntries(rumstate, attnuma, a, categorya, b, categoryb);
 }
 
 
 /*
- * Support for sorting key datums in ginExtractEntries
+ * Support for sorting key datums in rumExtractEntries
  *
  * Note: we only have to worry about null and not-null keys here;
- * ginExtractEntries never generates more than one placeholder null,
+ * rumExtractEntries never generates more than one placeholder null,
  * so it doesn't have to sort those.
  */
 typedef struct
@@ -498,9 +516,9 @@ cmpEntries(const void *a, const void *b, void *arg)
  * This avoids generating redundant index entries.
  */
 Datum *
-ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
+rumExtractEntries(RumState *rumstate, OffsetNumber attnum,
 				  Datum value, bool isNull,
-				  int32 *nentries, GinNullCategory **categories,
+				  int32 *nentries, RumNullCategory **categories,
 				  Datum **addInfo, bool **addInfoIsNull)
 {
 	Datum	   *entries;
@@ -520,8 +538,8 @@ ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
 		(*addInfo)[0] = (Datum) 0;
 		*addInfoIsNull = (bool *) palloc(sizeof(bool));
 		(*addInfoIsNull)[0] = true;
-		*categories = (GinNullCategory *) palloc(sizeof(GinNullCategory));
-		(*categories)[0] = GIN_CAT_NULL_ITEM;
+		*categories = (RumNullCategory *) palloc(sizeof(RumNullCategory));
+		(*categories)[0] = RUM_CAT_NULL_ITEM;
 		return entries;
 	}
 
@@ -530,8 +548,8 @@ ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
 	*addInfo = NULL;
 	*addInfoIsNull = NULL;
 	entries = (Datum *)
-		DatumGetPointer(FunctionCall5Coll(&ginstate->extractValueFn[attnum - 1],
-									  ginstate->supportCollation[attnum - 1],
+		DatumGetPointer(FunctionCall5Coll(&rumstate->extractValueFn[attnum - 1],
+									  rumstate->supportCollation[attnum - 1],
 										  value,
 										  PointerGetDatum(nentries),
 										  PointerGetDatum(&nullFlags),
@@ -551,8 +569,8 @@ ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
 		(*addInfo)[0] = (Datum) 0;
 		*addInfoIsNull = (bool *) palloc(sizeof(bool));
 		(*addInfoIsNull)[0] = true;
-		*categories = (GinNullCategory *) palloc(sizeof(GinNullCategory));
-		(*categories)[0] = GIN_CAT_EMPTY_ITEM;
+		*categories = (RumNullCategory *) palloc(sizeof(RumNullCategory));
+		(*categories)[0] = RUM_CAT_EMPTY_ITEM;
 		return entries;
 	}
 
@@ -573,7 +591,7 @@ ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
 	 * If the extractValueFn didn't create a nullFlags array, create one,
 	 * assuming that everything's non-null.  Otherwise, run through the array
 	 * and make sure each value is exactly 0 or 1; this ensures binary
-	 * compatibility with the GinNullCategory representation.
+	 * compatibility with the RumNullCategory representation.
 	 */
 	if (nullFlags == NULL)
 		nullFlags = (bool *) palloc0(*nentries * sizeof(bool));
@@ -583,7 +601,7 @@ ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
 			nullFlags[i] = (nullFlags[i] ? true : false);
 	}
 	/* now we can use the nullFlags as category codes */
-	*categories = (GinNullCategory *) nullFlags;
+	*categories = (RumNullCategory *) nullFlags;
 
 	/*
 	 * If there's more than one key, sort and unique-ify.
@@ -606,8 +624,8 @@ ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
 			keydata[i].addInfoIsNull = (*addInfoIsNull)[i];
 		}
 
-		arg.cmpDatumFunc = &ginstate->compareFn[attnum - 1];
-		arg.collation = ginstate->supportCollation[attnum - 1];
+		arg.cmpDatumFunc = &rumstate->compareFn[attnum - 1];
+		arg.collation = rumstate->supportCollation[attnum - 1];
 		arg.haveDups = false;
 		qsort_arg(keydata, *nentries, sizeof(keyEntryData),
 				  cmpEntries, (void *) &arg);
@@ -654,16 +672,16 @@ ginExtractEntries(GinState *ginstate, OffsetNumber attnum,
 }
 
 bytea *
-ginoptions(Datum reloptions, bool validate)
+rumoptions(Datum reloptions, bool validate)
 {
 	relopt_value *options;
-	GinOptions *rdopts;
+	RumOptions *rdopts;
 	int			numoptions;
 	static const relopt_parse_elt tab[] = {
-		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(GinOptions, useFastUpdate)}
+		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(RumOptions, useFastUpdate)}
 	};
 
-	elog(LOG, "ginoptions");
+	elog(LOG, "rumoptions");
 
 	options = parseRelOptions(reloptions, validate, RELOPT_KIND_GIN,
 							  &numoptions);
@@ -672,9 +690,9 @@ ginoptions(Datum reloptions, bool validate)
 	if (numoptions == 0)
 		return NULL;
 
-	rdopts = allocateReloptStruct(sizeof(GinOptions), options, numoptions);
+	rdopts = allocateReloptStruct(sizeof(RumOptions), options, numoptions);
 
-	fillRelOptions((void *) rdopts, sizeof(GinOptions), options, numoptions,
+	fillRelOptions((void *) rdopts, sizeof(RumOptions), options, numoptions,
 				   validate, tab, lengthof(tab));
 
 	pfree(options);
@@ -686,26 +704,26 @@ ginoptions(Datum reloptions, bool validate)
  * Fetch index's statistical data into *stats
  *
  * Note: in the result, nPendingPages can be trusted to be up-to-date,
- * as can ginVersion; but the other fields are as of the last VACUUM.
+ * as can rumVersion; but the other fields are as of the last VACUUM.
  */
 void
-ginGetStats(Relation index, GinStatsData *stats)
+rumGetStats(Relation index, GinStatsData *stats)
 {
 	Buffer		metabuffer;
 	Page		metapage;
-	GinMetaPageData *metadata;
+	RumMetaPageData *metadata;
 
-	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
-	LockBuffer(metabuffer, GIN_SHARE);
+	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
+	LockBuffer(metabuffer, RUM_SHARE);
 	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-	metadata = GinPageGetMeta(metapage);
+	metadata = RumPageGetMeta(metapage);
 
 	stats->nPendingPages = metadata->nPendingPages;
 	stats->nTotalPages = metadata->nTotalPages;
 	stats->nEntryPages = metadata->nEntryPages;
 	stats->nDataPages = metadata->nDataPages;
 	stats->nEntries = metadata->nEntries;
-	stats->ginVersion = metadata->ginVersion;
+	stats->ginVersion = metadata->rumVersion;
 
 	UnlockReleaseBuffer(metabuffer);
 }
@@ -713,19 +731,19 @@ ginGetStats(Relation index, GinStatsData *stats)
 /*
  * Write the given statistics to the index's metapage
  *
- * Note: nPendingPages and ginVersion are *not* copied over
+ * Note: nPendingPages and rumVersion are *not* copied over
  */
 void
-ginUpdateStats(Relation index, const GinStatsData *stats)
+rumUpdateStats(Relation index, const GinStatsData *stats)
 {
 	Buffer		metabuffer;
 	Page		metapage;
-	GinMetaPageData *metadata;
+	RumMetaPageData *metadata;
 
-	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
-	LockBuffer(metabuffer, GIN_EXCLUSIVE);
+	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
+	LockBuffer(metabuffer, RUM_EXCLUSIVE);
 	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-	metadata = GinPageGetMeta(metapage);
+	metadata = RumPageGetMeta(metapage);
 
 	START_CRIT_SECTION();
 
@@ -739,17 +757,17 @@ ginUpdateStats(Relation index, const GinStatsData *stats)
 // 	if (RelationNeedsWAL(index))
 // 	{
 // 		XLogRecPtr	recptr;
-// 		ginxlogUpdateMeta data;
+// 		rumxlogUpdateMeta data;
 // 		XLogRecData rdata;
 //
 // 		data.node = index->rd_node;
 // 		data.ntuples = 0;
 // 		data.newRightlink = data.prevTail = InvalidBlockNumber;
-// 		memcpy(&data.metadata, metadata, sizeof(GinMetaPageData));
+// 		memcpy(&data.metadata, metadata, sizeof(RumMetaPageData));
 //
 // 		rdata.buffer = InvalidBuffer;
 // 		rdata.data = (char *) &data;
-// 		rdata.len = sizeof(ginxlogUpdateMeta);
+// 		rdata.len = sizeof(rumxlogUpdateMeta);
 // 		rdata.next = NULL;
 //
 // 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_UPDATE_META_PAGE, &rdata);

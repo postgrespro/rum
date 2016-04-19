@@ -3,6 +3,7 @@
  * rum_ts_utils.c
  *		various support functions
  *
+ * Portions Copyright (c) 2015-2016, Postgres Professional
  * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  *
  *-------------------------------------------------------------------------
@@ -36,12 +37,12 @@ typedef struct
 	bool	   *check;
 	int		   *map_item_operand;
 	bool	   *need_recheck;
-} GinChkVal;
+} RumChkVal;
 
 static bool
 checkcondition_gin(void *checkval, QueryOperand *val, ExecPhraseData *data)
 {
-	GinChkVal  *gcv = (GinChkVal *) checkval;
+	RumChkVal  *gcv = (RumChkVal *) checkval;
 	int			j;
 
 	/* if any val requiring a weight is used, set recheck flag */
@@ -69,7 +70,7 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 	if (query->size > 0)
 	{
 		QueryItem  *item;
-		GinChkVal	gcv;
+		RumChkVal	gcv;
 
 		/*
 		 * check-parameter array has one entry for each value (operand) in the
@@ -563,7 +564,7 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 Datum
 rum_tsvector_config(PG_FUNCTION_ARGS)
 {
-	GinConfig *config = (GinConfig *)PG_GETARG_POINTER(0);
+	RumConfig *config = (RumConfig *)PG_GETARG_POINTER(0);
 	config->addInfoTypeOid = BYTEAOID;
 	PG_RETURN_VOID();
 }

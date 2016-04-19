@@ -1,17 +1,15 @@
 /*-------------------------------------------------------------------------
  *
- * ginfast.c
+ * rumfast.c
  *	  Fast insert routines for the Postgres inverted index access method.
  *	  Pending entries are stored in linear list of pages.  Later on
- *	  (typically during VACUUM), ginInsertCleanup() will be invoked to
+ *	  (typically during VACUUM), rumInsertCleanup() will be invoked to
  *	  transfer pending entries into the regular index structure.  This
  *	  wins because bulk insertion is much more efficient than retail.
  *
+ * Portions Copyright (c) 2015-2016, Postgres Professional
  * Portions Copyright (c) 1996-2013, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
- *
- * IDENTIFICATION
- *			src/backend/access/gin/ginfast.c
  *
  *-------------------------------------------------------------------------
  */
@@ -27,15 +25,15 @@
 
 #include "rum.h"
 
-#define GIN_PAGE_FREESIZE \
-	( BLCKSZ - MAXALIGN(SizeOfPageHeaderData) - MAXALIGN(sizeof(GinPageOpaqueData)) )
+#define RUM_PAGE_FREESIZE \
+	( BLCKSZ - MAXALIGN(SizeOfPageHeaderData) - MAXALIGN(sizeof(RumPageOpaqueData)) )
 
 typedef struct KeyArray
 {
 	Datum	   *keys;			 /* expansible array of keys */
 	Datum	   *addInfo;		 /* expansible array of additional information */
 	bool	   *addInfoIsNull;   /* expansible array of  NULL flag of additional information */
-	GinNullCategory *categories; /* another expansible array */
+	RumNullCategory *categories; /* another expansible array */
 	int32		nvalues;		 /* current number of valid entries */
 	int32		maxvalues;		 /* allocated size of arrays */
 } KeyArray;
@@ -64,7 +62,7 @@ writeListPage(Relation index, Buffer buffer,
 
 	START_CRIT_SECTION();
 
-	GinInitBuffer(buffer, GIN_LIST);
+	RumInitBuffer(buffer, RUM_LIST);
 
 	off = FirstOffsetNumber;
 	ptr = workspace;
@@ -88,7 +86,7 @@ writeListPage(Relation index, Buffer buffer,
 
 	Assert(size <= BLCKSZ);		/* else we overran workspace */
 
-	GinPageGetOpaque(page)->rightlink = rightlink;
+	RumPageGetOpaque(page)->rightlink = rightlink;
 
 	/*
 	 * tail page may contain only whole row(s) or final part of row placed on
@@ -97,12 +95,12 @@ writeListPage(Relation index, Buffer buffer,
 	 */
 	if (rightlink == InvalidBlockNumber)
 	{
-		GinPageSetFullRow(page);
-		GinPageGetOpaque(page)->maxoff = 1;
+		RumPageSetFullRow(page);
+		RumPageGetOpaque(page)->maxoff = 1;
 	}
 	else
 	{
-		GinPageGetOpaque(page)->maxoff = 0;
+		RumPageGetOpaque(page)->maxoff = 0;
 	}
 
 	MarkBufferDirty(buffer);
@@ -110,7 +108,7 @@ writeListPage(Relation index, Buffer buffer,
 // 	if (RelationNeedsWAL(index))
 // 	{
 // 		XLogRecData rdata[2];
-// 		ginxlogInsertListPage data;
+// 		rumxlogInsertListPage data;
 // 		XLogRecPtr	recptr;
 //
 // 		data.node = index->rd_node;
@@ -120,7 +118,7 @@ writeListPage(Relation index, Buffer buffer,
 //
 // 		rdata[0].buffer = InvalidBuffer;
 // 		rdata[0].data = (char *) &data;
-// 		rdata[0].len = sizeof(ginxlogInsertListPage);
+// 		rdata[0].len = sizeof(rumxlogInsertListPage);
 // 		rdata[0].next = rdata + 1;
 //
 // 		rdata[1].buffer = InvalidBuffer;
@@ -146,7 +144,7 @@ writeListPage(Relation index, Buffer buffer,
 
 static void
 makeSublist(Relation index, IndexTuple *tuples, int32 ntuples,
-			GinMetaPageData *res)
+			RumMetaPageData *res)
 {
 	Buffer		curBuffer = InvalidBuffer;
 	Buffer		prevBuffer = InvalidBuffer;
@@ -164,7 +162,7 @@ makeSublist(Relation index, IndexTuple *tuples, int32 ntuples,
 	{
 		if (curBuffer == InvalidBuffer)
 		{
-			curBuffer = GinNewBuffer(index);
+			curBuffer = RumNewBuffer(index);
 
 			if (prevBuffer != InvalidBuffer)
 			{
@@ -186,7 +184,7 @@ makeSublist(Relation index, IndexTuple *tuples, int32 ntuples,
 
 		tupsize = MAXALIGN(IndexTupleSize(tuples[i])) + sizeof(ItemIdData);
 
-		if (size + tupsize > GinListPageSize)
+		if (size + tupsize > RumListPageSize)
 		{
 			/* won't fit, force a new page and reprocess */
 			i--;
@@ -219,16 +217,16 @@ makeSublist(Relation index, IndexTuple *tuples, int32 ntuples,
  * preserving order
  */
 void
-ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
+rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 {
-	Relation	index = ginstate->index;
+	Relation	index = rumstate->index;
 	Buffer		metabuffer;
 	Page		metapage;
-	GinMetaPageData *metadata = NULL;
+	RumMetaPageData *metadata = NULL;
 	XLogRecData rdata[2];
 	Buffer		buffer = InvalidBuffer;
 	Page		page = NULL;
-	ginxlogUpdateMeta data;
+	rumxlogUpdateMeta data;
 	bool		separateList = false;
 	bool		needCleanup = false;
 
@@ -241,13 +239,13 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 
 	rdata[0].buffer = InvalidBuffer;
 	rdata[0].data = (char *) &data;
-	rdata[0].len = sizeof(ginxlogUpdateMeta);
+	rdata[0].len = sizeof(rumxlogUpdateMeta);
 	rdata[0].next = NULL;
 
-	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
+	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
 	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
-	if (collector->sumsize + collector->ntuples * sizeof(ItemIdData) > GinListPageSize)
+	if (collector->sumsize + collector->ntuples * sizeof(ItemIdData) > RumListPageSize)
 	{
 		/*
 		 * Total size is greater than one page => make sublist
@@ -256,8 +254,8 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 	}
 	else
 	{
-		LockBuffer(metabuffer, GIN_EXCLUSIVE);
-		metadata = GinPageGetMeta(metapage);
+		LockBuffer(metabuffer, RUM_EXCLUSIVE);
+		metadata = RumPageGetMeta(metapage);
 
 		if (metadata->head == InvalidBlockNumber ||
 			collector->sumsize + collector->ntuples * sizeof(ItemIdData) > metadata->tailFreeSize)
@@ -269,7 +267,7 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 			 * We unlock metabuffer to keep high concurrency
 			 */
 			separateList = true;
-			LockBuffer(metabuffer, GIN_UNLOCK);
+			LockBuffer(metabuffer, RUM_UNLOCK);
 		}
 	}
 
@@ -278,16 +276,16 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 		/*
 		 * We should make sublist separately and append it to the tail
 		 */
-		GinMetaPageData sublist;
+		RumMetaPageData sublist;
 
-		memset(&sublist, 0, sizeof(GinMetaPageData));
+		memset(&sublist, 0, sizeof(RumMetaPageData));
 		makeSublist(index, collector->tuples, collector->ntuples, &sublist);
 
 		/*
 		 * metapage was unlocked, see above
 		 */
-		LockBuffer(metabuffer, GIN_EXCLUSIVE);
-		metadata = GinPageGetMeta(metapage);
+		LockBuffer(metabuffer, RUM_EXCLUSIVE);
+		metadata = RumPageGetMeta(metapage);
 
 		if (metadata->head == InvalidBlockNumber)
 		{
@@ -312,7 +310,7 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 			data.newRightlink = sublist.head;
 
 			buffer = ReadBuffer(index, metadata->tail);
-			LockBuffer(buffer, GIN_EXCLUSIVE);
+			LockBuffer(buffer, RUM_EXCLUSIVE);
 			page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 			rdata[0].next = rdata + 1;
@@ -323,11 +321,11 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 			rdata[1].len = 0;
 			rdata[1].next = NULL;
 
-			Assert(GinPageGetOpaque(page)->rightlink == InvalidBlockNumber);
+			Assert(RumPageGetOpaque(page)->rightlink == InvalidBlockNumber);
 
 			START_CRIT_SECTION();
 
-			GinPageGetOpaque(page)->rightlink = sublist.head;
+			RumPageGetOpaque(page)->rightlink = sublist.head;
 
 			MarkBufferDirty(buffer);
 
@@ -350,7 +348,7 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 		char	   *ptr;
 
 		buffer = ReadBuffer(index, metadata->tail);
-		LockBuffer(buffer, GIN_EXCLUSIVE);
+		LockBuffer(buffer, RUM_EXCLUSIVE);
 		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 		off = (PageIsEmpty(page)) ? FirstOffsetNumber :
@@ -371,8 +369,8 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 		/*
 		 * Increase counter of heap tuples
 		 */
-		Assert(GinPageGetOpaque(page)->maxoff <= metadata->nPendingHeapTuples);
-		GinPageGetOpaque(page)->maxoff++;
+		Assert(RumPageGetOpaque(page)->maxoff <= metadata->nPendingHeapTuples);
+		RumPageGetOpaque(page)->maxoff++;
 		metadata->nPendingHeapTuples++;
 
 		for (i = 0; i < collector->ntuples; i++)
@@ -406,7 +404,7 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 // 	{
 // 		XLogRecPtr	recptr;
 //
-// 		memcpy(&data.metadata, metadata, sizeof(GinMetaPageData));
+// 		memcpy(&data.metadata, metadata, sizeof(RumMetaPageData));
 //
 // 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_UPDATE_META_PAGE, rdata);
 // 		PageSetLSN(metapage, recptr);
@@ -422,14 +420,14 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 
 	/*
 	 * Force pending list cleanup when it becomes too long. And,
-	 * ginInsertCleanup could take significant amount of time, so we prefer to
+	 * rumInsertCleanup could take significant amount of time, so we prefer to
 	 * call it when it can do all the work in a single collection cycle. In
 	 * non-vacuum mode, it shouldn't require maintenance_work_mem, so fire it
 	 * while pending list is still small enough to fit into work_mem.
 	 *
-	 * ginInsertCleanup() should not be called inside our CRIT_SECTION.
+	 * rumInsertCleanup() should not be called inside our CRIT_SECTION.
 	 */
-	if (metadata->nPendingPages * GIN_PAGE_FREESIZE > work_mem * 1024L)
+	if (metadata->nPendingPages * RUM_PAGE_FREESIZE > work_mem * 1024L)
 		needCleanup = true;
 
 	UnlockReleaseBuffer(metabuffer);
@@ -437,12 +435,12 @@ ginHeapTupleFastInsert(GinState *ginstate, GinTupleCollector *collector)
 	END_CRIT_SECTION();
 
 	if (needCleanup)
-		ginInsertCleanup(ginstate, false, NULL);
+		rumInsertCleanup(rumstate, false, NULL);
 }
 
 static IndexTuple
-GinFastFormTuple(GinState *ginstate,
-			 OffsetNumber attnum, Datum key, GinNullCategory category,
+RumFastFormTuple(RumState *rumstate,
+			 OffsetNumber attnum, Datum key, RumNullCategory category,
 			 Datum addInfo,
 			 bool addInfoIsNull)
 {
@@ -453,10 +451,10 @@ GinFastFormTuple(GinState *ginstate,
 
 	/* Build the basic tuple: optional column number, plus key datum */
 
-	if (ginstate->oneCol)
+	if (rumstate->oneCol)
 	{
 		datums[0] = key;
-		isnull[0] = (category != GIN_CAT_NORM_KEY);
+		isnull[0] = (category != RUM_CAT_NORM_KEY);
 		datums[1] = addInfo;
 		isnull[1] = addInfoIsNull;
 	}
@@ -465,12 +463,12 @@ GinFastFormTuple(GinState *ginstate,
 		datums[0] = UInt16GetDatum(attnum);
 		isnull[0] = false;
 		datums[1] = key;
-		isnull[1] = (category != GIN_CAT_NORM_KEY);
+		isnull[1] = (category != RUM_CAT_NORM_KEY);
 		datums[2] = addInfo;
 		isnull[2] = addInfoIsNull;
 	}
 
-	itup = index_form_tuple(ginstate->tupdesc[attnum - 1], datums, isnull);
+	itup = index_form_tuple(rumstate->tupdesc[attnum - 1], datums, isnull);
 
 	/*
 	 * Place category to the last byte of index tuple extending it's size if
@@ -478,28 +476,28 @@ GinFastFormTuple(GinState *ginstate,
 	 */
 	newsize = IndexTupleSize(itup);
 
-	if (category != GIN_CAT_NORM_KEY)
+	if (category != RUM_CAT_NORM_KEY)
 	{
 		uint32		minsize;
 
 		Assert(IndexTupleHasNulls(itup));
 		minsize = IndexInfoFindDataOffset(itup->t_info) +
-			heap_compute_data_size(ginstate->tupdesc[attnum - 1], datums, isnull) +
-			sizeof(GinNullCategory);
+			heap_compute_data_size(rumstate->tupdesc[attnum - 1], datums, isnull) +
+			sizeof(RumNullCategory);
 		newsize = Max(newsize, minsize);
 	}
 
 	newsize = MAXALIGN(newsize);
 
-	if (newsize > Min(INDEX_SIZE_MASK, GinMaxItemSize))
+	if (newsize > Min(INDEX_SIZE_MASK, RumMaxItemSize))
 	{
 		ereport(ERROR,
 				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
 		errmsg("index row size %lu exceeds maximum %lu for index \"%s\"",
 			   (unsigned long) newsize,
 			   (unsigned long) Min(INDEX_SIZE_MASK,
-								   GinMaxItemSize),
-			   RelationGetRelationName(ginstate->index))));
+								   RumMaxItemSize),
+			   RelationGetRelationName(rumstate->index))));
 		pfree(itup);
 		return NULL;
 	}
@@ -519,10 +517,10 @@ GinFastFormTuple(GinState *ginstate,
 	/*
 	 * Insert category byte, if needed
 	 */
-	if (category != GIN_CAT_NORM_KEY)
+	if (category != RUM_CAT_NORM_KEY)
 	{
 		Assert(IndexTupleHasNulls(itup));
-		GinSetNullCategory(itup, ginstate, category);
+		RumSetNullCategory(itup, rumstate, category);
 	}
 
 	return itup;
@@ -533,18 +531,18 @@ GinFastFormTuple(GinState *ginstate,
  * Create temporary index tuples for a single indexable item (one index column
  * for the heap tuple specified by ht_ctid), and append them to the array
  * in *collector.  They will subsequently be written out using
- * ginHeapTupleFastInsert.  Note that to guarantee consistent state, all
+ * rumHeapTupleFastInsert.  Note that to guarantee consistent state, all
  * temp tuples for a given heap tuple must be written in one call to
- * ginHeapTupleFastInsert.
+ * rumHeapTupleFastInsert.
  */
 void
-ginHeapTupleFastCollect(GinState *ginstate,
-						GinTupleCollector *collector,
+rumHeapTupleFastCollect(RumState *rumstate,
+						RumTupleCollector *collector,
 						OffsetNumber attnum, Datum value, bool isNull,
 						ItemPointer ht_ctid)
 {
 	Datum	   *entries;
-	GinNullCategory *categories;
+	RumNullCategory *categories;
 	int32		i,
 				nentries;
 	Datum	   *addInfo;
@@ -553,7 +551,7 @@ ginHeapTupleFastCollect(GinState *ginstate,
 	/*
 	 * Extract the key values that need to be inserted in the index
 	 */
-	entries = ginExtractEntries(ginstate, attnum, value, isNull,
+	entries = rumExtractEntries(rumstate, attnum, value, isNull,
 								&nentries, &categories, &addInfo, &addInfoIsNull);
 
 	/*
@@ -561,7 +559,7 @@ ginHeapTupleFastCollect(GinState *ginstate,
 	 */
 	if (collector->tuples == NULL)
 	{
-		collector->lentuples = nentries * ginstate->origTupdesc->natts;
+		collector->lentuples = nentries * rumstate->origTupdesc->natts;
 		collector->tuples = (IndexTuple *) palloc(sizeof(IndexTuple) * collector->lentuples);
 	}
 
@@ -580,7 +578,7 @@ ginHeapTupleFastCollect(GinState *ginstate,
 	{
 		IndexTuple	itup;
 
-		itup = GinFastFormTuple(ginstate, attnum, entries[i], categories[i], addInfo[i], addInfoIsNull[i]);
+		itup = RumFastFormTuple(rumstate, attnum, entries[i], categories[i], addInfo[i], addInfoIsNull[i]);
 		itup->t_tid = *ht_ctid;
 		collector->tuples[collector->ntuples++] = itup;
 		collector->sumsize += IndexTupleSize(itup);
@@ -601,11 +599,11 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		  IndexBulkDeleteResult *stats)
 {
 	Page		metapage;
-	GinMetaPageData *metadata;
+	RumMetaPageData *metadata;
 	BlockNumber blknoToDelete;
 
 	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-	metadata = GinPageGetMeta(metapage);
+	metadata = RumPageGetMeta(metapage);
 	blknoToDelete = metadata->head;
 
 	do
@@ -613,29 +611,29 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		Page		page;
 		int			i;
 		int64		nDeletedHeapTuples = 0;
-		ginxlogDeleteListPages data;
+		rumxlogDeleteListPages data;
 // 		XLogRecData rdata[1];
-		Buffer		buffers[GIN_NDELETE_AT_ONCE];
+		Buffer		buffers[RUM_NDELETE_AT_ONCE];
 
 		data.node = index->rd_node;
 
 // 		rdata[0].buffer = InvalidBuffer;
 // 		rdata[0].data = (char *) &data;
-// 		rdata[0].len = sizeof(ginxlogDeleteListPages);
+// 		rdata[0].len = sizeof(rumxlogDeleteListPages);
 // 		rdata[0].next = NULL;
 
 		data.ndeleted = 0;
-		while (data.ndeleted < GIN_NDELETE_AT_ONCE && blknoToDelete != newHead)
+		while (data.ndeleted < RUM_NDELETE_AT_ONCE && blknoToDelete != newHead)
 		{
 			data.toDelete[data.ndeleted] = blknoToDelete;
 			buffers[data.ndeleted] = ReadBuffer(index, blknoToDelete);
-			LockBuffer(buffers[data.ndeleted], GIN_EXCLUSIVE);
+			LockBuffer(buffers[data.ndeleted], RUM_EXCLUSIVE);
 			page = BufferGetPage(buffers[data.ndeleted], NULL, NULL,
 								 BGP_NO_SNAPSHOT_TEST);
 
 			data.ndeleted++;
 
-			if (GinPageIsDeleted(page))
+			if (RumPageIsDeleted(page))
 			{
 				/* concurrent cleanup process is detected */
 				for (i = 0; i < data.ndeleted; i++)
@@ -644,8 +642,8 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 				return true;
 			}
 
-			nDeletedHeapTuples += GinPageGetOpaque(page)->maxoff;
-			blknoToDelete = GinPageGetOpaque(page)->rightlink;
+			nDeletedHeapTuples += RumPageGetOpaque(page)->maxoff;
+			blknoToDelete = RumPageGetOpaque(page)->rightlink;
 		}
 
 		if (stats)
@@ -673,7 +671,7 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		for (i = 0; i < data.ndeleted; i++)
 		{
 			page = BufferGetPage(buffers[i], NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-			GinPageGetOpaque(page)->flags = GIN_DELETED;
+			RumPageGetOpaque(page)->flags = RUM_DELETED;
 			MarkBufferDirty(buffers[i]);
 		}
 
@@ -681,7 +679,7 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 // 		{
 // 			XLogRecPtr	recptr;
 //
-// 			memcpy(&data.metadata, metadata, sizeof(GinMetaPageData));
+// 			memcpy(&data.metadata, metadata, sizeof(RumMetaPageData));
 //
 // 			recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_DELETE_LISTPAGE, rdata);
 // 			PageSetLSN(metapage, recptr);
@@ -710,15 +708,15 @@ initKeyArray(KeyArray *keys, int32 maxvalues)
 	keys->keys = (Datum *) palloc(sizeof(Datum) * maxvalues);
 	keys->addInfo = (Datum *) palloc(sizeof(Datum) * maxvalues);
 	keys->addInfoIsNull = (bool *) palloc(sizeof(bool) * maxvalues);
-	keys->categories = (GinNullCategory *)
-		palloc(sizeof(GinNullCategory) * maxvalues);
+	keys->categories = (RumNullCategory *)
+		palloc(sizeof(RumNullCategory) * maxvalues);
 	keys->nvalues = 0;
 	keys->maxvalues = maxvalues;
 }
 
 /* Add datum to KeyArray, resizing if needed */
 static void
-addDatum(KeyArray *keys, Datum datum, Datum addInfo, bool addInfoIsNull, GinNullCategory category)
+addDatum(KeyArray *keys, Datum datum, Datum addInfo, bool addInfoIsNull, RumNullCategory category)
 {
 	if (keys->nvalues >= keys->maxvalues)
 	{
@@ -729,8 +727,8 @@ addDatum(KeyArray *keys, Datum datum, Datum addInfo, bool addInfoIsNull, GinNull
 			repalloc(keys->addInfo, sizeof(Datum) * keys->maxvalues);
 		keys->addInfoIsNull = (bool *)
 			repalloc(keys->addInfoIsNull, sizeof(bool) * keys->maxvalues);
-		keys->categories = (GinNullCategory *)
-			repalloc(keys->categories, sizeof(GinNullCategory) * keys->maxvalues);
+		keys->categories = (RumNullCategory *)
+			repalloc(keys->categories, sizeof(RumNullCategory) * keys->maxvalues);
 	}
 
 	keys->keys[keys->nvalues] = datum;
@@ -772,20 +770,20 @@ processPendingPage(BuildAccumulator *accum, KeyArray *ka,
 		OffsetNumber curattnum;
 		Datum		curkey, addInfo = 0;
 		bool		addInfoIsNull = true;
-		GinNullCategory curcategory;
+		RumNullCategory curcategory;
 
 		/* Check for change of heap TID or attnum */
-		curattnum = gintuple_get_attrnum(accum->ginstate, itup);
+		curattnum = rumtuple_get_attrnum(accum->rumstate, itup);
 
-		if (OidIsValid(accum->ginstate->addInfoTypeOid[curattnum - 1]))
+		if (OidIsValid(accum->rumstate->addInfoTypeOid[curattnum - 1]))
 		{
-			Form_pg_attribute attr = accum->ginstate->addAttrs[curattnum - 1];
-			if (accum->ginstate->oneCol)
+			Form_pg_attribute attr = accum->rumstate->addAttrs[curattnum - 1];
+			if (accum->rumstate->oneCol)
 				addInfo = index_getattr(itup, 2,
-					accum->ginstate->tupdesc[curattnum - 1], &addInfoIsNull);
+					accum->rumstate->tupdesc[curattnum - 1], &addInfoIsNull);
 			else
 				addInfo = index_getattr(itup, 3,
-					accum->ginstate->tupdesc[curattnum - 1], &addInfoIsNull);
+					accum->rumstate->tupdesc[curattnum - 1], &addInfoIsNull);
 			addInfo = datumCopy(addInfo, attr->attbyval, attr->attlen);
 		}
 
@@ -798,11 +796,11 @@ processPendingPage(BuildAccumulator *accum, KeyArray *ka,
 				   curattnum == attrnum))
 		{
 			/*
-			 * ginInsertBAEntries can insert several datums per call, but only
+			 * rumInsertBAEntries can insert several datums per call, but only
 			 * for one heap tuple and one column.  So call it at a boundary,
 			 * and reset ka.
 			 */
-			ginInsertBAEntries(accum, &heapptr, attrnum,
+			rumInsertBAEntries(accum, &heapptr, attrnum,
 							   ka->keys, ka->addInfo, ka->addInfoIsNull, ka->categories, ka->nvalues);
 			ka->nvalues = 0;
 			heapptr = itup->t_tid;
@@ -810,22 +808,22 @@ processPendingPage(BuildAccumulator *accum, KeyArray *ka,
 		}
 
 		/* Add key to KeyArray */
-		curkey = gintuple_get_key(accum->ginstate, itup, &curcategory);
+		curkey = rumtuple_get_key(accum->rumstate, itup, &curcategory);
 		addDatum(ka, curkey, addInfo, addInfoIsNull, curcategory);
 	}
 
 	/* Dump out all remaining keys */
-	ginInsertBAEntries(accum, &heapptr, attrnum,
+	rumInsertBAEntries(accum, &heapptr, attrnum,
 					   ka->keys, ka->addInfo, ka->addInfoIsNull, ka->categories, ka->nvalues);
 }
 
 /*
- * Move tuples from pending pages into regular GIN structure.
+ * Move tuples from pending pages into regular RUM structure.
  *
  * This can be called concurrently by multiple backends, so it must cope.
  * On first glance it looks completely not concurrent-safe and not crash-safe
  * either.  The reason it's okay is that multiple insertion of the same entry
- * is detected and treated as a no-op by gininsert.c.  If we crash after
+ * is detected and treated as a no-op by ruminsert.c.  If we crash after
  * posting entries to the main index and before removing them from the
  * pending list, it's okay because when we redo the posting later on, nothing
  * bad will happen.  Likewise, if two backends simultaneously try to post
@@ -835,30 +833,30 @@ processPendingPage(BuildAccumulator *accum, KeyArray *ka,
  * action of removing a page from the pending list really needs exclusive
  * lock.
  *
- * vac_delay indicates that ginInsertCleanup is called from vacuum process,
+ * vac_delay indicates that rumInsertCleanup is called from vacuum process,
  * so call vacuum_delay_point() periodically.
  * If stats isn't null, we count deleted pending pages into the counts.
  */
 void
-ginInsertCleanup(GinState *ginstate,
+rumInsertCleanup(RumState *rumstate,
 				 bool vac_delay, IndexBulkDeleteResult *stats)
 {
-	Relation	index = ginstate->index;
+	Relation	index = rumstate->index;
 	Buffer		metabuffer,
 				buffer;
 	Page		metapage,
 				page;
-	GinMetaPageData *metadata;
+	RumMetaPageData *metadata;
 	MemoryContext opCtx,
 				oldCtx;
 	BuildAccumulator accum;
 	KeyArray	datums;
 	BlockNumber blkno;
 
-	metabuffer = ReadBuffer(index, GIN_METAPAGE_BLKNO);
-	LockBuffer(metabuffer, GIN_SHARE);
+	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
+	LockBuffer(metabuffer, RUM_SHARE);
 	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-	metadata = GinPageGetMeta(metapage);
+	metadata = RumPageGetMeta(metapage);
 
 	if (metadata->head == InvalidBlockNumber)
 	{
@@ -872,16 +870,16 @@ ginInsertCleanup(GinState *ginstate,
 	 */
 	blkno = metadata->head;
 	buffer = ReadBuffer(index, blkno);
-	LockBuffer(buffer, GIN_SHARE);
+	LockBuffer(buffer, RUM_SHARE);
 	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
-	LockBuffer(metabuffer, GIN_UNLOCK);
+	LockBuffer(metabuffer, RUM_UNLOCK);
 
 	/*
 	 * Initialize.  All temporary space will be in opCtx
 	 */
 	opCtx = AllocSetContextCreate(CurrentMemoryContext,
-								  "GIN insert cleanup temporary context",
+								  "RUM insert cleanup temporary context",
 								  ALLOCSET_DEFAULT_MINSIZE,
 								  ALLOCSET_DEFAULT_INITSIZE,
 								  ALLOCSET_DEFAULT_MAXSIZE);
@@ -889,8 +887,8 @@ ginInsertCleanup(GinState *ginstate,
 	oldCtx = MemoryContextSwitchTo(opCtx);
 
 	initKeyArray(&datums, 128);
-	ginInitBA(&accum);
-	accum.ginstate = ginstate;
+	rumInitBA(&accum);
+	accum.rumstate = rumstate;
 
 	/*
 	 * At the top of this loop, we have pin and lock on the current page of
@@ -899,7 +897,7 @@ ginInsertCleanup(GinState *ginstate,
 	 */
 	for (;;)
 	{
-		if (GinPageIsDeleted(page))
+		if (RumPageIsDeleted(page))
 		{
 			/* another cleanup process is running concurrently */
 			UnlockReleaseBuffer(buffer);
@@ -921,14 +919,14 @@ ginInsertCleanup(GinState *ginstate,
 		 * XXX using up maintenance_work_mem here is probably unreasonably
 		 * much, since vacuum might already be using that much.
 		 */
-		if (GinPageGetOpaque(page)->rightlink == InvalidBlockNumber ||
-			(GinPageHasFullRow(page) &&
+		if (RumPageGetOpaque(page)->rightlink == InvalidBlockNumber ||
+			(RumPageHasFullRow(page) &&
 			 (accum.allocatedMemory >= maintenance_work_mem * 1024L)))
 		{
-			GinEntryAccumulatorItem *list;
+			RumEntryAccumulatorItem *list;
 			uint32		nlist;
 			Datum		key;
-			GinNullCategory category;
+			RumNullCategory category;
 			OffsetNumber maxoff,
 						attnum;
 
@@ -938,15 +936,15 @@ ginInsertCleanup(GinState *ginstate,
 			 * memory flush.
 			 */
 			maxoff = PageGetMaxOffsetNumber(page);
-			LockBuffer(buffer, GIN_UNLOCK);
+			LockBuffer(buffer, RUM_UNLOCK);
 
 			/*
 			 * Moving collected data into regular structure can take
 			 * significant amount of time - so, run it without locking pending
 			 * list.
 			 */
-			ginBeginBAScan(&accum);
-			while ((list = ginGetBAEntry(&accum,
+			rumBeginBAScan(&accum);
+			while ((list = rumGetBAEntry(&accum,
 								  &attnum, &key, &category, &nlist)) != NULL)
 			{
 				ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(ItemPointerData) *nlist);
@@ -960,7 +958,7 @@ ginInsertCleanup(GinState *ginstate,
 					addInfo[i] = list[i].addInfo;
 					addInfoIsNull[i] = list[i].addInfoIsNull;
 				}
-				ginEntryInsert(ginstate, attnum, key, category,
+				rumEntryInsert(rumstate, attnum, key, category,
 							   iptrs, addInfo, addInfoIsNull, nlist, NULL);
 				vacuum_delay_point();
 			}
@@ -968,14 +966,14 @@ ginInsertCleanup(GinState *ginstate,
 			/*
 			 * Lock the whole list to remove pages
 			 */
-			LockBuffer(metabuffer, GIN_EXCLUSIVE);
-			LockBuffer(buffer, GIN_SHARE);
+			LockBuffer(metabuffer, RUM_EXCLUSIVE);
+			LockBuffer(buffer, RUM_SHARE);
 
-			if (GinPageIsDeleted(page))
+			if (RumPageIsDeleted(page))
 			{
 				/* another cleanup process is running concurrently */
 				UnlockReleaseBuffer(buffer);
-				LockBuffer(metabuffer, GIN_UNLOCK);
+				LockBuffer(metabuffer, RUM_UNLOCK);
 				break;
 			}
 
@@ -989,11 +987,11 @@ ginInsertCleanup(GinState *ginstate,
 			 */
 			if (PageGetMaxOffsetNumber(page) != maxoff)
 			{
-				ginInitBA(&accum);
+				rumInitBA(&accum);
 				processPendingPage(&accum, &datums, page, maxoff + 1);
 
-				ginBeginBAScan(&accum);
-				while ((list = ginGetBAEntry(&accum,
+				rumBeginBAScan(&accum);
+				while ((list = rumGetBAEntry(&accum,
 								  &attnum, &key, &category, &nlist)) != NULL)
 				{
 					ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(ItemPointerData) *nlist);
@@ -1008,7 +1006,7 @@ ginInsertCleanup(GinState *ginstate,
 						addInfoIsNull[i] = list[i].addInfoIsNull;
 					}
 
-					ginEntryInsert(ginstate, attnum, key, category,
+					rumEntryInsert(rumstate, attnum, key, category,
 								   iptrs, addInfo, addInfoIsNull, nlist, NULL);
 				}
 			}
@@ -1016,7 +1014,7 @@ ginInsertCleanup(GinState *ginstate,
 			/*
 			 * Remember next page - it will become the new list head
 			 */
-			blkno = GinPageGetOpaque(page)->rightlink;
+			blkno = RumPageGetOpaque(page)->rightlink;
 			UnlockReleaseBuffer(buffer);		/* shiftList will do exclusive
 												 * locking */
 
@@ -1027,12 +1025,12 @@ ginInsertCleanup(GinState *ginstate,
 			if (shiftList(index, metabuffer, blkno, stats))
 			{
 				/* another cleanup process is running concurrently */
-				LockBuffer(metabuffer, GIN_UNLOCK);
+				LockBuffer(metabuffer, RUM_UNLOCK);
 				break;
 			}
 
 			Assert(blkno == metadata->head);
-			LockBuffer(metabuffer, GIN_UNLOCK);
+			LockBuffer(metabuffer, RUM_UNLOCK);
 
 			/*
 			 * if we removed the whole pending list just exit
@@ -1045,11 +1043,11 @@ ginInsertCleanup(GinState *ginstate,
 			 */
 			MemoryContextReset(opCtx);
 			initKeyArray(&datums, datums.maxvalues);
-			ginInitBA(&accum);
+			rumInitBA(&accum);
 		}
 		else
 		{
-			blkno = GinPageGetOpaque(page)->rightlink;
+			blkno = RumPageGetOpaque(page)->rightlink;
 			UnlockReleaseBuffer(buffer);
 		}
 
@@ -1058,7 +1056,7 @@ ginInsertCleanup(GinState *ginstate,
 		 */
 		vacuum_delay_point();
 		buffer = ReadBuffer(index, blkno);
-		LockBuffer(buffer, GIN_SHARE);
+		LockBuffer(buffer, RUM_SHARE);
 		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	}
 

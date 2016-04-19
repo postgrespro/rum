@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  *
- * ginsort.h
+ * rumsort.h
  *  Generalized tuple sorting routines.
  *
  * This module handles sorting of heap tuples, index tuples, or single
@@ -63,9 +63,9 @@ typedef struct
 	ItemPointerData iptr;
 	bool			recheck;
 	float8			data[1];
-} GinSortItem;
+} RumSortItem;
 
-#define GinSortItemSize(nKeys) (offsetof(GinSortItem,data)+(nKeys)*sizeof(float8))
+#define RumSortItemSize(nKeys) (offsetof(RumSortItem,data)+(nKeys)*sizeof(float8))
 
 extern Tuplesortstate *tuplesort_begin_heap(TupleDesc tupDesc,
 					 int nkeys, AttrNumber *attNums,
@@ -87,7 +87,7 @@ extern Tuplesortstate *tuplesort_begin_datum(Oid datumType,
 					  Oid sortOperator, Oid sortCollation,
 					  bool nullsFirstFlag,
 					  int workMem, bool randomAccess);
-extern Tuplesortstate *tuplesort_begin_gin(int workMem,
+extern Tuplesortstate *tuplesort_begin_rum(int workMem,
 						int nKeys, bool randomAccess);
 
 extern void tuplesort_set_bound(Tuplesortstate *state, int64 bound);
@@ -98,7 +98,7 @@ extern void tuplesort_putheaptuple(Tuplesortstate *state, HeapTuple tup);
 extern void tuplesort_putindextuple(Tuplesortstate *state, IndexTuple tuple);
 extern void tuplesort_putdatum(Tuplesortstate *state, Datum val,
 				   bool isNull);
-extern void tuplesort_putgin(Tuplesortstate *state, GinSortItem *item);
+extern void tuplesort_putrum(Tuplesortstate *state, RumSortItem *item);
 
 extern void tuplesort_performsort(Tuplesortstate *state);
 
@@ -110,7 +110,7 @@ extern IndexTuple tuplesort_getindextuple(Tuplesortstate *state, bool forward,
 						bool *should_free);
 extern bool tuplesort_getdatum(Tuplesortstate *state, bool forward,
 				   Datum *val, bool *isNull);
-extern GinSortItem *tuplesort_getgin(Tuplesortstate *state, bool forward,
+extern RumSortItem *tuplesort_getrum(Tuplesortstate *state, bool forward,
 						bool *should_free);
 
 extern void tuplesort_end(Tuplesortstate *state);

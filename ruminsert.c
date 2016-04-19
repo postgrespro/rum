@@ -1,14 +1,13 @@
 /*-------------------------------------------------------------------------
  *
- * gininsert.c
+ * ruminsert.c
  *	  insert routines for the postgres inverted index access method.
  *
  *
- * Portions Copyright (c) 1996-2013, PostgreSQL Global Development Group
+ * Portions Copyright (c) 2015-2016, Postgres Professional
+ * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
- * IDENTIFICATION
- *			src/backend/access/gin/gininsert.c
  *-------------------------------------------------------------------------
  */
 
@@ -28,13 +27,13 @@
 
 typedef struct
 {
-	GinState	ginstate;
+	RumState	rumstate;
 	double		indtuples;
 	GinStatsData buildStats;
 	MemoryContext tmpCtx;
 	MemoryContext funcCtx;
 	BuildAccumulator accum;
-} GinBuildState;
+} RumBuildState;
 
 /*
  * Creates new posting tree with one page, containing the given TIDs.
@@ -43,11 +42,11 @@ typedef struct
  * items[] must be in sorted order with no duplicates.
  */
 static BlockNumber
-createPostingTree(GinState *ginstate, OffsetNumber attnum, Relation index,
+createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 	ItemPointerData *items, Datum *addInfo, bool *addInfoIsNull, uint32 nitems)
 {
 	BlockNumber blkno;
-	Buffer		buffer = GinNewBuffer(index);
+	Buffer		buffer = RumNewBuffer(index);
 	Page		page;
 	int			i;
 	Pointer		ptr;
@@ -58,21 +57,21 @@ createPostingTree(GinState *ginstate, OffsetNumber attnum, Relation index,
 
 	START_CRIT_SECTION();
 
-	GinInitBuffer(buffer, GIN_DATA | GIN_LEAF);
+	RumInitBuffer(buffer, RUM_DATA | RUM_LEAF);
 	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	blkno = BufferGetBlockNumber(buffer);
 
-	GinPageGetOpaque(page)->maxoff = nitems;
-	ptr = GinDataPageGetData(page);
+	RumPageGetOpaque(page)->maxoff = nitems;
+	ptr = RumDataPageGetData(page);
 	for (i = 0; i < nitems; i++)
 	{
 		if (i > 0)
 			prev_iptr = items[i - 1];
-		ptr = ginPlaceToDataPageLeaf(ptr, attnum, &items[i], addInfo[i],
-			addInfoIsNull[i], &prev_iptr, ginstate);
+		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[i], addInfo[i],
+			addInfoIsNull[i], &prev_iptr, rumstate);
 	}
-	Assert(GinDataPageFreeSpacePre(page, ptr) >= 0);
-	updateItemIndexes(page, attnum, ginstate);
+	Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
+	updateItemIndexes(page, attnum, rumstate);
 
 	MarkBufferDirty(buffer);
 
@@ -80,29 +79,29 @@ createPostingTree(GinState *ginstate, OffsetNumber attnum, Relation index,
 // 	{
 // 		XLogRecPtr	recptr;
 // 		XLogRecData rdata[2];
-// 		ginxlogCreatePostingTree data;
+// 		rumxlogCreatePostingTree data;
 //
 // 		data.node = index->rd_node;
 // 		data.blkno = blkno;
 // 		data.nitem = nitems;
 //
-// 		if (ginstate->addAttrs[attnum - 1])
+// 		if (rumstate->addAttrs[attnum - 1])
 // 		{
-// 			data.typlen = ginstate->addAttrs[attnum - 1]->attlen;
-// 			data.typalign = ginstate->addAttrs[attnum - 1]->attalign;
-// 			data.typbyval = ginstate->addAttrs[attnum - 1]->attbyval;
-// 			data.typstorage = ginstate->addAttrs[attnum - 1]->attstorage;
+// 			data.typlen = rumstate->addAttrs[attnum - 1]->attlen;
+// 			data.typalign = rumstate->addAttrs[attnum - 1]->attalign;
+// 			data.typbyval = rumstate->addAttrs[attnum - 1]->attbyval;
+// 			data.typstorage = rumstate->addAttrs[attnum - 1]->attstorage;
 // 		}
 //
 // 		rdata[0].buffer = InvalidBuffer;
 // 		rdata[0].data = (char *) &data;
-// 		rdata[0].len = MAXALIGN(sizeof(ginxlogCreatePostingTree));
+// 		rdata[0].len = MAXALIGN(sizeof(rumxlogCreatePostingTree));
 // 		rdata[0].next = &rdata[1];
 //
 // 		memcpy(pageCopy, page, BLCKSZ);
 // 		rdata[1].buffer = InvalidBuffer;
-// 		rdata[1].data = GinDataPageGetData(pageCopy);
-// 		rdata[1].len = GinDataPageSize - GinPageGetOpaque(pageCopy)->freespace;
+// 		rdata[1].data = RumDataPageGetData(pageCopy);
+// 		rdata[1].len = RumDataPageSize - RumPageGetOpaque(pageCopy)->freespace;
 // 		rdata[1].next = NULL;
 //
 // 		recptr = XLogInsert(RM_GIN_ID, XLOG_GIN_CREATE_PTREE, rdata);
@@ -132,8 +131,8 @@ createPostingTree(GinState *ginstate, OffsetNumber attnum, Relation index,
  * for filling the posting list afterwards, if ipd = NULL and nipd > 0.
  */
 static IndexTuple
-GinFormTuple(GinState *ginstate,
-			 OffsetNumber attnum, Datum key, GinNullCategory category,
+RumFormTuple(RumState *rumstate,
+			 OffsetNumber attnum, Datum key, RumNullCategory category,
 			 ItemPointerData *ipd,
 			 Datum *addInfo,
 			 bool *addInfoIsNull,
@@ -148,10 +147,10 @@ GinFormTuple(GinState *ginstate,
 	ItemPointerData nullItemPointer = {{0,0},0};
 
 	/* Build the basic tuple: optional column number, plus key datum */
-	if (ginstate->oneCol)
+	if (rumstate->oneCol)
 	{
 		datums[0] = key;
-		isnull[0] = (category != GIN_CAT_NORM_KEY);
+		isnull[0] = (category != RUM_CAT_NORM_KEY);
 		isnull[1] = true;
 	}
 	else
@@ -159,11 +158,11 @@ GinFormTuple(GinState *ginstate,
 		datums[0] = UInt16GetDatum(attnum);
 		isnull[0] = false;
 		datums[1] = key;
-		isnull[1] = (category != GIN_CAT_NORM_KEY);
+		isnull[1] = (category != RUM_CAT_NORM_KEY);
 		isnull[2] = true;
 	}
 
-	itup = index_form_tuple(ginstate->tupdesc[attnum - 1], datums, isnull);
+	itup = index_form_tuple(rumstate->tupdesc[attnum - 1], datums, isnull);
 
 	/*
 	 * Determine and store offset to the posting list, making sure there is
@@ -172,14 +171,14 @@ GinFormTuple(GinState *ginstate,
 	 * Note: because index_form_tuple MAXALIGNs the tuple size, there may well
 	 * be some wasted pad space.  Is it worth recomputing the data length to
 	 * prevent that?  That would also allow us to Assert that the real data
-	 * doesn't overlap the GinNullCategory byte, which this code currently
+	 * doesn't overlap the RumNullCategory byte, which this code currently
 	 * takes on faith.
 	 */
 	newsize = IndexTupleSize(itup);
 
-	GinSetPostingOffset(itup, newsize);
+	RumSetPostingOffset(itup, newsize);
 
-	GinSetNPosting(itup, nipd);
+	RumSetNPosting(itup, nipd);
 
 	/*
 	 * Add space needed for posting list, if any.  Then check that the tuple
@@ -188,23 +187,23 @@ GinFormTuple(GinState *ginstate,
 
 	if (nipd > 0)
 	{
-		newsize = ginCheckPlaceToDataPageLeaf(attnum, &ipd[0], addInfo[0],
-			addInfoIsNull[0], &nullItemPointer, ginstate, newsize);
+		newsize = rumCheckPlaceToDataPageLeaf(attnum, &ipd[0], addInfo[0],
+			addInfoIsNull[0], &nullItemPointer, rumstate, newsize);
 		for (i = 1; i < nipd; i++)
 		{
-			newsize = ginCheckPlaceToDataPageLeaf(attnum, &ipd[i], addInfo[i],
-							addInfoIsNull[i], &ipd[i - 1], ginstate, newsize);
+			newsize = rumCheckPlaceToDataPageLeaf(attnum, &ipd[i], addInfo[i],
+							addInfoIsNull[i], &ipd[i - 1], rumstate, newsize);
 		}
 	}
 
-	if (category != GIN_CAT_NORM_KEY)
+	if (category != RUM_CAT_NORM_KEY)
 	{
 		Assert(IndexTupleHasNulls(itup));
-		newsize = newsize + sizeof(GinNullCategory);
+		newsize = newsize + sizeof(RumNullCategory);
 	}
 	newsize = MAXALIGN(newsize);
 
-	if (newsize > Min(INDEX_SIZE_MASK, GinMaxItemSize))
+	if (newsize > Min(INDEX_SIZE_MASK, RumMaxItemSize))
 	{
 		if (errorTooBig)
 			ereport(ERROR,
@@ -212,8 +211,8 @@ GinFormTuple(GinState *ginstate,
 			errmsg("index row size %lu exceeds maximum %lu for index \"%s\"",
 				   (unsigned long) newsize,
 				   (unsigned long) Min(INDEX_SIZE_MASK,
-									   GinMaxItemSize),
-				   RelationGetRelationName(ginstate->index))));
+									   RumMaxItemSize),
+				   RelationGetRelationName(rumstate->index))));
 		pfree(itup);
 		return NULL;
 	}
@@ -235,23 +234,23 @@ GinFormTuple(GinState *ginstate,
 	 */
 	if (nipd > 0)
 	{
-		char *ptr = GinGetPosting(itup);
-		ptr = ginPlaceToDataPageLeaf(ptr, attnum, &ipd[0], addInfo[0],
-								addInfoIsNull[0], &nullItemPointer, ginstate);
+		char *ptr = RumGetPosting(itup);
+		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &ipd[0], addInfo[0],
+								addInfoIsNull[0], &nullItemPointer, rumstate);
 		for (i = 1; i < nipd; i++)
 		{
-			ptr = ginPlaceToDataPageLeaf(ptr, attnum, &ipd[i], addInfo[i],
-										addInfoIsNull[i], &ipd[i-1], ginstate);
+			ptr = rumPlaceToDataPageLeaf(ptr, attnum, &ipd[i], addInfo[i],
+										addInfoIsNull[i], &ipd[i-1], rumstate);
 		}
 	}
 
 	/*
 	 * Insert category byte, if needed
 	 */
-	if (category != GIN_CAT_NORM_KEY)
+	if (category != RUM_CAT_NORM_KEY)
 	{
 		Assert(IndexTupleHasNulls(itup));
-		GinSetNullCategory(itup, ginstate, category);
+		RumSetNullCategory(itup, rumstate, category);
 	}
 	return itup;
 }
@@ -260,11 +259,11 @@ GinFormTuple(GinState *ginstate,
  * Adds array of item pointers to tuple's posting list, or
  * creates posting tree and tuple pointing to tree in case
  * of not enough space.  Max size of tuple is defined in
- * GinFormTuple().  Returns a new, modified index tuple.
+ * RumFormTuple().  Returns a new, modified index tuple.
  * items[] must be in sorted order with no duplicates.
  */
 static IndexTuple
-addItemPointersToLeafTuple(GinState *ginstate,
+addItemPointersToLeafTuple(RumState *rumstate,
 						   IndexTuple old,
 						   ItemPointerData *items, Datum *addInfo,
 						   bool *addInfoIsNull, uint32 nitem,
@@ -272,19 +271,19 @@ addItemPointersToLeafTuple(GinState *ginstate,
 {
 	OffsetNumber attnum;
 	Datum		key;
-	GinNullCategory category;
+	RumNullCategory category;
 	IndexTuple	res;
 	Datum		*oldAddInfo, *newAddInfo;
 	bool		*oldAddInfoIsNull, *newAddInfoIsNull;
 	ItemPointerData *newItems, *oldItems;
 	int			oldNPosting, newNPosting;
 
-	Assert(!GinIsPostingTree(old));
+	Assert(!RumIsPostingTree(old));
 
-	attnum = gintuple_get_attrnum(ginstate, old);
-	key = gintuple_get_key(ginstate, old, &category);
+	attnum = rumtuple_get_attrnum(rumstate, old);
+	key = rumtuple_get_key(rumstate, old, &category);
 
-	oldNPosting = GinGetNPosting(old);
+	oldNPosting = RumGetNPosting(old);
 
 	oldItems = (ItemPointerData *)palloc(sizeof(ItemPointerData) * oldNPosting);
 	oldAddInfo = (Datum *)palloc(sizeof(Datum) * oldNPosting);
@@ -296,15 +295,15 @@ addItemPointersToLeafTuple(GinState *ginstate,
 	newAddInfo = (Datum *)palloc(sizeof(Datum) * newNPosting);
 	newAddInfoIsNull = (bool *)palloc(sizeof(bool) * newNPosting);
 
-	ginReadTuple(ginstate, attnum, old, oldItems, oldAddInfo, oldAddInfoIsNull);
+	rumReadTuple(rumstate, attnum, old, oldItems, oldAddInfo, oldAddInfoIsNull);
 
-	newNPosting = ginMergeItemPointers(newItems, newAddInfo, newAddInfoIsNull,
+	newNPosting = rumMergeItemPointers(newItems, newAddInfo, newAddInfoIsNull,
 		items, addInfo, addInfoIsNull, nitem,
 		oldItems, oldAddInfo, oldAddInfoIsNull, oldNPosting);
 
 
 	/* try to build tuple with room for all the items */
-	res = GinFormTuple(ginstate, attnum, key, category,
+	res = RumFormTuple(rumstate, attnum, key, category,
 					   newItems, newAddInfo, newAddInfoIsNull, newNPosting,
 					   false);
 
@@ -312,16 +311,16 @@ addItemPointersToLeafTuple(GinState *ginstate,
 	{
 		/* posting list would be too big, convert to posting tree */
 		BlockNumber postingRoot;
-		GinPostingTreeScan *gdi;
+		RumPostingTreeScan *gdi;
 
 		/*
 		 * Initialize posting tree with the old tuple's posting list.  It's
 		 * surely small enough to fit on one posting-tree page, and should
 		 * already be in order with no duplicates.
 		 */
-		postingRoot = createPostingTree(ginstate,
+		postingRoot = createPostingTree(rumstate,
 										attnum,
-										ginstate->index,
+										rumstate->index,
 										oldItems,
 										oldAddInfo,
 										oldAddInfoIsNull,
@@ -332,16 +331,16 @@ addItemPointersToLeafTuple(GinState *ginstate,
 			buildStats->nDataPages++;
 
 		/* Now insert the TIDs-to-be-added into the posting tree */
-		gdi = ginPrepareScanPostingTree(ginstate->index, postingRoot, FALSE, attnum, ginstate);
+		gdi = rumPrepareScanPostingTree(rumstate->index, postingRoot, FALSE, attnum, rumstate);
 		gdi->btree.isBuild = (buildStats != NULL);
 
-		ginInsertItemPointers(ginstate, attnum, gdi, items, addInfo, addInfoIsNull, nitem, buildStats);
+		rumInsertItemPointers(rumstate, attnum, gdi, items, addInfo, addInfoIsNull, nitem, buildStats);
 
 		pfree(gdi);
 
 		/* And build a new posting-tree-only result tuple */
-		res = GinFormTuple(ginstate, attnum, key, category, NULL, NULL, NULL, 0, true);
-		GinSetPostingTree(res, postingRoot);
+		res = RumFormTuple(rumstate, attnum, key, category, NULL, NULL, NULL, 0, true);
+		RumSetPostingTree(res, postingRoot);
 	}
 
 	return res;
@@ -356,8 +355,8 @@ addItemPointersToLeafTuple(GinState *ginstate,
  * but working from slightly different input.
  */
 static IndexTuple
-buildFreshLeafTuple(GinState *ginstate,
-					OffsetNumber attnum, Datum key, GinNullCategory category,
+buildFreshLeafTuple(RumState *rumstate,
+					OffsetNumber attnum, Datum key, RumNullCategory category,
 					ItemPointerData *items, Datum *addInfo,
 					bool *addInfoIsNull, uint32 nitem,
 					GinStatsData *buildStats)
@@ -365,7 +364,7 @@ buildFreshLeafTuple(GinState *ginstate,
 	IndexTuple	res;
 
 	/* try to build tuple with room for all the items */
-	res = GinFormTuple(ginstate, attnum, key, category,
+	res = RumFormTuple(rumstate, attnum, key, category,
 					   items, addInfo, addInfoIsNull, nitem, false);
 
 	if (!res)
@@ -378,13 +377,13 @@ buildFreshLeafTuple(GinState *ginstate,
 
 		do
 		{
-			size = ginCheckPlaceToDataPageLeaf(attnum, &items[itemsCount],
+			size = rumCheckPlaceToDataPageLeaf(attnum, &items[itemsCount],
 				addInfo[itemsCount], addInfoIsNull[itemsCount], &prevIptr,
-				ginstate, size);
+				rumstate, size);
 			prevIptr = items[itemsCount];
 			itemsCount++;
 		}
-		while (itemsCount < nitem && size < GinDataPageSize);
+		while (itemsCount < nitem && size < RumDataPageSize);
 		itemsCount--;
 
 
@@ -392,15 +391,15 @@ buildFreshLeafTuple(GinState *ginstate,
 		 * Build posting-tree-only result tuple.  We do this first so as to
 		 * fail quickly if the key is too big.
 		 */
-		res = GinFormTuple(ginstate, attnum, key, category, NULL, NULL, NULL, 0, true);
+		res = RumFormTuple(rumstate, attnum, key, category, NULL, NULL, NULL, 0, true);
 
 		/*
 		 * Initialize posting tree with as many TIDs as will fit on the first
 		 * page.
 		 */
-		postingRoot = createPostingTree(ginstate,
+		postingRoot = createPostingTree(rumstate,
 										attnum,
-										ginstate->index,
+										rumstate->index,
 										items,
 										addInfo,
 										addInfoIsNull,
@@ -413,12 +412,12 @@ buildFreshLeafTuple(GinState *ginstate,
 		/* Add any remaining TIDs to the posting tree */
 		if (nitem > itemsCount)
 		{
-			GinPostingTreeScan *gdi;
+			RumPostingTreeScan *gdi;
 
-			gdi = ginPrepareScanPostingTree(ginstate->index, postingRoot, FALSE, attnum, ginstate);
+			gdi = rumPrepareScanPostingTree(rumstate->index, postingRoot, FALSE, attnum, rumstate);
 			gdi->btree.isBuild = (buildStats != NULL);
 
-			ginInsertItemPointers(ginstate,
+			rumInsertItemPointers(rumstate,
 								  attnum,
 								  gdi,
 								  items + itemsCount,
@@ -431,7 +430,7 @@ buildFreshLeafTuple(GinState *ginstate,
 		}
 
 		/* And save the root link in the result tuple */
-		GinSetPostingTree(res, postingRoot);
+		RumSetPostingTree(res, postingRoot);
 	}
 
 	return res;
@@ -445,16 +444,16 @@ buildFreshLeafTuple(GinState *ginstate,
  * it contains should be incremented as needed.
  */
 void
-ginEntryInsert(GinState *ginstate,
-			   OffsetNumber attnum, Datum key, GinNullCategory category,
+rumEntryInsert(RumState *rumstate,
+			   OffsetNumber attnum, Datum key, RumNullCategory category,
 			   ItemPointerData *items,
 			   Datum *addInfo,
 			   bool *addInfoIsNull,
 			   uint32 nitem,
 			   GinStatsData *buildStats)
 {
-	GinBtreeData btree;
-	GinBtreeStack *stack;
+	RumBtreeData btree;
+	RumBtreeStack *stack;
 	IndexTuple	itup;
 	Page		page;
 	int i;
@@ -474,9 +473,9 @@ ginEntryInsert(GinState *ginstate,
 	if (buildStats)
 		buildStats->nEntries++;
 
-	ginPrepareEntryScan(&btree, attnum, key, category, ginstate);
+	rumPrepareEntryScan(&btree, attnum, key, category, rumstate);
 
-	stack = ginFindLeafPage(&btree, NULL);
+	stack = rumFindLeafPage(&btree, NULL);
 	page = BufferGetPage(stack->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	if (btree.findItem(&btree, stack))
@@ -484,27 +483,27 @@ ginEntryInsert(GinState *ginstate,
 		/* found pre-existing entry */
 		itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, stack->off));
 
-		if (GinIsPostingTree(itup))
+		if (RumIsPostingTree(itup))
 		{
 			/* add entries to existing posting tree */
-			BlockNumber rootPostingTree = GinGetPostingTree(itup);
-			GinPostingTreeScan *gdi;
+			BlockNumber rootPostingTree = RumGetPostingTree(itup);
+			RumPostingTreeScan *gdi;
 
 			/* release all stack */
-			LockBuffer(stack->buffer, GIN_UNLOCK);
+			LockBuffer(stack->buffer, RUM_UNLOCK);
 			freeGinBtreeStack(stack);
 
 			/* insert into posting tree */
-			gdi = ginPrepareScanPostingTree(ginstate->index, rootPostingTree, FALSE, attnum, ginstate);
+			gdi = rumPrepareScanPostingTree(rumstate->index, rootPostingTree, FALSE, attnum, rumstate);
 			gdi->btree.isBuild = (buildStats != NULL);
-			ginInsertItemPointers(ginstate, attnum, gdi, items, addInfo, addInfoIsNull, nitem, buildStats);
+			rumInsertItemPointers(rumstate, attnum, gdi, items, addInfo, addInfoIsNull, nitem, buildStats);
 			pfree(gdi);
 
 			return;
 		}
 
 		/* modify an existing leaf entry */
-		itup = addItemPointersToLeafTuple(ginstate, itup,
+		itup = addItemPointersToLeafTuple(rumstate, itup,
 										  items, addInfo, addInfoIsNull, nitem, buildStats);
 
 		btree.isDelete = TRUE;
@@ -512,13 +511,13 @@ ginEntryInsert(GinState *ginstate,
 	else
 	{
 		/* no match, so construct a new leaf entry */
-		itup = buildFreshLeafTuple(ginstate, attnum, key, category,
+		itup = buildFreshLeafTuple(rumstate, attnum, key, category,
 								   items, addInfo, addInfoIsNull, nitem, buildStats);
 	}
 
 	/* Insert the new or modified leaf tuple */
 	btree.entry = itup;
-	ginInsertValue(&btree, stack, buildStats);
+	rumInsertValue(&btree, stack, buildStats);
 	pfree(itup);
 }
 
@@ -529,21 +528,21 @@ ginEntryInsert(GinState *ginstate,
  * This function is used only during initial index creation.
  */
 static void
-ginHeapTupleBulkInsert(GinBuildState *buildstate, OffsetNumber attnum,
+rumHeapTupleBulkInsert(RumBuildState *buildstate, OffsetNumber attnum,
 					   Datum value, bool isNull,
 					   ItemPointer heapptr)
 {
 	Datum	   *entries;
-	GinNullCategory *categories;
+	RumNullCategory *categories;
 	int32		nentries;
 	MemoryContext oldCtx;
 	Datum	   *addInfo;
 	bool	   *addInfoIsNull;
 	int			i;
-	Form_pg_attribute attr = buildstate->ginstate.addAttrs[attnum - 1];
+	Form_pg_attribute attr = buildstate->rumstate.addAttrs[attnum - 1];
 
 	oldCtx = MemoryContextSwitchTo(buildstate->funcCtx);
-	entries = ginExtractEntries(buildstate->accum.ginstate, attnum,
+	entries = rumExtractEntries(buildstate->accum.rumstate, attnum,
 								value, isNull,
 								&nentries, &categories,
 								&addInfo, &addInfoIsNull);
@@ -556,7 +555,7 @@ ginHeapTupleBulkInsert(GinBuildState *buildstate, OffsetNumber attnum,
 		}
 	}
 
-	ginInsertBAEntries(&buildstate->accum, heapptr, attnum,
+	rumInsertBAEntries(&buildstate->accum, heapptr, attnum,
 					   entries, addInfo, addInfoIsNull, categories, nentries);
 
 	buildstate->indtuples += nentries;
@@ -565,31 +564,31 @@ ginHeapTupleBulkInsert(GinBuildState *buildstate, OffsetNumber attnum,
 }
 
 static void
-ginBuildCallback(Relation index, HeapTuple htup, Datum *values,
+rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 				 bool *isnull, bool tupleIsAlive, void *state)
 {
-	GinBuildState *buildstate = (GinBuildState *) state;
+	RumBuildState *buildstate = (RumBuildState *) state;
 	MemoryContext oldCtx;
 	int			i;
 
 	oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
 
-	for (i = 0; i < buildstate->ginstate.origTupdesc->natts; i++)
-		ginHeapTupleBulkInsert(buildstate, (OffsetNumber) (i + 1),
+	for (i = 0; i < buildstate->rumstate.origTupdesc->natts; i++)
+		rumHeapTupleBulkInsert(buildstate, (OffsetNumber) (i + 1),
 							   values[i], isnull[i],
 							   &htup->t_self);
 
 	/* If we've maxed out our available memory, dump everything to the index */
 	if (buildstate->accum.allocatedMemory >= maintenance_work_mem * 1024L)
 	{
-		GinEntryAccumulatorItem *list;
+		RumEntryAccumulatorItem *list;
 		Datum		key;
-		GinNullCategory category;
+		RumNullCategory category;
 		uint32		nlist;
 		OffsetNumber attnum;
 
-		ginBeginBAScan(&buildstate->accum);
-		while ((list = ginGetBAEntry(&buildstate->accum,
+		rumBeginBAScan(&buildstate->accum);
+		while ((list = rumGetBAEntry(&buildstate->accum,
 								  &attnum, &key, &category, &nlist)) != NULL)
 		{
 			ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(ItemPointerData) *nlist);
@@ -607,52 +606,52 @@ ginBuildCallback(Relation index, HeapTuple htup, Datum *values,
 
 			/* there could be many entries, so be willing to abort here */
 			CHECK_FOR_INTERRUPTS();
-			ginEntryInsert(&buildstate->ginstate, attnum, key, category,
+			rumEntryInsert(&buildstate->rumstate, attnum, key, category,
 						   iptrs, addInfo, addInfoIsNull, nlist, &buildstate->buildStats);
 		}
 
 		MemoryContextReset(buildstate->tmpCtx);
-		ginInitBA(&buildstate->accum);
+		rumInitBA(&buildstate->accum);
 	}
 
 	MemoryContextSwitchTo(oldCtx);
 }
 
 IndexBuildResult *
-ginbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
+rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 {
 	IndexBuildResult *result;
 	double		reltuples;
-	GinBuildState buildstate;
+	RumBuildState buildstate;
 	Buffer		RootBuffer,
 				MetaBuffer;
-	GinEntryAccumulatorItem *list;
+	RumEntryAccumulatorItem *list;
 	Datum		key;
-	GinNullCategory category;
+	RumNullCategory category;
 	uint32		nlist;
 	MemoryContext oldCtx;
 	OffsetNumber attnum;
 
-	elog(LOG, "ginbuild");
+	elog(LOG, "rumbuild");
 
 	if (RelationGetNumberOfBlocks(index) != 0)
 		elog(ERROR, "index \"%s\" already contains data",
 			 RelationGetRelationName(index));
 
-	initGinState(&buildstate.ginstate, index);
+	initGinState(&buildstate.rumstate, index);
 	buildstate.indtuples = 0;
 	memset(&buildstate.buildStats, 0, sizeof(GinStatsData));
 
 	/* initialize the meta page */
-	MetaBuffer = GinNewBuffer(index);
+	MetaBuffer = RumNewBuffer(index);
 
 	/* initialize the root page */
-	RootBuffer = GinNewBuffer(index);
+	RootBuffer = RumNewBuffer(index);
 
 	START_CRIT_SECTION();
-	GinInitMetabuffer(MetaBuffer);
+	RumInitMetabuffer(MetaBuffer);
 	MarkBufferDirty(MetaBuffer);
-	GinInitBuffer(RootBuffer, GIN_LEAF);
+	RumInitBuffer(RootBuffer, RUM_LEAF);
 	MarkBufferDirty(RootBuffer);
 
 // 	if (RelationNeedsWAL(index))
@@ -687,31 +686,31 @@ ginbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	 * inserted into the index
 	 */
 	buildstate.tmpCtx = AllocSetContextCreate(CurrentMemoryContext,
-											  "Gin build temporary context",
+											  "Rum build temporary context",
 											  ALLOCSET_DEFAULT_MINSIZE,
 											  ALLOCSET_DEFAULT_INITSIZE,
 											  ALLOCSET_DEFAULT_MAXSIZE);
 
 	buildstate.funcCtx = AllocSetContextCreate(buildstate.tmpCtx,
-					 "Gin build temporary context for user-defined function",
+					 "Rum build temporary context for user-defined function",
 											   ALLOCSET_DEFAULT_MINSIZE,
 											   ALLOCSET_DEFAULT_INITSIZE,
 											   ALLOCSET_DEFAULT_MAXSIZE);
 
-	buildstate.accum.ginstate = &buildstate.ginstate;
-	ginInitBA(&buildstate.accum);
+	buildstate.accum.rumstate = &buildstate.rumstate;
+	rumInitBA(&buildstate.accum);
 
 	/*
 	 * Do the heap scan.  We disallow sync scan here because dataPlaceToPage
 	 * prefers to receive tuples in TID order.
 	 */
 	reltuples = IndexBuildHeapScan(heap, index, indexInfo, false,
-								   ginBuildCallback, (void *) &buildstate);
+								   rumBuildCallback, (void *) &buildstate);
 
 	/* dump remaining entries to the index */
 	oldCtx = MemoryContextSwitchTo(buildstate.tmpCtx);
-	ginBeginBAScan(&buildstate.accum);
-	while ((list = ginGetBAEntry(&buildstate.accum,
+	rumBeginBAScan(&buildstate.accum);
+	while ((list = rumGetBAEntry(&buildstate.accum,
 								 &attnum, &key, &category, &nlist)) != NULL)
 	{
 		ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(ItemPointerData) *nlist);
@@ -728,7 +727,7 @@ ginbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 
 		/* there could be many entries, so be willing to abort here */
 		CHECK_FOR_INTERRUPTS();
-		ginEntryInsert(&buildstate.ginstate, attnum, key, category,
+		rumEntryInsert(&buildstate.rumstate, attnum, key, category,
 					   iptrs, addInfo, addInfoIsNull, nlist, &buildstate.buildStats);
 	}
 	MemoryContextSwitchTo(oldCtx);
@@ -739,7 +738,7 @@ ginbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	 * Update metapage stats
 	 */
 	buildstate.buildStats.nTotalPages = RelationGetNumberOfBlocks(index);
-	ginUpdateStats(index, &buildstate.buildStats);
+	rumUpdateStats(index, &buildstate.buildStats);
 
 	/*
 	 * Return statistics
@@ -753,17 +752,17 @@ ginbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 }
 
 /*
- *	ginbuildempty() -- build an empty gin index in the initialization fork
+ *	rumbuildempty() -- build an empty rum index in the initialization fork
  */
 void
-ginbuildempty(Relation index)
+rumbuildempty(Relation index)
 {
 	Buffer		RootBuffer,
 				MetaBuffer;
 
-	elog(LOG, "ginbuildempty");
+	elog(LOG, "rumbuildempty");
 
-	/* An empty GIN index has two pages. */
+	/* An empty RUM index has two pages. */
 	MetaBuffer =
 		ReadBufferExtended(index, INIT_FORKNUM, P_NEW, RBM_NORMAL, NULL);
 	LockBuffer(MetaBuffer, BUFFER_LOCK_EXCLUSIVE);
@@ -773,10 +772,10 @@ ginbuildempty(Relation index)
 
 	/* Initialize and xlog metabuffer and root buffer. */
 	START_CRIT_SECTION();
-	GinInitMetabuffer(MetaBuffer);
+	RumInitMetabuffer(MetaBuffer);
 	MarkBufferDirty(MetaBuffer);
 	log_newpage_buffer(MetaBuffer, false);
-	GinInitBuffer(RootBuffer, GIN_LEAF);
+	RumInitBuffer(RootBuffer, RUM_LEAF);
 	MarkBufferDirty(RootBuffer);
 	log_newpage_buffer(RootBuffer, false);
 	END_CRIT_SECTION();
@@ -793,65 +792,65 @@ ginbuildempty(Relation index)
  * (non-fast-update) insertion
  */
 static void
-ginHeapTupleInsert(GinState *ginstate, OffsetNumber attnum,
+rumHeapTupleInsert(RumState *rumstate, OffsetNumber attnum,
 				   Datum value, bool isNull,
 				   ItemPointer item)
 {
 	Datum	   *entries;
-	GinNullCategory *categories;
+	RumNullCategory *categories;
 	int32		i,
 				nentries;
 	Datum	   *addInfo;
 	bool	   *addInfoIsNull;
 
-	entries = ginExtractEntries(ginstate, attnum, value, isNull,
+	entries = rumExtractEntries(rumstate, attnum, value, isNull,
 								&nentries, &categories, &addInfo, &addInfoIsNull);
 
 	for (i = 0; i < nentries; i++)
-		ginEntryInsert(ginstate, attnum, entries[i], categories[i],
+		rumEntryInsert(rumstate, attnum, entries[i], categories[i],
 					   item, &addInfo[i], &addInfoIsNull[i], 1, NULL);
 }
 
 bool
-gininsert(Relation index, Datum *values, bool *isnull,
+ruminsert(Relation index, Datum *values, bool *isnull,
 		  ItemPointer ht_ctid, Relation heapRel,
 		  IndexUniqueCheck checkUnique)
 {
-	GinState	ginstate;
+	RumState	rumstate;
 	MemoryContext oldCtx;
 	MemoryContext insertCtx;
 	int			i;
 
-	elog(LOG, "gininsert");
+	elog(LOG, "ruminsert");
 
 	insertCtx = AllocSetContextCreate(CurrentMemoryContext,
-									  "Gin insert temporary context",
+									  "Rum insert temporary context",
 									  ALLOCSET_DEFAULT_MINSIZE,
 									  ALLOCSET_DEFAULT_INITSIZE,
 									  ALLOCSET_DEFAULT_MAXSIZE);
 
 	oldCtx = MemoryContextSwitchTo(insertCtx);
 
-	initGinState(&ginstate, index);
+	initGinState(&rumstate, index);
 
-	if (GinGetUseFastUpdate(index))
+	if (RumGetUseFastUpdate(index))
 	{
-		GinTupleCollector collector;
+		RumTupleCollector collector;
 
-		memset(&collector, 0, sizeof(GinTupleCollector));
+		memset(&collector, 0, sizeof(RumTupleCollector));
 
-		for (i = 0; i < ginstate.origTupdesc->natts; i++)
-			ginHeapTupleFastCollect(&ginstate, &collector,
+		for (i = 0; i < rumstate.origTupdesc->natts; i++)
+			rumHeapTupleFastCollect(&rumstate, &collector,
 									(OffsetNumber) (i + 1),
 									values[i], isnull[i],
 									ht_ctid);
 
-		ginHeapTupleFastInsert(&ginstate, &collector);
+		rumHeapTupleFastInsert(&rumstate, &collector);
 	}
 	else
 	{
-		for (i = 0; i < ginstate.origTupdesc->natts; i++)
-			ginHeapTupleInsert(&ginstate, (OffsetNumber) (i + 1),
+		for (i = 0; i < rumstate.origTupdesc->natts; i++)
+			rumHeapTupleInsert(&rumstate, (OffsetNumber) (i + 1),
 							   values[i], isnull[i],
 							   ht_ctid);
 	}

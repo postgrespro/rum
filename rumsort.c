@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  *
- * ginsort.h
+ * rumsort.h
  *	  Generalized tuple sorting routines.
  *
  * This module handles sorting of heap tuples, index tuples, or single
@@ -111,6 +111,7 @@
  * above.  Nonetheless, with large workMem we can have many tapes.
  *
  *
+ * Portions Copyright (c) 2015-2016, Postgres Professional
  * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -119,7 +120,7 @@
 
 #include "postgres.h"
 #include "miscadmin.h"
-#include "ginsort.h"
+#include "rumsort.h"
 
 #include "access/htup_details.h"
 #include "access/nbtree.h"
@@ -522,14 +523,14 @@ static void readtup_datum(Tuplesortstate *state, SortTuple *stup,
 			  int tapenum, unsigned int len);
 static void reversedirection_datum(Tuplesortstate *state);
 static void free_sort_tuple(Tuplesortstate *state, SortTuple *stup);
-static int comparetup_gin(const SortTuple *a, const SortTuple *b,
+static int comparetup_rum(const SortTuple *a, const SortTuple *b,
 														Tuplesortstate *state);
-static void copytup_gin(Tuplesortstate *state, SortTuple *stup, void *tup);
-static void writetup_gin(Tuplesortstate *state, int tapenum,
+static void copytup_rum(Tuplesortstate *state, SortTuple *stup, void *tup);
+static void writetup_rum(Tuplesortstate *state, int tapenum,
 			   SortTuple *stup);
-static void readtup_gin(Tuplesortstate *state, SortTuple *stup,
+static void readtup_rum(Tuplesortstate *state, SortTuple *stup,
 			  int tapenum, unsigned int len);
-static void reversedirection_gin(Tuplesortstate *state);
+static void reversedirection_rum(Tuplesortstate *state);
 
 /*
  * Special versions of qsort just for SortTuple objects.  qsort_tuple() sorts
@@ -1116,7 +1117,7 @@ tuplesort_begin_index_hash(Relation heapRel,
 }
 
 Tuplesortstate *
-tuplesort_begin_gin(int workMem, int nKeys, bool randomAccess)
+tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess)
 {
 	Tuplesortstate *state = tuplesort_begin_common(workMem, randomAccess);
 	MemoryContext oldcontext;
@@ -1126,7 +1127,7 @@ tuplesort_begin_gin(int workMem, int nKeys, bool randomAccess)
 #ifdef TRACE_SORT
 	if (trace_sort)
 		elog(LOG,
-			 "begin gin sort: nKeys = %d, workMem = %d, randomAccess = %c",
+			 "begin rum sort: nKeys = %d, workMem = %d, randomAccess = %c",
 			 nKeys, workMem, randomAccess ? 't' : 'f');
 #endif
 
@@ -1138,11 +1139,11 @@ tuplesort_begin_gin(int workMem, int nKeys, bool randomAccess)
 								workMem,
 								randomAccess);
 
-	state->comparetup = comparetup_gin;
-	state->copytup = copytup_gin;
-	state->writetup = writetup_gin;
-	state->readtup = readtup_gin;
-	state->reversedirection = reversedirection_gin;
+	state->comparetup = comparetup_rum;
+	state->copytup = copytup_rum;
+	state->writetup = writetup_rum;
+	state->readtup = readtup_rum;
+	state->reversedirection = reversedirection_rum;
 	state->reverse = false;
 
 	MemoryContextSwitchTo(oldcontext);
@@ -1531,7 +1532,7 @@ tuplesort_putdatum(Tuplesortstate *state, Datum val, bool isNull)
 }
 
 void
-tuplesort_putgin(Tuplesortstate *state, GinSortItem *item)
+tuplesort_putrum(Tuplesortstate *state, RumSortItem *item)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
@@ -2075,8 +2076,8 @@ tuplesort_getdatum(Tuplesortstate *state, bool forward,
 	return true;
 }
 
-GinSortItem *
-tuplesort_getgin(Tuplesortstate *state, bool forward, bool *should_free)
+RumSortItem *
+tuplesort_getrum(Tuplesortstate *state, bool forward, bool *should_free)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
@@ -2086,7 +2087,7 @@ tuplesort_getgin(Tuplesortstate *state, bool forward, bool *should_free)
 
 	MemoryContextSwitchTo(oldcontext);
 
-	return (GinSortItem *) stup.tuple;
+	return (RumSortItem *) stup.tuple;
 }
 
 
@@ -3833,9 +3834,9 @@ free_sort_tuple(Tuplesortstate *state, SortTuple *stup)
 }
 
 static int
-comparetup_gin(const SortTuple *a, const SortTuple *b, Tuplesortstate *state)
+comparetup_rum(const SortTuple *a, const SortTuple *b, Tuplesortstate *state)
 {
-	GinSortItem *i1, *i2;
+	RumSortItem *i1, *i2;
 	float8 v1 = DatumGetFloat8(a->datum1);
 	float8 v2 = DatumGetFloat8(b->datum1);
 	int i;
@@ -3845,8 +3846,8 @@ comparetup_gin(const SortTuple *a, const SortTuple *b, Tuplesortstate *state)
 	else if (v1 > v2)
 		return 1;
 
-	i1 = (GinSortItem *)a;
-	i2 = (GinSortItem *)b;
+	i1 = (RumSortItem *)a;
+	i2 = (RumSortItem *)b;
 	for (i = 1; i < state->nKeys; i++)
 	{
 		if (i1->data[i] < i2->data[i])
@@ -3858,9 +3859,9 @@ comparetup_gin(const SortTuple *a, const SortTuple *b, Tuplesortstate *state)
 }
 
 static void
-copytup_gin(Tuplesortstate *state, SortTuple *stup, void *tup)
+copytup_rum(Tuplesortstate *state, SortTuple *stup, void *tup)
 {
-	GinSortItem *item = (GinSortItem *)tup;
+	RumSortItem *item = (RumSortItem *)tup;
 
 	stup->datum1 = Float8GetDatum(item->data[0]);
 	stup->isnull1 = false;
@@ -3869,16 +3870,16 @@ copytup_gin(Tuplesortstate *state, SortTuple *stup, void *tup)
 }
 
 static void
-writetup_gin(Tuplesortstate *state, int tapenum, SortTuple *stup)
+writetup_rum(Tuplesortstate *state, int tapenum, SortTuple *stup)
 {
-	GinSortItem *item = (GinSortItem *)stup->tuple;
-	unsigned int writtenlen = GinSortItemSize(state->nKeys) + sizeof(unsigned int);
+	RumSortItem *item = (RumSortItem *)stup->tuple;
+	unsigned int writtenlen = RumSortItemSize(state->nKeys) + sizeof(unsigned int);
 
 
 	LogicalTapeWrite(state->tapeset, tapenum,
 			(void *) &writtenlen, sizeof(writtenlen));
 	LogicalTapeWrite(state->tapeset, tapenum,
-					 (void *) item, GinSortItemSize(state->nKeys));
+					 (void *) item, RumSortItemSize(state->nKeys));
 	if (state->randomAccess)	/* need trailing length word? */
 		LogicalTapeWrite(state->tapeset, tapenum,
 						 (void *) &writtenlen, sizeof(writtenlen));
@@ -3888,17 +3889,17 @@ writetup_gin(Tuplesortstate *state, int tapenum, SortTuple *stup)
 }
 
 static void
-readtup_gin(Tuplesortstate *state, SortTuple *stup,
+readtup_rum(Tuplesortstate *state, SortTuple *stup,
 			int tapenum, unsigned int len)
 {
 	unsigned int tuplen = len - sizeof(unsigned int);
-	GinSortItem *item = (GinSortItem *)palloc(GinSortItemSize(state->nKeys));
+	RumSortItem *item = (RumSortItem *)palloc(RumSortItemSize(state->nKeys));
 
-	Assert(tuplen == GinSortItemSize(state->nKeys));
+	Assert(tuplen == RumSortItemSize(state->nKeys));
 
 	USEMEM(state, GetMemoryChunkSpace(item));
 	LogicalTapeReadExact(state->tapeset, tapenum,
-						 (void *)item, GinSortItemSize(state->nKeys));
+						 (void *)item, RumSortItemSize(state->nKeys));
 	stup->datum1 = Float8GetDatum(item->data[0]);
 	stup->isnull1 = false;
 	stup->tuple = item;
@@ -3909,7 +3910,7 @@ readtup_gin(Tuplesortstate *state, SortTuple *stup,
 }
 
 static void
-reversedirection_gin(Tuplesortstate *state)
+reversedirection_rum(Tuplesortstate *state)
 {
 	state->reverse = !state->reverse;
 }
