@@ -38,7 +38,7 @@ rumhandler(PG_FUNCTION_ARGS)
 	IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
 
 	amroutine->amstrategies = 0;
-	amroutine->amsupport = 6;
+	amroutine->amsupport = 9;
 	amroutine->amcanorder = false;
 	amroutine->amcanorderbyop = false;
 	amroutine->amcanbackward = false;

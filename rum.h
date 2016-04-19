@@ -362,10 +362,6 @@ typedef struct GinState
 	Oid			supportCollation[INDEX_MAX_KEYS];
 } GinState;
 
-#define GIN_CONFIG_PROC				   7
-#define GIN_PRE_CONSISTENT_PROC		   8
-#define GIN_ORDERING_PROC			   9
-
 typedef struct GinConfig
 {
 	Oid			addInfoTypeOid;
@@ -860,6 +856,15 @@ extern void ginHeapTupleFastCollect(GinState *ginstate,
 						ItemPointer ht_ctid);
 extern void ginInsertCleanup(GinState *ginstate,
 				 bool vac_delay, IndexBulkDeleteResult *stats);
+
+/* rum_ts_utils.c */
+#define GIN_CONFIG_PROC				   7
+#define GIN_PRE_CONSISTENT_PROC		   8
+#define GIN_ORDERING_PROC			   9
+
+extern Datum gin_tsvector_config(PG_FUNCTION_ARGS);
+extern Datum gin_tsquery_pre_consistent(PG_FUNCTION_ARGS);
+extern Datum gin_tsquery_distance(PG_FUNCTION_ARGS);
 
 /*
  * Functions for reading ItemPointers with additional information. Used in
