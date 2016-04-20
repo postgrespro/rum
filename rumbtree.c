@@ -484,6 +484,8 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 				PageRestoreTempPage(newlpage, lpage);
 
 				GenericXLogFinish(state);
+
+				UnlockReleaseBuffer(rbuffer);
 			}
 		}
 
