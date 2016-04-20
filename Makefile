@@ -8,7 +8,7 @@ OBJS = rumsort.o rum_ts_utils.o \
 
 EXTENSION = rum
 DATA = rum--1.0.sql
-PGFILEDESC = "RUM access method"
+PGFILEDESC = "RUM index access method"
 
 REGRESS = rum
 

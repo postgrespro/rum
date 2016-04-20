@@ -384,6 +384,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 											 GENERIC_XLOG_FULL_IMAGE);
 			GenericXLogFinish(state);
 
+			LockBuffer(stack->buffer, RUM_UNLOCK);
 			freeRumBtreeStack(stack);
 
 			return;
