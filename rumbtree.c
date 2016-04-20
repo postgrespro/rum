@@ -380,8 +380,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 			btree->placeToPage(btree, stack->buffer, stack->off, &rdata);
 
 			state = GenericXLogStart(index);
-			page = GenericXLogRegisterBuffer(state, stack->buffer,
-											 GENERIC_XLOG_FULL_IMAGE);
+			page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
 			GenericXLogFinish(state);
 
 			LockBuffer(stack->buffer, RUM_UNLOCK);
@@ -426,14 +425,11 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 
 				state = GenericXLogStart(index);
 
-				page = GenericXLogRegisterBuffer(state, stack->buffer,
-												 GENERIC_XLOG_FULL_IMAGE);
+				page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
 
-				lpage = GenericXLogRegisterBuffer(state, lbuffer,
-												  GENERIC_XLOG_FULL_IMAGE);
+				lpage = GenericXLogRegisterBuffer(state, lbuffer, 0);
 
-				rpage = GenericXLogRegisterBuffer(state, rbuffer,
-												  GENERIC_XLOG_FULL_IMAGE);
+				rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
 
 
 				RumPageGetOpaque(rpage)->rightlink = InvalidBlockNumber;
@@ -472,11 +468,9 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 
 				state = GenericXLogStart(index);
 
-				lpage = GenericXLogRegisterBuffer(state, stack->buffer,
-												  GENERIC_XLOG_FULL_IMAGE);
+				lpage = GenericXLogRegisterBuffer(state, stack->buffer, 0);
 
-				rpage = GenericXLogRegisterBuffer(state, rbuffer,
-												  GENERIC_XLOG_FULL_IMAGE);
+				rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
 
 				RumPageGetOpaque(rpage)->rightlink = savedRightLink;
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);

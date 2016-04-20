@@ -218,7 +218,7 @@ xlogVacuumPage(Relation index, Buffer buffer, OffsetNumber attrnum, RumState *ru
 		return;
 
 	state = GenericXLogStart(index);
-	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
+	page = GenericXLogRegisterBuffer(state, buffer, 0);
 
 	Assert(RumPageIsLeaf(page));
 
@@ -392,7 +392,7 @@ rumDeletePage(RumVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 #endif
 	RumPageDeletePostingItem(parentPage, myoff);
 
-	page = GenericXLogRegisterBuffer(state, dBuffer, GENERIC_XLOG_FULL_IMAGE);
+	page = GenericXLogRegisterBuffer(state, dBuffer, 0);
 
 	/*
 	 * we shouldn't change rightlink field to save workability of running

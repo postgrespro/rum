@@ -759,8 +759,7 @@ rumUpdateStats(Relation index, const GinStatsData *stats)
 
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
 	LockBuffer(metabuffer, RUM_EXCLUSIVE);
-	metapage = GenericXLogRegisterBuffer(state, metabuffer,
-										 GENERIC_XLOG_FULL_IMAGE);
+	metapage = GenericXLogRegisterBuffer(state, metabuffer, 0);
 	metadata = RumPageGetMeta(metapage);
 
 	START_CRIT_SECTION();

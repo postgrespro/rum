@@ -221,8 +221,7 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 
 	state = GenericXLogStart(rumstate->index);
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
-	metapage = GenericXLogRegisterBuffer(state, metabuffer,
-										 GENERIC_XLOG_FULL_IMAGE);
+	metapage = GenericXLogRegisterBuffer(state, metabuffer, 0);
 
 	if (collector->sumsize + collector->ntuples * sizeof(ItemIdData) > RumListPageSize)
 	{
@@ -290,8 +289,7 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 
 			buffer = ReadBuffer(index, metadata->tail);
 			LockBuffer(buffer, RUM_EXCLUSIVE);
-			page = GenericXLogRegisterBuffer(state, buffer,
-											 GENERIC_XLOG_FULL_IMAGE);
+			page = GenericXLogRegisterBuffer(state, buffer, 0);
 
 			rdata[0].next = rdata + 1;
 
@@ -329,8 +327,7 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 
 		buffer = ReadBuffer(index, metadata->tail);
 		LockBuffer(buffer, RUM_EXCLUSIVE);
-		page = GenericXLogRegisterBuffer(state, buffer,
-										 GENERIC_XLOG_FULL_IMAGE);
+		page = GenericXLogRegisterBuffer(state, buffer, 0);
 
 		off = (PageIsEmpty(page)) ? FirstOffsetNumber :
 			OffsetNumberNext(PageGetMaxOffsetNumber(page));
@@ -597,8 +594,7 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 			buffers[data.ndeleted] = ReadBuffer(index, blknoToDelete);
 			LockBuffer(buffers[data.ndeleted], RUM_EXCLUSIVE);
 
-			page = GenericXLogRegisterBuffer(state, buffers[data.ndeleted],
-											 GENERIC_XLOG_FULL_IMAGE);
+			page = GenericXLogRegisterBuffer(state, buffers[data.ndeleted], 0);
 
 			data.ndeleted++;
 
@@ -641,8 +637,7 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 
 		for (i = 0; i < data.ndeleted; i++)
 		{
-			page = GenericXLogRegisterBuffer(state, buffers[i],
-											 GENERIC_XLOG_FULL_IMAGE);
+			page = GenericXLogRegisterBuffer(state, buffers[i], 0);
 
 			RumPageGetOpaque(page)->flags = RUM_DELETED;
 			MarkBufferDirty(buffers[i]);
@@ -812,15 +807,20 @@ rumInsertCleanup(RumState *rumstate,
 	BuildAccumulator accum;
 	KeyArray	datums;
 	BlockNumber blkno;
+	GenericXLogState   *metastate;
+
+	metastate = GenericXLogStart(rumstate->index);
 
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
 	LockBuffer(metabuffer, RUM_SHARE);
-	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+
+	metapage = GenericXLogRegisterBuffer(metastate, metabuffer, 0);
 	metadata = RumPageGetMeta(metapage);
 
 	if (metadata->head == InvalidBlockNumber)
 	{
 		/* Nothing to do */
+		GenericXLogAbort(metastate);
 		UnlockReleaseBuffer(metabuffer);
 		return;
 	}
@@ -829,9 +829,6 @@ rumInsertCleanup(RumState *rumstate,
 	 * Read and lock head of pending list
 	 */
 	blkno = metadata->head;
-	buffer = ReadBuffer(index, blkno);
-	LockBuffer(buffer, RUM_SHARE);
-	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	LockBuffer(metabuffer, RUM_UNLOCK);
 
@@ -857,9 +854,18 @@ rumInsertCleanup(RumState *rumstate,
 	 */
 	for (;;)
 	{
+		GenericXLogState   *state;
+
+		state = GenericXLogStart(index);
+
+		buffer = ReadBuffer(index, blkno);
+		LockBuffer(buffer, RUM_SHARE);
+		page = GenericXLogRegisterBuffer(state, buffer, 0);
+
 		if (RumPageIsDeleted(page))
 		{
 			/* another cleanup process is running concurrently */
+			GenericXLogAbort(state);
 			UnlockReleaseBuffer(buffer);
 			break;
 		}
@@ -932,6 +938,7 @@ rumInsertCleanup(RumState *rumstate,
 			if (RumPageIsDeleted(page))
 			{
 				/* another cleanup process is running concurrently */
+				GenericXLogAbort(state);
 				UnlockReleaseBuffer(buffer);
 				LockBuffer(metabuffer, RUM_UNLOCK);
 				break;
@@ -975,6 +982,7 @@ rumInsertCleanup(RumState *rumstate,
 			 * Remember next page - it will become the new list head
 			 */
 			blkno = RumPageGetOpaque(page)->rightlink;
+			GenericXLogFinish(state);
 			UnlockReleaseBuffer(buffer);		/* shiftList will do exclusive
 												 * locking */
 
@@ -1008,6 +1016,7 @@ rumInsertCleanup(RumState *rumstate,
 		else
 		{
 			blkno = RumPageGetOpaque(page)->rightlink;
+			GenericXLogFinish(state);
 			UnlockReleaseBuffer(buffer);
 		}
 
@@ -1015,10 +1024,9 @@ rumInsertCleanup(RumState *rumstate,
 		 * Read next page in pending list
 		 */
 		vacuum_delay_point();
-		buffer = ReadBuffer(index, blkno);
-		LockBuffer(buffer, RUM_SHARE);
-		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	}
+
+	GenericXLogFinish(metastate);
 
 	ReleaseBuffer(metabuffer);
 
