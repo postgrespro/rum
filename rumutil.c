@@ -389,17 +389,10 @@ RumInitPage(Page page, uint32 f, Size pageSize)
 }
 
 void
-RumInitBuffer(Relation index, Buffer buffer, uint32 flags)
+RumInitBuffer(Buffer buffer, uint32 flags)
 {
-	Page		page;
-	GenericXLogState   *state;
-
-	state = GenericXLogStart(index);
-	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
-
-	RumInitPage(page, flags, BufferGetPageSize(buffer));
-
-	GenericXLogFinish(state);
+	RumInitPage(BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
+				flags, BufferGetPageSize(buffer));
 }
 
 void

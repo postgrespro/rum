@@ -46,10 +46,10 @@ typedef struct KeyArray
  * Returns amount of free space left on the page.
  */
 static int32
-writeListPage(Relation index, Buffer buffer,
+writeListPage(Relation index, Buffer buffer, GenericXLogState *state,
 			  IndexTuple *tuples, int32 ntuples, BlockNumber rightlink)
 {
-	Page		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	Page		page;
 	int32		i,
 				freesize,
 				size = 0;
@@ -57,13 +57,16 @@ writeListPage(Relation index, Buffer buffer,
 				off;
 	char	   *workspace;
 	char	   *ptr;
+	GenericXLogState *state2;
 
+	state2 = GenericXLogStart(index);
 	/* workspace could be a local array; we use palloc for alignment */
 	workspace = palloc(BLCKSZ);
 
 	START_CRIT_SECTION();
 
-	RumInitBuffer(index, buffer, RUM_LIST);
+	RumInitBuffer(buffer, RUM_LIST);
+	page = GenericXLogRegisterBuffer(state2, buffer, 0);
 
 	off = FirstOffsetNumber;
 	ptr = workspace;
@@ -104,7 +107,8 @@ writeListPage(Relation index, Buffer buffer,
 		RumPageGetOpaque(page)->maxoff = 0;
 	}
 
-	MarkBufferDirty(buffer);
+// 	MarkBufferDirty(buffer);
+	GenericXLogFinish(state2);
 
 	/* get free space before releasing buffer */
 	freesize = PageGetExactFreeSpace(page);
@@ -119,8 +123,8 @@ writeListPage(Relation index, Buffer buffer,
 }
 
 static void
-makeSublist(Relation index, IndexTuple *tuples, int32 ntuples,
-			RumMetaPageData *res)
+makeSublist(Relation index, GenericXLogState *state,
+			IndexTuple *tuples, int32 ntuples, RumMetaPageData *res)
 {
 	Buffer		curBuffer = InvalidBuffer;
 	Buffer		prevBuffer = InvalidBuffer;
@@ -143,7 +147,7 @@ makeSublist(Relation index, IndexTuple *tuples, int32 ntuples,
 			if (prevBuffer != InvalidBuffer)
 			{
 				res->nPendingPages++;
-				writeListPage(index, prevBuffer,
+				writeListPage(index, prevBuffer, state,
 							  tuples + startTuple,
 							  i - startTuple,
 							  BufferGetBlockNumber(curBuffer));
@@ -176,7 +180,7 @@ makeSublist(Relation index, IndexTuple *tuples, int32 ntuples,
 	 * Write last page
 	 */
 	res->tail = BufferGetBlockNumber(curBuffer);
-	res->tailFreeSize = writeListPage(index, curBuffer,
+	res->tailFreeSize = writeListPage(index, curBuffer, state,
 									  tuples + startTuple,
 									  ntuples - startTuple,
 									  InvalidBlockNumber);
@@ -199,7 +203,7 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 	Buffer		metabuffer;
 	Page		metapage;
 	RumMetaPageData *metadata = NULL;
-	RumXLogRecData rdata[2];
+// 	RumXLogRecData rdata[2];
 	Buffer		buffer = InvalidBuffer;
 	Page		page = NULL;
 	rumxlogUpdateMeta data;
@@ -214,10 +218,10 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 	data.ntuples = 0;
 	data.newRightlink = data.prevTail = InvalidBlockNumber;
 
-	rdata[0].buffer = InvalidBuffer;
-	rdata[0].data = (char *) &data;
-	rdata[0].len = sizeof(rumxlogUpdateMeta);
-	rdata[0].next = NULL;
+// 	rdata[0].buffer = InvalidBuffer;
+// 	rdata[0].data = (char *) &data;
+// 	rdata[0].len = sizeof(rumxlogUpdateMeta);
+// 	rdata[0].next = NULL;
 
 	state = GenericXLogStart(rumstate->index);
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
@@ -257,7 +261,8 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 		RumMetaPageData sublist;
 
 		memset(&sublist, 0, sizeof(RumMetaPageData));
-		makeSublist(index, collector->tuples, collector->ntuples, &sublist);
+		makeSublist(index, state,
+					collector->tuples, collector->ntuples, &sublist);
 
 		/*
 		 * metapage was unlocked, see above
@@ -291,13 +296,13 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 			LockBuffer(buffer, RUM_EXCLUSIVE);
 			page = GenericXLogRegisterBuffer(state, buffer, 0);
 
-			rdata[0].next = rdata + 1;
-
-			rdata[1].buffer = buffer;
-			rdata[1].buffer_std = true;
-			rdata[1].data = NULL;
-			rdata[1].len = 0;
-			rdata[1].next = NULL;
+// 			rdata[0].next = rdata + 1;
+//
+// 			rdata[1].buffer = buffer;
+// 			rdata[1].buffer_std = true;
+// 			rdata[1].data = NULL;
+// 			rdata[1].len = 0;
+// 			rdata[1].next = NULL;
 
 			Assert(RumPageGetOpaque(page)->rightlink == InvalidBlockNumber);
 
@@ -305,7 +310,7 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 
 			RumPageGetOpaque(page)->rightlink = sublist.head;
 
-			MarkBufferDirty(buffer);
+// 			MarkBufferDirty(buffer);
 
 			metadata->tail = sublist.tail;
 			metadata->tailFreeSize = sublist.tailFreeSize;
@@ -332,13 +337,13 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 		off = (PageIsEmpty(page)) ? FirstOffsetNumber :
 			OffsetNumberNext(PageGetMaxOffsetNumber(page));
 
-		rdata[0].next = rdata + 1;
-
-		rdata[1].buffer = buffer;
-		rdata[1].buffer_std = true;
-		ptr = rdata[1].data = (char *) palloc(collector->sumsize);
-		rdata[1].len = collector->sumsize;
-		rdata[1].next = NULL;
+// 		rdata[0].next = rdata + 1;
+//
+// 		rdata[1].buffer = buffer;
+// 		rdata[1].buffer_std = true;
+		ptr /*= rdata[1].data*/ = (char *) palloc(collector->sumsize);
+// 		rdata[1].len = collector->sumsize;
+// 		rdata[1].next = NULL;
 
 		data.ntuples = collector->ntuples;
 
@@ -357,8 +362,11 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 			l = PageAddItem(page, (Item) collector->tuples[i], tupsize, off, false, false);
 
 			if (l == InvalidOffsetNumber)
+			{
+				GenericXLogAbort(state);
 				elog(ERROR, "failed to add item to index page in \"%s\"",
 					 RelationGetRelationName(index));
+			}
 
 			memcpy(ptr, collector->tuples[i], tupsize);
 			ptr += tupsize;
@@ -366,17 +374,17 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 			off++;
 		}
 
-		Assert((ptr - rdata[1].data) <= collector->sumsize);
+// 		Assert((ptr - rdata[1].data) <= collector->sumsize);
 
 		metadata->tailFreeSize = PageGetExactFreeSpace(page);
 
-		MarkBufferDirty(buffer);
+// 		MarkBufferDirty(buffer);
 	}
 
 	/*
 	 * Write metabuffer, make xlog entry
 	 */
-	MarkBufferDirty(metabuffer);
+// 	MarkBufferDirty(metabuffer);
 
 	GenericXLogFinish(state);
 

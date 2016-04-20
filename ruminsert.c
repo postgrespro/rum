@@ -58,7 +58,7 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 
 	START_CRIT_SECTION();
 
-	RumInitBuffer(index, buffer, RUM_DATA | RUM_LEAF);
+	RumInitBuffer(buffer, RUM_DATA | RUM_LEAF);
 	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	blkno = BufferGetBlockNumber(buffer);
 
@@ -615,7 +615,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	RootBuffer = RumNewBuffer(index);
 
 	RumInitMetabuffer(index, MetaBuffer);
-	RumInitBuffer(index, RootBuffer, RUM_LEAF);
+	RumInitBuffer(RootBuffer, RUM_LEAF);
 
 	UnlockReleaseBuffer(MetaBuffer);
 	UnlockReleaseBuffer(RootBuffer);
@@ -713,7 +713,7 @@ rumbuildempty(Relation index)
 	/* Initialize and xlog metabuffer and root buffer. */
 	RumInitMetabuffer(index, MetaBuffer);
 
-	RumInitBuffer(index, RootBuffer, RUM_LEAF);
+	RumInitBuffer(RootBuffer, RUM_LEAF);
 
 	/* Unlock and release the buffers. */
 	UnlockReleaseBuffer(MetaBuffer);
