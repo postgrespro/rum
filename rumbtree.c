@@ -431,7 +431,6 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 
 				rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
 
-
 				RumPageGetOpaque(rpage)->rightlink = InvalidBlockNumber;
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
 				((rumxlogSplit *) (rdata->data))->lblkno = BufferGetBlockNumber(lbuffer);

@@ -592,6 +592,7 @@ RumDataPageAddItem(Page page, void *data, OffsetNumber offset)
 					(maxoff - offset + 1) * RumSizeOfDataPageItem(page));
 	}
 	memcpy(ptr, data, RumSizeOfDataPageItem(page));
+	((PageHeader) page)->pd_lower = ptr - page;
 
 	RumPageGetOpaque(page)->maxoff++;
 }

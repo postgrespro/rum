@@ -52,14 +52,18 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 	int			i;
 	Pointer		ptr;
 	ItemPointerData prev_iptr = {{0,0},0};
+	GenericXLogState *state;
 // 	static char	pageCopy[BLCKSZ];
+
+	state = GenericXLogStart(index);
 
 	/* Assert that the items[] array will fit on one page */
 
 	START_CRIT_SECTION();
 
-	RumInitBuffer(buffer, RUM_DATA | RUM_LEAF);
-	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	page = GenericXLogRegisterBuffer(state, buffer, 0);
+	RumInitPage(page, RUM_DATA | RUM_LEAF, BufferGetPageSize(buffer));
+
 	blkno = BufferGetBlockNumber(buffer);
 
 	RumPageGetOpaque(page)->maxoff = nitems;
@@ -74,7 +78,7 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 	Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 	updateItemIndexes(page, attnum, rumstate);
 
-	MarkBufferDirty(buffer);
+	GenericXLogFinish(state);
 
 	UnlockReleaseBuffer(buffer);
 
@@ -589,16 +593,17 @@ IndexBuildResult *
 rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 {
 	IndexBuildResult *result;
-	double		reltuples;
-	RumBuildState buildstate;
-	Buffer		RootBuffer,
-				MetaBuffer;
+	double			reltuples;
+	RumBuildState	buildstate;
+	Buffer			RootBuffer,
+					MetaBuffer;
 	RumEntryAccumulatorItem *list;
-	Datum		key;
-	RumNullCategory category;
-	uint32		nlist;
-	MemoryContext oldCtx;
-	OffsetNumber attnum;
+	Datum			key;
+	RumNullCategory	category;
+	uint32			nlist;
+	MemoryContext		oldCtx;
+	OffsetNumber		attnum;
+	GenericXLogState   *state;
 
 	if (RelationGetNumberOfBlocks(index) != 0)
 		elog(ERROR, "index \"%s\" already contains data",
@@ -608,14 +613,17 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	buildstate.indtuples = 0;
 	memset(&buildstate.buildStats, 0, sizeof(GinStatsData));
 
+	state = GenericXLogStart(index);
+
 	/* initialize the meta page */
 	MetaBuffer = RumNewBuffer(index);
-
 	/* initialize the root page */
 	RootBuffer = RumNewBuffer(index);
 
-	RumInitMetabuffer(index, MetaBuffer);
-	RumInitBuffer(RootBuffer, RUM_LEAF);
+	RumInitMetabuffer(state, MetaBuffer);
+	RumInitBuffer(state, RootBuffer, RUM_LEAF);
+
+	GenericXLogFinish(state);
 
 	UnlockReleaseBuffer(MetaBuffer);
 	UnlockReleaseBuffer(RootBuffer);
@@ -701,6 +709,9 @@ rumbuildempty(Relation index)
 {
 	Buffer		RootBuffer,
 				MetaBuffer;
+	GenericXLogState   *state;
+
+	state = GenericXLogStart(index);
 
 	/* An empty RUM index has two pages. */
 	MetaBuffer =
@@ -711,9 +722,10 @@ rumbuildempty(Relation index)
 	LockBuffer(RootBuffer, BUFFER_LOCK_EXCLUSIVE);
 
 	/* Initialize and xlog metabuffer and root buffer. */
-	RumInitMetabuffer(index, MetaBuffer);
+	RumInitMetabuffer(state, MetaBuffer);
+	RumInitBuffer(state, RootBuffer, RUM_LEAF);
 
-	RumInitBuffer(RootBuffer, RUM_LEAF);
+	GenericXLogFinish(state);
 
 	/* Unlock and release the buffers. */
 	UnlockReleaseBuffer(MetaBuffer);

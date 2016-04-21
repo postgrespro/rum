@@ -389,21 +389,22 @@ RumInitPage(Page page, uint32 f, Size pageSize)
 }
 
 void
-RumInitBuffer(Buffer buffer, uint32 flags)
+RumInitBuffer(GenericXLogState *state, Buffer buffer, uint32 flags)
 {
-	RumInitPage(BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
-				flags, BufferGetPageSize(buffer));
+	Page		page;
+
+	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
+
+	RumInitPage(page, flags, BufferGetPageSize(buffer));
 }
 
 void
-RumInitMetabuffer(Relation index, Buffer metaBuffer)
+RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer)
 {
 	Page		metaPage;
 	RumMetaPageData	   *metadata;
-	GenericXLogState   *state;
 
 	/* Initialize contents of meta page */
-	state = GenericXLogStart(index);
 	metaPage = GenericXLogRegisterBuffer(state, metaBuffer,
 										 GENERIC_XLOG_FULL_IMAGE);
 
@@ -421,7 +422,7 @@ RumInitMetabuffer(Relation index, Buffer metaBuffer)
 	metadata->nEntries = 0;
 	metadata->rumVersion = RUM_CURRENT_VERSION;
 
-	GenericXLogFinish(state);
+	((PageHeader) metaPage)->pd_lower += sizeof(RumMetaPageData);
 }
 
 /*
@@ -755,20 +756,14 @@ rumUpdateStats(Relation index, const GinStatsData *stats)
 	metapage = GenericXLogRegisterBuffer(state, metabuffer, 0);
 	metadata = RumPageGetMeta(metapage);
 
-	START_CRIT_SECTION();
-
 	metadata->nTotalPages = stats->nTotalPages;
 	metadata->nEntryPages = stats->nEntryPages;
 	metadata->nDataPages = stats->nDataPages;
 	metadata->nEntries = stats->nEntries;
 
-	MarkBufferDirty(metabuffer);
-
 	GenericXLogFinish(state);
 
 	UnlockReleaseBuffer(metabuffer);
-
-	END_CRIT_SECTION();
 }
 
 Datum
