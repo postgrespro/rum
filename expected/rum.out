@@ -1,0 +1,85 @@
+CREATE EXTENSION rum;
+CREATE TABLE test_rum( t text, a tsvector );
+CREATE TRIGGER tsvectorupdate
+BEFORE UPDATE OR INSERT ON test_rum
+FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('a', 'pg_catalog.english', 't');
+CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
+\copy test_rum(t) from 'data/rum.data';
+SET enable_seqscan=off;
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'have&wish');
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'knew&brain');
+ count 
+-------
+     0
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'among');
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'structure&ancient');
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(complimentary|sight)&(sending|heart)');
+ count 
+-------
+     2
+(1 row)
+
+INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');
+INSERT INTO test_rum (t) VALUES ('345 qwerty copyright');
+INSERT INTO test_rum (t) VALUES ('345 qwerty');
+INSERT INTO test_rum (t) VALUES ('A fat cat has just eaten a rat.');
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'bar');
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'qwerty&345');
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '345');
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'rat');
+ count 
+-------
+     1
+(1 row)
+
+SELECT a FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'bar') ORDER BY a;
+              a               
+------------------------------
+ 'bar':2,8 'foo':1,3,6 'qq':7
+(1 row)
+
+DELETE FROM test_rum;
+SELECT count(*) from test_rum;
+ count 
+-------
+     0
+(1 row)
+
