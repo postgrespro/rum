@@ -274,8 +274,12 @@ rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum, BlockNumber
 	{
 		OffsetNumber newMaxOff,
 					oldMaxOff = RumPageGetOpaque(page)->maxoff;
-		Pointer cleaned = NULL;
-		Size newSize;
+		Pointer		cleaned = NULL;
+		Size		newSize;
+		GenericXLogState *state;
+
+		state = GenericXLogStart(gvs->index);
+		page = GenericXLogRegisterBuffer(state, buffer, 0);
 
 		newMaxOff = rumVacuumPostingList(gvs, attnum,
 				RumDataPageGetData(page), oldMaxOff, &cleaned,
@@ -284,8 +288,6 @@ rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum, BlockNumber
 		/* saves changes about deleted tuple ... */
 		if (oldMaxOff != newMaxOff)
 		{
-			START_CRIT_SECTION();
-
 			if (newMaxOff > 0)
 				memcpy(RumDataPageGetData(page), cleaned, newSize);
 
@@ -293,15 +295,14 @@ rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum, BlockNumber
 			RumPageGetOpaque(page)->maxoff = newMaxOff;
 			updateItemIndexes(page, attnum, &gvs->rumstate);
 
-			MarkBufferDirty(buffer);
-			xlogVacuumPage(gvs->index, buffer, attnum, &gvs->rumstate);
-
-			END_CRIT_SECTION();
+			GenericXLogFinish(state);
 
 			/* if root is a leaf page, we don't desire further processing */
 			if (!isRoot && RumPageGetOpaque(page)->maxoff < FirstOffsetNumber)
 				hasVoidPage = TRUE;
 		}
+		else
+			GenericXLogAbort(state);
 	}
 	else
 	{
@@ -691,10 +692,13 @@ rumbulkdelete(IndexVacuumInfo *info,
 
 	for (;;)
 	{
-		Page		page = BufferGetPage(buffer, NULL, NULL,
-										 BGP_NO_SNAPSHOT_TEST);
+		GenericXLogState *state;
+		Page		page;
 		Page		resPage;
 		uint32		i;
+
+		state = GenericXLogStart(index);
+		page = GenericXLogRegisterBuffer(state, buffer, 0);
 
 		Assert(!RumPageIsData(page));
 
@@ -704,15 +708,13 @@ rumbulkdelete(IndexVacuumInfo *info,
 
 		if (resPage)
 		{
-			START_CRIT_SECTION();
 			PageRestoreTempPage(resPage, page);
-			MarkBufferDirty(buffer);
-			xlogVacuumPage(gvs.index, buffer, InvalidOffsetNumber, &gvs.rumstate);
+			GenericXLogFinish(state);
 			UnlockReleaseBuffer(buffer);
-			END_CRIT_SECTION();
 		}
 		else
 		{
+			GenericXLogAbort(state);
 			UnlockReleaseBuffer(buffer);
 		}
 

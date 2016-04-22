@@ -528,7 +528,8 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 			buffers[data.ndeleted] = ReadBuffer(index, blknoToDelete);
 			LockBuffer(buffers[data.ndeleted], RUM_EXCLUSIVE);
 
-			page = BufferGetPage(buffers[data.ndeleted]);
+			page = BufferGetPage(buffers[data.ndeleted], NULL, NULL,
+								 BGP_NO_SNAPSHOT_TEST);
 
 			data.ndeleted++;
 
@@ -739,7 +740,7 @@ rumInsertCleanup(RumState *rumstate,
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
 	LockBuffer(metabuffer, RUM_SHARE);
 
-	metapage = BufferGetPage(metabuffer);
+	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	metadata = RumPageGetMeta(metapage);
 
 	if (metadata->head == InvalidBlockNumber)
@@ -755,7 +756,7 @@ rumInsertCleanup(RumState *rumstate,
 	blkno = metadata->head;
 	buffer = ReadBuffer(index, blkno);
 	LockBuffer(buffer, RUM_SHARE);
-	page = BufferGetPage(buffer);
+	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	LockBuffer(metabuffer, RUM_UNLOCK);
 
@@ -941,7 +942,7 @@ rumInsertCleanup(RumState *rumstate,
 		vacuum_delay_point();
 		buffer = ReadBuffer(index, blkno);
 		LockBuffer(buffer, RUM_SHARE);
-		page = BufferGetPage(buffer);
+		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	}
 
 	ReleaseBuffer(metabuffer);
