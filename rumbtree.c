@@ -14,8 +14,6 @@
 #include "postgres.h"
 
 #include "access/generic_xlog.h"
-#include "miscadmin.h"
-#include "utils/rel.h"
 
 #include "rum.h"
 

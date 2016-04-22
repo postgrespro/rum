@@ -13,9 +13,6 @@
 
 #include "postgres.h"
 
-#include "utils/datum.h"
-#include "utils/rel.h"
-
 #include "rum.h"
 
 /* Does datatype allow packing into the 1-byte-header varlena format? */

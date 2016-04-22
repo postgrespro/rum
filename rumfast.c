@@ -21,7 +21,6 @@
 #include "commands/vacuum.h"
 #include "miscadmin.h"
 #include "utils/memutils.h"
-#include "utils/rel.h"
 #include "utils/datum.h"
 
 #include "rum.h"

@@ -13,9 +13,7 @@
 
 #include "postgres.h"
 
-#include "access/generic_xlog.h"
 #include "commands/vacuum.h"
-#include "miscadmin.h"
 #include "postmaster/autovacuum.h"
 #include "storage/indexfsm.h"
 #include "storage/lmgr.h"

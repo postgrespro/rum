@@ -16,7 +16,6 @@
 #include "access/relscan.h"
 #include "pgstat.h"
 #include "utils/memutils.h"
-#include "utils/rel.h"
 
 #include "rum.h"
 

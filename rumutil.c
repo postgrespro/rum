@@ -13,11 +13,9 @@
 
 #include "postgres.h"
 
-#include "access/generic_xlog.h"
 #include "access/reloptions.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_type.h"
-#include "miscadmin.h"
 #include "storage/indexfsm.h"
 #include "storage/lmgr.h"
 #include "utils/guc.h"
@@ -79,7 +77,7 @@ rumhandler(PG_FUNCTION_ARGS)
 	amroutine->amcanreturn = NULL;
 	amroutine->amcostestimate = gincostestimate;
 	amroutine->amoptions = rumoptions;
-// 	amroutine->amvalidate = rumvalidate;
+ 	amroutine->amvalidate = rumvalidate;
 	amroutine->ambeginscan = rumbeginscan;
 	amroutine->amrescan = rumrescan;
 	amroutine->amgettuple = NULL;

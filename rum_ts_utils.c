@@ -12,7 +12,6 @@
 #include "postgres.h"
 
 #include "catalog/pg_type.h"
-#include "tsearch/ts_type.h"
 #include "tsearch/ts_utils.h"
 #include "utils/builtins.h"
 

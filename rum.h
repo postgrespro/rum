@@ -13,23 +13,13 @@
 #define __RUM_H__
 
 #include "access/amapi.h"
-#include "access/genam.h"
 #include "access/generic_xlog.h"
 #include "access/gin.h"
 #include "access/itup.h"
-#include "fmgr.h"
 #include "lib/rbtree.h"
 #include "storage/bufmgr.h"
-#include "utils/tuplesort.h"
 
-// typedef struct RumXLogRecData
-// {
-// 	char	   *data;			/* start of rmgr data to include */
-// 	uint32		len;			/* length of rmgr data to include */
-// 	Buffer		buffer;			/* buffer associated with data, if any */
-// 	bool		buffer_std;		/* buffer has standard pd_lower/pd_upper */
-// 	struct RumXLogRecData *next;	/* next struct in chain, or NULL */
-// } RumXLogRecData;
+#include "rumsort.h"
 
 /*
  * Page opaque data in a inverted index page.
@@ -686,6 +676,9 @@ typedef struct
 	bool			addInfoIsNull;
 } RumEntryAccumulatorItem;
 
+/* rumvalidate.c */
+extern bool rumvalidate(Oid opclassoid);
+
 /* rumbulk.c */
 typedef struct RumEntryAccumulator
 {
@@ -738,9 +731,10 @@ extern void rumInsertCleanup(RumState *rumstate,
 				 bool vac_delay, IndexBulkDeleteResult *stats);
 
 /* rum_ts_utils.c */
-#define RUM_CONFIG_PROC				   7
-#define RUM_PRE_CONSISTENT_PROC		   8
-#define RUM_ORDERING_PROC			   9
+#define RUM_CONFIG_PROC				7
+#define RUM_PRE_CONSISTENT_PROC		8
+#define RUM_ORDERING_PROC			9
+#define RUMNProcs					9
 
 extern Datum rum_extract_tsvector(PG_FUNCTION_ARGS);
 extern Datum rum_extract_tsquery(PG_FUNCTION_ARGS);

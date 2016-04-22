@@ -14,14 +14,9 @@
 #include "postgres.h"
 
 #include "access/generic_xlog.h"
-#include "access/heapam_xlog.h"
 #include "catalog/index.h"
 #include "miscadmin.h"
-#include "storage/bufmgr.h"
-#include "storage/smgr.h"
-#include "storage/indexfsm.h"
 #include "utils/memutils.h"
-#include "utils/rel.h"
 #include "utils/datum.h"
 
 #include "rum.h"
