@@ -369,7 +369,6 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 	/* this loop crawls up the stack until the insertion is complete */
 	for (;;)
 	{
-		RumXLogRecData *rdata;
 		BlockNumber savedRightLink;
 
 		page = BufferGetPage(stack->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
@@ -377,10 +376,9 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 
 		if (btree->isEnoughSpace(btree, stack->buffer, stack->off))
 		{
-			btree->placeToPage(btree, stack->buffer, stack->off, &rdata);
-
 			state = GenericXLogStart(index);
 			page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
+			btree->placeToPage(btree, page, stack->off);
 			GenericXLogFinish(state);
 
 			LockBuffer(stack->buffer, RUM_UNLOCK);
@@ -392,14 +390,6 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 		{
 			Buffer		rbuffer = RumNewBuffer(btree->index);
 			Page		newlpage;
-
-			/*
-			 * newlpage is a pointer to memory page, it doesn't associate with
-			 * buffer, stack->buffer should be untouched
-			 */
-			newlpage = btree->splitPage(btree, stack->buffer, rbuffer, stack->off, &rdata);
-
-			((rumxlogSplit *) (rdata->data))->rootBlkno = rootBlkno;
 
 			/* During index build, count the newly-split page */
 			if (buildStats)
@@ -414,24 +404,29 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 
 			if (parent == NULL)
 			{
-				/*
-				 * split root, so we need to allocate new left page and place
-				 * pointer on root to left and right page
-				 */
-				Buffer		lbuffer = RumNewBuffer(btree->index);
-
-				((rumxlogSplit *) (rdata->data))->isRootSplit = TRUE;
-				((rumxlogSplit *) (rdata->data))->rrlink = InvalidBlockNumber;
+				Buffer		lbuffer;
 
 				state = GenericXLogStart(index);
 
 				page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
-				lpage = GenericXLogRegisterBuffer(state, lbuffer, 0);
 				rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
+
+				/*
+				 * newlpage is a pointer to memory page, it doesn't associate with
+				 * buffer, stack->buffer should be untouched
+				 */
+				newlpage = btree->splitPage(btree, stack->buffer, rbuffer,
+											page, rpage, stack->off);
+
+				/*
+				 * split root, so we need to allocate new left page and place
+				 * pointer on root to left and right page
+				 */
+				lbuffer = RumNewBuffer(btree->index);
+				lpage = GenericXLogRegisterBuffer(state, lbuffer, 0);
 
 				RumPageGetOpaque(rpage)->rightlink = InvalidBlockNumber;
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
-				((rumxlogSplit *) (rdata->data))->lblkno = BufferGetBlockNumber(lbuffer);
 
 				RumInitPage(page, RumPageGetOpaque(newlpage)->flags & ~RUM_LEAF,
 							BufferGetPageSize(stack->buffer));
@@ -460,13 +455,18 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 			else
 			{
 				/* split non-root page */
-				((rumxlogSplit *) (rdata->data))->isRootSplit = FALSE;
-				((rumxlogSplit *) (rdata->data))->rrlink = savedRightLink;
 
 				state = GenericXLogStart(index);
 
 				lpage = GenericXLogRegisterBuffer(state, stack->buffer, 0);
 				rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
+
+				/*
+				 * newlpage is a pointer to memory page, it doesn't associate with
+				 * buffer, stack->buffer should be untouched
+				 */
+				newlpage = btree->splitPage(btree, stack->buffer, rbuffer,
+											lpage, rpage, stack->off);
 
 				RumPageGetOpaque(rpage)->rightlink = savedRightLink;
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);

@@ -53,13 +53,8 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 	Pointer		ptr;
 	ItemPointerData prev_iptr = {{0,0},0};
 	GenericXLogState *state;
-// 	static char	pageCopy[BLCKSZ];
 
 	state = GenericXLogStart(index);
-
-	/* Assert that the items[] array will fit on one page */
-
-	START_CRIT_SECTION();
 
 	page = GenericXLogRegisterBuffer(state, buffer, 0);
 	RumInitPage(page, RUM_DATA | RUM_LEAF, BufferGetPageSize(buffer));
@@ -81,8 +76,6 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 	GenericXLogFinish(state);
 
 	UnlockReleaseBuffer(buffer);
-
-	END_CRIT_SECTION();
 
 	return blkno;
 }

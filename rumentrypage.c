@@ -376,51 +376,16 @@ entryPreparePage(RumBtree btree, Page page, OffsetNumber off)
  * Place tuple on page and fills WAL record
  */
 static void
-entryPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, RumXLogRecData **prdata)
+entryPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 {
-	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	OffsetNumber placed;
 
-	/* these must be static so they can be returned to caller */
-	static RumXLogRecData rdata[3];
-	static rumxlogInsert data;
-
-	*prdata = rdata;
-	data.updateBlkno = entryPreparePage(btree, page, off);
+	entryPreparePage(btree, page, off);
 
 	placed = PageAddItem(page, (Item) btree->entry, IndexTupleSize(btree->entry), off, false, false);
 	if (placed != off)
 		elog(ERROR, "failed to add item to index page in \"%s\"",
 			 RelationGetRelationName(btree->index));
-
-	data.node = btree->index->rd_node;
-	data.blkno = BufferGetBlockNumber(buf);
-	data.offset = off;
-	data.nitem = 1;
-	data.isDelete = btree->isDelete;
-	data.isData = false;
-	data.isLeaf = RumPageIsLeaf(page) ? TRUE : FALSE;
-
-	/*
-	 * For incomplete-split tracking, we need updateBlkno information and the
-	 * inserted item even when we make a full page image of the page, so put
-	 * the buffer reference in a separate RumXLogRecData entry.
-	 */
-	rdata[0].buffer = buf;
-	rdata[0].buffer_std = TRUE;
-	rdata[0].data = NULL;
-	rdata[0].len = 0;
-	rdata[0].next = &rdata[1];
-
-	rdata[1].buffer = InvalidBuffer;
-	rdata[1].data = (char *) &data;
-	rdata[1].len = sizeof(rumxlogInsert);
-	rdata[1].next = &rdata[2];
-
-	rdata[2].buffer = InvalidBuffer;
-	rdata[2].data = (char *) btree->entry;
-	rdata[2].len = IndexTupleSize(btree->entry);
-	rdata[2].next = NULL;
 
 	btree->entry = NULL;
 }
@@ -432,8 +397,8 @@ entryPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, RumXLogRecData **
  * an equal number!
  */
 static Page
-entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
-			   RumXLogRecData **prdata)
+entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf,
+			   Page lPage, Page rPage, OffsetNumber off)
 {
 	OffsetNumber i,
 				maxoff,
@@ -445,22 +410,14 @@ entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
 	IndexTuple	itup,
 				leftrightmost = NULL;
 	Page		page;
-	Page		lpage = PageGetTempPageCopy(BufferGetPage(lbuf, NULL, NULL,
-														 BGP_NO_SNAPSHOT_TEST));
-	Page		rpage = BufferGetPage(rbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-	Size		pageSize = PageGetPageSize(lpage);
+	Page		newlPage = PageGetTempPageCopy(lPage);
+	Size		pageSize = PageGetPageSize(newlPage);
 
-	/* these must be static so they can be returned to caller */
-	static RumXLogRecData rdata[2];
-	static rumxlogSplit data;
 	static char tupstore[2 * BLCKSZ];
 
-	*prdata = rdata;
-	data.leftChildBlkno = (RumPageIsLeaf(lpage)) ?
-		InvalidOffsetNumber : RumGetDownlink(btree->entry);
-	data.updateBlkno = entryPreparePage(btree, lpage, off);
+	entryPreparePage(btree, newlPage, off);
 
-	maxoff = PageGetMaxOffsetNumber(lpage);
+	maxoff = PageGetMaxOffsetNumber(newlPage);
 	ptr = tupstore;
 
 	for (i = FirstOffsetNumber; i <= maxoff; i++)
@@ -473,7 +430,7 @@ entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
 			totalsize += size + sizeof(ItemIdData);
 		}
 
-		itup = (IndexTuple) PageGetItem(lpage, PageGetItemId(lpage, i));
+		itup = (IndexTuple) PageGetItem(newlPage, PageGetItemId(newlPage, i));
 		size = MAXALIGN(IndexTupleSize(itup));
 		memcpy(ptr, itup, size);
 		ptr += size;
@@ -488,14 +445,14 @@ entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
 		totalsize += size + sizeof(ItemIdData);
 	}
 
-	RumInitPage(rpage, RumPageGetOpaque(lpage)->flags, pageSize);
-	RumInitPage(lpage, RumPageGetOpaque(rpage)->flags, pageSize);
+	RumInitPage(rPage, RumPageGetOpaque(newlPage)->flags, pageSize);
+	RumInitPage(newlPage, RumPageGetOpaque(rPage)->flags, pageSize);
 
 	ptr = tupstore;
 	maxoff++;
 	lsize = 0;
 
-	page = lpage;
+	page = newlPage;
 	for (i = FirstOffsetNumber; i <= maxoff; i++)
 	{
 		itup = (IndexTuple) ptr;
@@ -504,7 +461,7 @@ entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
 		{
 			if (separator == InvalidOffsetNumber)
 				separator = i - 1;
-			page = rpage;
+			page = rPage;
 		}
 		else
 		{
@@ -518,32 +475,12 @@ entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
 		ptr += MAXALIGN(IndexTupleSize(itup));
 	}
 
-	btree->entry = RumFormInteriorTuple(leftrightmost, lpage,
+	btree->entry = RumFormInteriorTuple(leftrightmost, newlPage,
 										BufferGetBlockNumber(lbuf));
 
 	btree->rightblkno = BufferGetBlockNumber(rbuf);
 
-	data.node = btree->index->rd_node;
-	data.rootBlkno = InvalidBlockNumber;
-	data.lblkno = BufferGetBlockNumber(lbuf);
-	data.rblkno = BufferGetBlockNumber(rbuf);
-	data.separator = separator;
-	data.nitem = maxoff;
-	data.isData = FALSE;
-	data.isLeaf = RumPageIsLeaf(lpage) ? TRUE : FALSE;
-	data.isRootSplit = FALSE;
-
-	rdata[0].buffer = InvalidBuffer;
-	rdata[0].data = (char *) &data;
-	rdata[0].len = sizeof(rumxlogSplit);
-	rdata[0].next = &rdata[1];
-
-	rdata[1].buffer = InvalidBuffer;
-	rdata[1].data = tupstore;
-	rdata[1].len = MAXALIGN(totalsize);
-	rdata[1].next = NULL;
-
-	return lpage;
+	return newlPage;
 }
 
 /*

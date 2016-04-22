@@ -42,7 +42,8 @@ typedef struct
  */
 
 static uint32
-rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src, uint32 nitem, Pointer *cleaned, Size size, Size *newSize)
+rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src,
+					 uint32 nitem, Pointer *cleaned, Size size, Size *newSize)
 {
 	uint32		i,
 				j = 0;
@@ -59,7 +60,8 @@ rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src, uint
 	for (i = 0; i < nitem; i++)
 	{
 		prev = ptr;
-		ptr = rumDataPageLeafRead(ptr, attnum, &iptr, &addInfo, &addInfoIsNull, &gvs->rumstate);
+		ptr = rumDataPageLeafRead(ptr, attnum, &iptr, &addInfo, &addInfoIsNull,
+								  &gvs->rumstate);
 		if (gvs->callback(&iptr, gvs->callback_state))
 		{
 			gvs->result->tuples_removed += 1;
@@ -78,7 +80,10 @@ rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src, uint
 		{
 			gvs->result->num_index_tuples += 1;
 			if (i != j)
-				dst = rumPlaceToDataPageLeaf(dst, attnum, &iptr, addInfo, addInfoIsNull, &prevIptr, &gvs->rumstate);
+				dst = rumPlaceToDataPageLeaf(dst, attnum, &iptr,
+											 addInfo,
+											 addInfoIsNull,
+											 &prevIptr, &gvs->rumstate);
 			j++;
 			prevIptr = iptr;
 		}
@@ -203,50 +208,9 @@ RumFormTuple(RumState *rumstate,
 	return itup;
 }
 
-/*
- * fills WAL record for vacuum leaf page
- */
-static void
-xlogVacuumPage(Relation index, Buffer buffer, OffsetNumber attrnum, RumState *rumstate)
-{
-	Page		page;
-	char	   *backup;
-	char		itups[BLCKSZ];
-	GenericXLogState *state;
-
-	if (!RelationNeedsWAL(index))
-		return;
-
-	state = GenericXLogStart(index);
-	page = GenericXLogRegisterBuffer(state, buffer, 0);
-
-	Assert(RumPageIsLeaf(page));
-
-	if (RumPageIsData(page))
-	{
-		memcpy(itups, page, BLCKSZ);
-		backup = RumDataPageGetData(itups);
-	}
-	else
-	{
-		char	   *ptr;
-		OffsetNumber i;
-
-		ptr = backup = itups;
-		for (i = FirstOffsetNumber; i <= PageGetMaxOffsetNumber(page); i++)
-		{
-			IndexTuple	itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, i));
-
-			memcpy(ptr, itup, IndexTupleSize(itup));
-			ptr += MAXALIGN(IndexTupleSize(itup));
-		}
-	}
-
-	GenericXLogFinish(state);
-}
-
 static bool
-rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum, BlockNumber blkno, bool isRoot, Buffer *rootBuffer)
+rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum,
+						   BlockNumber blkno, bool isRoot, Buffer *rootBuffer)
 {
 	Buffer		buffer;
 	Page		page;
@@ -313,7 +277,8 @@ rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum, BlockNumber
 		{
 			PostingItem *pitem = (PostingItem *) RumDataPageGetItem(page, i);
 
-			if (rumVacuumPostingTreeLeaves(gvs, attnum, PostingItemGetBlockNumber(pitem), FALSE, NULL))
+			if (rumVacuumPostingTreeLeaves(gvs, attnum,
+								PostingItemGetBlockNumber(pitem), FALSE, NULL))
 				isChildHasVoid = TRUE;
 		}
 
@@ -348,7 +313,8 @@ rumDeletePage(RumVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 	Buffer		dBuffer;
 	Buffer		lBuffer;
 	Buffer		pBuffer;
-	Page		page,
+	Page		lPage,
+				dPage,
 				parentPage;
 	BlockNumber	rightlink;
 	GenericXLogState *state;
@@ -372,17 +338,15 @@ rumDeletePage(RumVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 								 * LockBufferForCleanup() */
 		LockBuffer(pBuffer, RUM_EXCLUSIVE);
 
-	START_CRIT_SECTION();
-
 	/* Unlink the page by changing left sibling's rightlink */
-	page = BufferGetPage(dBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-	rightlink = RumPageGetOpaque(page)->rightlink;
+	dPage = GenericXLogRegisterBuffer(state, dBuffer, 0);
+	rightlink = RumPageGetOpaque(dPage)->rightlink;
 
-	page = BufferGetPage(lBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-	RumPageGetOpaque(page)->rightlink = rightlink;
+	lPage = GenericXLogRegisterBuffer(state, lBuffer, 0);
+	RumPageGetOpaque(lPage)->rightlink = rightlink;
 
 	/* Delete downlink from parent */
-	parentPage = BufferGetPage(pBuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	parentPage = GenericXLogRegisterBuffer(state, pBuffer, 0);
 #ifdef USE_ASSERT_CHECKING
 	do
 	{
@@ -393,18 +357,11 @@ rumDeletePage(RumVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 #endif
 	RumPageDeletePostingItem(parentPage, myoff);
 
-	page = GenericXLogRegisterBuffer(state, dBuffer, 0);
-
 	/*
 	 * we shouldn't change rightlink field to save workability of running
 	 * search scan
 	 */
-	RumPageGetOpaque(page)->flags = RUM_DELETED;
-
-	MarkBufferDirty(pBuffer);
-	if (leftBlkno != InvalidBlockNumber)
-		MarkBufferDirty(lBuffer);
-	MarkBufferDirty(dBuffer);
+	RumPageGetOpaque(dPage)->flags = RUM_DELETED;
 
 	GenericXLogFinish(state);
 
@@ -413,8 +370,6 @@ rumDeletePage(RumVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 	ReleaseBuffer(pBuffer);
 	UnlockReleaseBuffer(lBuffer);
 	UnlockReleaseBuffer(dBuffer);
-
-	END_CRIT_SECTION();
 
 	gvs->result->pages_deleted++;
 }

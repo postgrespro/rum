@@ -22,14 +22,14 @@
 #include "storage/bufmgr.h"
 #include "utils/tuplesort.h"
 
-typedef struct RumXLogRecData
-{
-	char	   *data;			/* start of rmgr data to include */
-	uint32		len;			/* length of rmgr data to include */
-	Buffer		buffer;			/* buffer associated with data, if any */
-	bool		buffer_std;		/* buffer has standard pd_lower/pd_upper */
-	struct RumXLogRecData *next;	/* next struct in chain, or NULL */
-} RumXLogRecData;
+// typedef struct RumXLogRecData
+// {
+// 	char	   *data;			/* start of rmgr data to include */
+// 	uint32		len;			/* length of rmgr data to include */
+// 	Buffer		buffer;			/* buffer associated with data, if any */
+// 	bool		buffer_std;		/* buffer has standard pd_lower/pd_upper */
+// 	struct RumXLogRecData *next;	/* next struct in chain, or NULL */
+// } RumXLogRecData;
 
 /*
  * Page opaque data in a inverted index page.
@@ -370,133 +370,9 @@ typedef struct RumConfig
 
 /* XLog stuff */
 
-#define XLOG_RUM_CREATE_INDEX  0x00
-
-#define XLOG_RUM_CREATE_PTREE  0x10
-
-typedef struct rumxlogCreatePostingTree
-{
-	RelFileNode node;
-	BlockNumber blkno;
-	uint32		nitem;
-	int16		typlen;
-
-	bool		typbyval;
-	char		typalign;
-	char		typstorage;
-	/* follows list of heap's ItemPointer */
-} rumxlogCreatePostingTree;
-
-#define XLOG_RUM_INSERT  0x20
-
-typedef struct rumxlogInsert
-{
-	RelFileNode node;
-	BlockNumber blkno;
-	BlockNumber updateBlkno;
-	OffsetNumber offset;
-	OffsetNumber nitem;
-	int16		typlen;
-
-	bool		typbyval;
-	char		typalign;
-	char		typstorage;
-	bool		isDelete;
-	bool		isData;
-	bool		isLeaf;
-
-	/*
-	 * follows: tuples or ItemPointerData or PostingItem or list of
-	 * ItemPointerData
-	 */
-} rumxlogInsert;
-
-#define XLOG_RUM_SPLIT	0x30
-
-typedef struct rumxlogSplit
-{
-	RelFileNode node;
-	BlockNumber lblkno;
-	BlockNumber rootBlkno;
-	BlockNumber rblkno;
-	BlockNumber rrlink;
-	OffsetNumber separator;
-	OffsetNumber nitem;
-	int16		typlen;
-
-	bool		typbyval;
-	char		typalign;
-	char		typstorage;
-	bool		isData;
-	bool		isLeaf;
-	bool		isRootSplit;
-
-	BlockNumber leftChildBlkno;
-	BlockNumber updateBlkno;
-
-	ItemPointerData rightbound; /* used only in posting tree */
-	/* follows: list of tuple or ItemPointerData or PostingItem */
-} rumxlogSplit;
-
-#define XLOG_RUM_VACUUM_PAGE	0x40
-
-typedef struct rumxlogVacuumPage
-{
-	RelFileNode node;
-	BlockNumber blkno;
-	OffsetNumber nitem;
-	int16		typlen;
-
-	bool		typbyval;
-	char		typalign;
-	char		typstorage;
-	/* follows content of page */
-} rumxlogVacuumPage;
-
-#define XLOG_RUM_DELETE_PAGE	0x50
-
-typedef struct rumxlogDeletePage
-{
-	RelFileNode node;
-	BlockNumber blkno;
-	BlockNumber parentBlkno;
-	OffsetNumber parentOffset;
-	BlockNumber leftBlkno;
-	BlockNumber rightLink;
-} rumxlogDeletePage;
-
-#define XLOG_RUM_UPDATE_META_PAGE 0x60
-
-typedef struct rumxlogUpdateMeta
-{
-	RelFileNode node;
-	RumMetaPageData metadata;
-	BlockNumber prevTail;
-	BlockNumber newRightlink;
-	int32		ntuples;		/* if ntuples > 0 then metadata.tail was
-								 * updated with that many tuples; else new sub
-								 * list was inserted */
-	/* array of inserted tuples follows */
-} rumxlogUpdateMeta;
-
-#define XLOG_RUM_INSERT_LISTPAGE  0x70
-
-typedef struct rumxlogInsertListPage
-{
-	RelFileNode node;
-	BlockNumber blkno;
-	BlockNumber rightlink;
-	int32		ntuples;
-	/* array of inserted tuples follows */
-} rumxlogInsertListPage;
-
-#define XLOG_RUM_DELETE_LISTPAGE  0x80
-
 #define RUM_NDELETE_AT_ONCE 16
 typedef struct rumxlogDeleteListPages
 {
-	RelFileNode node;
-	RumMetaPageData metadata;
 	int32		ndeleted;
 	BlockNumber toDelete[RUM_NDELETE_AT_ONCE];
 } rumxlogDeleteListPages;
@@ -566,8 +442,8 @@ typedef struct RumBtreeData
 	OffsetNumber (*findChildPtr) (RumBtree, Page, BlockNumber, OffsetNumber);
 	BlockNumber (*getLeftMostPage) (RumBtree, Page);
 	bool		(*isEnoughSpace) (RumBtree, Buffer, OffsetNumber);
-	void		(*placeToPage) (RumBtree, Buffer, OffsetNumber, RumXLogRecData **);
-	Page		(*splitPage) (RumBtree, Buffer, Buffer, OffsetNumber, RumXLogRecData **);
+	void		(*placeToPage) (RumBtree, Page, OffsetNumber);
+	Page		(*splitPage) (RumBtree, Buffer, Buffer, Page, Page, OffsetNumber);
 	void		(*fillRoot) (RumBtree, Buffer, Buffer, Buffer);
 
 	bool		isData;

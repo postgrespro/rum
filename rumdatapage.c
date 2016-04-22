@@ -699,59 +699,17 @@ dataPrepareData(RumBtree btree, Page page, OffsetNumber off)
  * build mode puts all ItemPointers to page.
  */
 static void
-dataPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, RumXLogRecData **prdata)
+dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 {
-	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-	Form_pg_attribute attr = btree->rumstate->addAttrs[btree->entryAttnum - 1];
-
-	/* these must be static so they can be returned to caller */
-	static RumXLogRecData rdata[3];
-	static rumxlogInsert data;
-	static char insertData[BLCKSZ];
-
-	*prdata = rdata;
 	Assert(RumPageIsData(page));
 
-	data.updateBlkno = dataPrepareData(btree, page, off);
-
-	data.node = btree->index->rd_node;
-	data.blkno = BufferGetBlockNumber(buf);
-	data.offset = off;
-	data.isDelete = FALSE;
-	data.isData = TRUE;
-	data.isLeaf = RumPageIsLeaf(page) ? TRUE : FALSE;
-
-	if (attr)
-	{
-		data.typlen = attr->attlen;
-		data.typalign = attr->attalign;
-		data.typbyval = attr->attbyval;
-		data.typstorage = attr->attstorage;
-	}
-
-	/*
-	 * For incomplete-split tracking, we need updateBlkno information and the
-	 * inserted item even when we make a full page image of the page, so put
-	 * the buffer reference in a separate RumXLogRecData entry.
-	 */
-	rdata[0].buffer = buf;
-	rdata[0].buffer_std = FALSE;
-	rdata[0].data = NULL;
-	rdata[0].len = 0;
-	rdata[0].next = &rdata[1];
-	XLogBeginInsert();
-
-	rdata[1].buffer = InvalidBuffer;
-	rdata[1].data = (char *) &data;
-	rdata[1].len = sizeof(rumxlogInsert);
-	rdata[1].next = &rdata[2];
+	dataPrepareData(btree, page, off);
 
 	if (RumPageIsLeaf(page))
 	{
 		int			i = 0, j, max_j;
 		Pointer		ptr = RumDataPageGetData(page),
-					copy_ptr = NULL,
-					insertStart;
+					copy_ptr = NULL;
 		ItemPointerData iptr = {{0,0},0}, copy_iptr;
 		char		pageCopy[BLCKSZ];
 		Datum		addInfo = 0;
@@ -784,8 +742,6 @@ dataPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, RumXLogRecData **p
 			max_j = btree->curitem + 1;
 
 		/* Place items to the page while we have enough of space */
-		*((ItemPointerData *)insertData) = iptr;
-		insertStart = ptr;
 		i = 0;
 		for (j = btree->curitem; j < max_j; j++)
 		{
@@ -805,18 +761,8 @@ dataPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, RumXLogRecData **p
 
 			iptr = btree->items[j];
 			btree->curitem++;
-			data.nitem++;
 			i++;
 		}
-
-		/* Put WAL data */
-		memcpy(insertData + sizeof(ItemPointerData), insertStart,
-															ptr - insertStart);
-		rdata[2].buffer = InvalidBuffer;
-		rdata[2].data = insertData;
-		rdata[2].len = sizeof(ItemPointerData) + (ptr - insertStart);
-		rdata[2].next = NULL;
-		data.nitem = ptr - insertStart;
 
 		/* Place rest of the page back */
 		if (off <= maxoff)
@@ -843,35 +789,29 @@ dataPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, RumXLogRecData **p
 	}
 	else
 	{
-		rdata[2].buffer = InvalidBuffer;
-		rdata[2].data = (char *) &(btree->pitem);
-		rdata[2].len = sizeof(PostingItem);
-		rdata[2].next = NULL;
-		data.nitem = 1;
-
 		RumDataPageAddItem(page, &(btree->pitem), off);
 	}
 }
 
 /* Macro for leaf data page split: switch to right page if needed. */
-#define CHECK_SWITCH_TO_RPAGE                    \
-	do {                                         \
-		if (ptr - RumDataPageGetData(page) >     \
-			totalsize / 2 && page == lpage)      \
-		{                                        \
-			maxLeftIptr = iptr;                  \
-			prevIptr.ip_blkid.bi_hi = 0;         \
-			prevIptr.ip_blkid.bi_lo = 0;         \
-			prevIptr.ip_posid = 0;               \
-			RumPageGetOpaque(lpage)->maxoff = j; \
-			page = rpage;                        \
-			ptr = RumDataPageGetData(rpage);     \
-			j = FirstOffsetNumber;               \
-		}                                        \
-		else                                     \
-		{                                        \
-			j++;                                 \
-		}                                        \
+#define CHECK_SWITCH_TO_RPAGE                       \
+	do {                                            \
+		if (ptr - RumDataPageGetData(page) >        \
+			totalsize / 2 && page == newlPage)      \
+		{                                           \
+			maxLeftIptr = iptr;                     \
+			prevIptr.ip_blkid.bi_hi = 0;            \
+			prevIptr.ip_blkid.bi_lo = 0;            \
+			prevIptr.ip_posid = 0;                  \
+			RumPageGetOpaque(newlPage)->maxoff = j; \
+			page = rPage;                           \
+			ptr = RumDataPageGetData(rPage);        \
+			j = FirstOffsetNumber;                  \
+		}                                           \
+		else                                        \
+		{                                           \
+			j++;                                    \
+		}                                           \
 	} while (0)
 
 
@@ -883,48 +823,37 @@ dataPlaceToPage(RumBtree btree, Buffer buf, OffsetNumber off, RumXLogRecData **p
  * equal size on its, not an equal number!
  */
 static Page
-dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
-														RumXLogRecData **prdata)
+dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
+				  Page lPage, Page rPage, OffsetNumber off)
 {
 	OffsetNumber i, j,
 				maxoff;
 	Size		totalsize = 0, prevTotalsize;
 	Pointer		ptr, copyPtr;
 	Page		page;
-	Page		lpage = PageGetTempPageCopy(BufferGetPage(lbuf, NULL, NULL,
-														 BGP_NO_SNAPSHOT_TEST));
-	Page		rpage = BufferGetPage(rbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-	Size		pageSize = PageGetPageSize(lpage);
+	Page		newlPage = PageGetTempPageCopy(lPage);
+	Size		pageSize = PageGetPageSize(newlPage);
 	Size		maxItemSize = 0;
 	Datum		addInfo = 0;
 	bool		addInfoIsNull;
 	ItemPointerData iptr, prevIptr, maxLeftIptr;
 	int			totalCount = 0;
 	int			maxItemIndex = btree->curitem;
-	Form_pg_attribute attr = btree->rumstate->addAttrs[btree->entryAttnum - 1];
 
-	/* these must be static so they can be returned to caller */
-	static RumXLogRecData rdata[3];
-	static rumxlogSplit data;
 	static char lpageCopy[BLCKSZ];
-	static char rpageCopy[BLCKSZ];
 
-	*prdata = rdata;
-	data.leftChildBlkno = (RumPageIsLeaf(lpage)) ?
-		InvalidOffsetNumber : RumGetDownlink(btree->entry);
-	data.updateBlkno = dataPrepareData(btree, lpage, off);
-
-	maxoff = RumPageGetOpaque(lpage)->maxoff;
+	dataPrepareData(btree, newlPage, off);
+	maxoff = RumPageGetOpaque(newlPage)->maxoff;
 
 	/* Copy original data of the page */
-	memcpy(lpageCopy, lpage, BLCKSZ);
+	memcpy(lpageCopy, newlPage, BLCKSZ);
 
 	/* Reinitialize pages */
-	RumInitPage(rpage, RumPageGetOpaque(lpage)->flags, pageSize);
-	RumInitPage(lpage, RumPageGetOpaque(rpage)->flags, pageSize);
+	RumInitPage(rPage, RumPageGetOpaque(newlPage)->flags, pageSize);
+	RumInitPage(newlPage, RumPageGetOpaque(rPage)->flags, pageSize);
 
-	RumPageGetOpaque(lpage)->maxoff = 0;
-	RumPageGetOpaque(rpage)->maxoff = 0;
+	RumPageGetOpaque(newlPage)->maxoff = 0;
+	RumPageGetOpaque(rPage)->maxoff = 0;
 
 	/* Calculate the whole size we're going to place */
 	copyPtr = RumDataPageGetData(lpageCopy);
@@ -966,7 +895,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
 	{
 		prevIptr = iptr;
 		iptr = btree->items[maxItemIndex];
-		if (RumPageRightMost(lpage))
+		if (RumPageRightMost(newlPage))
 		{
 			Size newTotalsize;
 
@@ -1010,8 +939,8 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
 	 * Place item pointers with additional information to the pages using
 	 * previous calculations.
 	 */
-	ptr = RumDataPageGetData(lpage);
-	page = lpage;
+	ptr = RumDataPageGetData(newlPage);
+	page = newlPage;
 	j = FirstOffsetNumber;
 	iptr.ip_blkid.bi_hi = 0;
 	iptr.ip_blkid.bi_lo = 0;
@@ -1068,56 +997,20 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
 		}
 	}
 
-	RumPageGetOpaque(rpage)->maxoff = j - 1;
+	RumPageGetOpaque(rPage)->maxoff = j - 1;
 
 	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
 	btree->pitem.key = maxLeftIptr;
 	btree->rightblkno = BufferGetBlockNumber(rbuf);
 
-	*RumDataPageGetRightBound(rpage) = *RumDataPageGetRightBound(lpageCopy);
-	*RumDataPageGetRightBound(lpage) = maxLeftIptr;
+	*RumDataPageGetRightBound(rPage) = *RumDataPageGetRightBound(lpageCopy);
+	*RumDataPageGetRightBound(newlPage) = maxLeftIptr;
 
 	/* Fill indexes at the end of pages */
-	updateItemIndexes(lpage, btree->entryAttnum, btree->rumstate);
-	updateItemIndexes(rpage, btree->entryAttnum, btree->rumstate);
+	updateItemIndexes(newlPage, btree->entryAttnum, btree->rumstate);
+	updateItemIndexes(rPage, btree->entryAttnum, btree->rumstate);
 
-	data.node = btree->index->rd_node;
-	data.rootBlkno = InvalidBlockNumber;
-	data.lblkno = BufferGetBlockNumber(lbuf);
-	data.rblkno = BufferGetBlockNumber(rbuf);
-	data.separator = RumPageGetOpaque(lpage)->maxoff;
-	data.nitem = RumPageGetOpaque(lpage)->maxoff + RumPageGetOpaque(rpage)->maxoff;
-	data.isData = TRUE;
-	data.isLeaf = TRUE;
-	data.isRootSplit = FALSE;
-	if (attr)
-	{
-		data.typlen = attr->attlen;
-		data.typalign = attr->attalign;
-		data.typbyval = attr->attbyval;
-		data.typstorage = attr->attstorage;
-	}
-	data.rightbound = *RumDataPageGetRightBound(rpage);
-
-	rdata[0].buffer = InvalidBuffer;
-	rdata[0].data = (char *) &data;
-	rdata[0].len = MAXALIGN(sizeof(rumxlogSplit));
-	rdata[0].next = &rdata[1];
-
-	memcpy(lpageCopy, lpage, BLCKSZ);
-	memcpy(rpageCopy, rpage, BLCKSZ);
-
-	rdata[1].buffer = InvalidBuffer;
-	rdata[1].data = RumDataPageGetData(lpageCopy);
-	rdata[1].len = MAXALIGN((RumDataPageSize - RumPageGetOpaque(lpageCopy)->freespace));
-	rdata[1].next = &rdata[2];
-
-	rdata[2].buffer = InvalidBuffer;
-	rdata[2].data = RumDataPageGetData(rpageCopy);
-	rdata[2].len = MAXALIGN((RumDataPageSize - RumPageGetOpaque(rpageCopy)->freespace));
-	rdata[2].next = NULL;
-
-	return lpage;
+	return newlPage;
 }
 
 /*
@@ -1128,38 +1021,31 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
  */
 static Page
 dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
-					  OffsetNumber off, RumXLogRecData **prdata)
+					  Page lPage, Page rPage, OffsetNumber off)
 {
 	char	   *ptr;
 	OffsetNumber separator;
 	ItemPointer bound;
-	Page		lpage = PageGetTempPageCopy(BufferGetPage(lbuf, NULL, NULL,
+	Page		newlPage = PageGetTempPageCopy(BufferGetPage(lbuf, NULL, NULL,
 														 BGP_NO_SNAPSHOT_TEST));
-	ItemPointerData oldbound = *RumDataPageGetRightBound(lpage);
-	int			sizeofitem = RumSizeOfDataPageItem(lpage);
-	OffsetNumber maxoff = RumPageGetOpaque(lpage)->maxoff;
-	Page		rpage = BufferGetPage(rbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
-	Size		pageSize = PageGetPageSize(lpage);
+	ItemPointerData oldbound = *RumDataPageGetRightBound(newlPage);
+	int			sizeofitem = RumSizeOfDataPageItem(newlPage);
+	OffsetNumber maxoff = RumPageGetOpaque(newlPage)->maxoff;
+	Size		pageSize = PageGetPageSize(newlPage);
 	Size		freeSpace;
 	uint32		nCopied = 1;
 
-	/* these must be static so they can be returned to caller */
-	static rumxlogSplit data;
-	static RumXLogRecData rdata[2];
 	static char vector[2 * BLCKSZ];
 
-	RumInitPage(rpage, RumPageGetOpaque(lpage)->flags, pageSize);
-	freeSpace = RumDataPageGetFreeSpace(rpage);
+	RumInitPage(rPage, RumPageGetOpaque(newlPage)->flags, pageSize);
+	freeSpace = RumDataPageGetFreeSpace(rPage);
+	dataPrepareData(btree, newlPage, off);
 
-	*prdata = rdata;
-	data.leftChildBlkno = (RumPageIsLeaf(lpage)) ?
-		InvalidOffsetNumber : PostingItemGetBlockNumber(&(btree->pitem));
-	data.updateBlkno = dataPrepareData(btree, lpage, off);
-
-	memcpy(vector, RumDataPageGetItem(lpage, FirstOffsetNumber),
+	memcpy(vector, RumDataPageGetItem(newlPage, FirstOffsetNumber),
 		   maxoff * sizeofitem);
 
-	if (RumPageIsLeaf(lpage) && RumPageRightMost(lpage) && off > RumPageGetOpaque(lpage)->maxoff)
+	if (RumPageIsLeaf(newlPage) && RumPageRightMost(newlPage) &&
+		off > RumPageGetOpaque(newlPage)->maxoff)
 	{
 		nCopied = 0;
 		while (btree->curitem < btree->nitem &&
@@ -1178,7 +1064,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		ptr = vector + (off - 1) * sizeofitem;
 		if (maxoff + 1 - off != 0)
 			memmove(ptr + sizeofitem, ptr, (maxoff - off + 1) * sizeofitem);
-		if (RumPageIsLeaf(lpage))
+		if (RumPageIsLeaf(newlPage))
 		{
 			memcpy(ptr, btree->items + btree->curitem, sizeofitem);
 			btree->curitem++;
@@ -1193,59 +1079,38 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	 * we suppose that during index creation table scaned from begin to end,
 	 * so ItemPointers are monotonically increased..
 	 */
-	if (btree->isBuild && RumPageRightMost(lpage))
+	if (btree->isBuild && RumPageRightMost(newlPage))
 		separator = freeSpace / sizeofitem;
 	else
 		separator = maxoff / 2;
 
-	RumInitPage(rpage, RumPageGetOpaque(lpage)->flags, pageSize);
-	RumInitPage(lpage, RumPageGetOpaque(rpage)->flags, pageSize);
+	RumInitPage(rPage, RumPageGetOpaque(newlPage)->flags, pageSize);
+	RumInitPage(newlPage, RumPageGetOpaque(rPage)->flags, pageSize);
 
-	memcpy(RumDataPageGetItem(lpage, FirstOffsetNumber), vector, separator * sizeofitem);
-	RumPageGetOpaque(lpage)->maxoff = separator;
-	memcpy(RumDataPageGetItem(rpage, FirstOffsetNumber),
+	memcpy(RumDataPageGetItem(newlPage, FirstOffsetNumber), vector, separator * sizeofitem);
+	RumPageGetOpaque(newlPage)->maxoff = separator;
+	memcpy(RumDataPageGetItem(rPage, FirstOffsetNumber),
 		 vector + separator * sizeofitem, (maxoff - separator) * sizeofitem);
-	RumPageGetOpaque(rpage)->maxoff = maxoff - separator;
+	RumPageGetOpaque(rPage)->maxoff = maxoff - separator;
 
 	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
-	if (RumPageIsLeaf(lpage))
-		btree->pitem.key = *(ItemPointerData *) RumDataPageGetItem(lpage,
-											RumPageGetOpaque(lpage)->maxoff);
+	if (RumPageIsLeaf(newlPage))
+		btree->pitem.key = *(ItemPointerData *) RumDataPageGetItem(newlPage,
+											RumPageGetOpaque(newlPage)->maxoff);
 	else
-		btree->pitem.key = ((PostingItem *) RumDataPageGetItem(lpage,
-									  RumPageGetOpaque(lpage)->maxoff))->key;
+		btree->pitem.key = ((PostingItem *) RumDataPageGetItem(newlPage,
+									  RumPageGetOpaque(newlPage)->maxoff))->key;
 	btree->rightblkno = BufferGetBlockNumber(rbuf);
 
 	/* set up right bound for left page */
-	bound = RumDataPageGetRightBound(lpage);
+	bound = RumDataPageGetRightBound(newlPage);
 	*bound = btree->pitem.key;
 
 	/* set up right bound for right page */
-	bound = RumDataPageGetRightBound(rpage);
+	bound = RumDataPageGetRightBound(rPage);
 	*bound = oldbound;
 
-	data.node = btree->index->rd_node;
-	data.rootBlkno = InvalidBlockNumber;
-	data.lblkno = BufferGetBlockNumber(lbuf);
-	data.rblkno = BufferGetBlockNumber(rbuf);
-	data.separator = separator;
-	data.nitem = maxoff;
-	data.isData = TRUE;
-	data.isLeaf = FALSE;
-	data.isRootSplit = FALSE;
-	data.rightbound = oldbound;
-
-	rdata[0].buffer = InvalidBuffer;
-	rdata[0].data = (char *) &data;
-	rdata[0].len = sizeof(rumxlogSplit);
-	rdata[0].next = &rdata[1];
-
-	rdata[1].buffer = InvalidBuffer;
-	rdata[1].data = vector;
-	rdata[1].len = MAXALIGN(maxoff * sizeofitem);
-	rdata[1].next = NULL;
-
-	return lpage;
+	return newlPage;
 }
 
 /*
@@ -1253,13 +1118,13 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
  * because they are handled very different.
  */
 static Page
-dataSplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf, OffsetNumber off,
-			  RumXLogRecData **prdata)
+dataSplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf,
+			  Page lpage, Page rpage, OffsetNumber off)
 {
 	if (RumPageIsLeaf(BufferGetPage(lbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST)))
-		return dataSplitPageLeaf(btree, lbuf, rbuf, off, prdata);
+		return dataSplitPageLeaf(btree, lbuf, rbuf, lpage, rpage, off);
 	else
-		return dataSplitPageInternal(btree, lbuf, rbuf, off, prdata);
+		return dataSplitPageInternal(btree, lbuf, rbuf, lpage, rpage, off);
 }
 
 /*

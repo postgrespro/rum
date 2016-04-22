@@ -519,8 +519,6 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		Buffer		buffers[RUM_NDELETE_AT_ONCE];
 		GenericXLogState   *state;
 
-		data.node = index->rd_node;
-
 		data.ndeleted = 0;
 		while (data.ndeleted < RUM_NDELETE_AT_ONCE && blknoToDelete != newHead)
 		{
