@@ -519,8 +519,6 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		Buffer		buffers[RUM_NDELETE_AT_ONCE];
 		GenericXLogState   *state;
 
-		state = GenericXLogStart(index);
-
 		data.node = index->rd_node;
 
 		data.ndeleted = 0;
@@ -530,13 +528,12 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 			buffers[data.ndeleted] = ReadBuffer(index, blknoToDelete);
 			LockBuffer(buffers[data.ndeleted], RUM_EXCLUSIVE);
 
-			page = GenericXLogRegisterBuffer(state, buffers[data.ndeleted], 0);
+			page = BufferGetPage(buffers[data.ndeleted]);
 
 			data.ndeleted++;
 
 			if (RumPageIsDeleted(page))
 			{
-				GenericXLogAbort(state);
 				GenericXLogAbort(metastate);
 				/* concurrent cleanup process is detected */
 				for (i = 0; i < data.ndeleted; i++)
@@ -551,8 +548,6 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 
 		if (stats)
 			stats->pages_deleted += data.ndeleted;
-
-		START_CRIT_SECTION();
 
 		metadata->head = blknoToDelete;
 
@@ -573,18 +568,15 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 
 		for (i = 0; i < data.ndeleted; i++)
 		{
+			state = GenericXLogStart(index);
 			page = GenericXLogRegisterBuffer(state, buffers[i], 0);
 
 			RumPageGetOpaque(page)->flags = RUM_DELETED;
-			MarkBufferDirty(buffers[i]);
+			GenericXLogFinish(state);
 		}
-
-		GenericXLogFinish(state);
 
 		for (i = 0; i < data.ndeleted; i++)
 			UnlockReleaseBuffer(buffers[i]);
-
-		END_CRIT_SECTION();
 	} while (blknoToDelete != newHead);
 
 	GenericXLogFinish(metastate);
@@ -743,20 +735,16 @@ rumInsertCleanup(RumState *rumstate,
 	BuildAccumulator accum;
 	KeyArray	datums;
 	BlockNumber blkno;
-	GenericXLogState   *metastate;
-
-	metastate = GenericXLogStart(rumstate->index);
 
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
 	LockBuffer(metabuffer, RUM_SHARE);
 
-	metapage = GenericXLogRegisterBuffer(metastate, metabuffer, 0);
+	metapage = BufferGetPage(metabuffer);
 	metadata = RumPageGetMeta(metapage);
 
 	if (metadata->head == InvalidBlockNumber)
 	{
 		/* Nothing to do */
-		GenericXLogAbort(metastate);
 		UnlockReleaseBuffer(metabuffer);
 		return;
 	}
@@ -765,6 +753,9 @@ rumInsertCleanup(RumState *rumstate,
 	 * Read and lock head of pending list
 	 */
 	blkno = metadata->head;
+	buffer = ReadBuffer(index, blkno);
+	LockBuffer(buffer, RUM_SHARE);
+	page = BufferGetPage(buffer);
 
 	LockBuffer(metabuffer, RUM_UNLOCK);
 
@@ -790,18 +781,9 @@ rumInsertCleanup(RumState *rumstate,
 	 */
 	for (;;)
 	{
-		GenericXLogState   *state;
-
-		state = GenericXLogStart(index);
-
-		buffer = ReadBuffer(index, blkno);
-		LockBuffer(buffer, RUM_SHARE);
-		page = GenericXLogRegisterBuffer(state, buffer, 0);
-
 		if (RumPageIsDeleted(page))
 		{
 			/* another cleanup process is running concurrently */
-			GenericXLogAbort(state);
 			UnlockReleaseBuffer(buffer);
 			break;
 		}
@@ -874,7 +856,6 @@ rumInsertCleanup(RumState *rumstate,
 			if (RumPageIsDeleted(page))
 			{
 				/* another cleanup process is running concurrently */
-				GenericXLogAbort(state);
 				UnlockReleaseBuffer(buffer);
 				LockBuffer(metabuffer, RUM_UNLOCK);
 				break;
@@ -918,7 +899,6 @@ rumInsertCleanup(RumState *rumstate,
 			 * Remember next page - it will become the new list head
 			 */
 			blkno = RumPageGetOpaque(page)->rightlink;
-			GenericXLogFinish(state);
 			UnlockReleaseBuffer(buffer);		/* shiftList will do exclusive
 												 * locking */
 
@@ -952,7 +932,6 @@ rumInsertCleanup(RumState *rumstate,
 		else
 		{
 			blkno = RumPageGetOpaque(page)->rightlink;
-			GenericXLogFinish(state);
 			UnlockReleaseBuffer(buffer);
 		}
 
@@ -960,9 +939,10 @@ rumInsertCleanup(RumState *rumstate,
 		 * Read next page in pending list
 		 */
 		vacuum_delay_point();
+		buffer = ReadBuffer(index, blkno);
+		LockBuffer(buffer, RUM_SHARE);
+		page = BufferGetPage(buffer);
 	}
-
-	GenericXLogFinish(metastate);
 
 	ReleaseBuffer(metabuffer);
 

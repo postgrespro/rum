@@ -426,9 +426,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 				state = GenericXLogStart(index);
 
 				page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
-
 				lpage = GenericXLogRegisterBuffer(state, lbuffer, 0);
-
 				rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
 
 				RumPageGetOpaque(rpage)->rightlink = InvalidBlockNumber;
@@ -468,7 +466,6 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 				state = GenericXLogStart(index);
 
 				lpage = GenericXLogRegisterBuffer(state, stack->buffer, 0);
-
 				rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
 
 				RumPageGetOpaque(rpage)->rightlink = savedRightLink;
