@@ -51,7 +51,7 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 
 	state = GenericXLogStart(index);
 
-	page = GenericXLogRegisterBuffer(state, buffer, 0);
+	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
 	RumInitPage(page, RUM_DATA | RUM_LEAF, BufferGetPageSize(buffer));
 
 	blkno = BufferGetBlockNumber(buffer);
@@ -592,6 +592,8 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	MemoryContext		oldCtx;
 	OffsetNumber		attnum;
 	GenericXLogState   *state;
+
+	elog(INFO, "rumbuild");
 
 	if (RelationGetNumberOfBlocks(index) != 0)
 		elog(ERROR, "index \"%s\" already contains data",

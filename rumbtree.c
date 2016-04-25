@@ -376,6 +376,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 		{
 			state = GenericXLogStart(index);
 			page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
+			elog(INFO, "rumInsertValue: %d", stack->buffer);
 			btree->placeToPage(btree, page, stack->off);
 			GenericXLogFinish(state);
 
@@ -413,6 +414,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 				 * newlpage is a pointer to memory page, it doesn't associate with
 				 * buffer, stack->buffer should be untouched
 				 */
+				elog(INFO, "before split: %d", stack->buffer);
 				newlpage = btree->splitPage(btree, stack->buffer, rbuffer,
 											page, rpage, stack->off);
 
@@ -429,7 +431,8 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 				RumInitPage(page, RumPageGetOpaque(newlpage)->flags & ~RUM_LEAF,
 							BufferGetPageSize(stack->buffer));
 				PageRestoreTempPage(newlpage, lpage);
-				btree->fillRoot(btree, stack->buffer, lbuffer, rbuffer);
+				btree->fillRoot(btree, stack->buffer, lbuffer, rbuffer,
+								page, lpage, rpage);
 
 				GenericXLogFinish(state);
 

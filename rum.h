@@ -434,7 +434,7 @@ typedef struct RumBtreeData
 	bool		(*isEnoughSpace) (RumBtree, Buffer, OffsetNumber);
 	void		(*placeToPage) (RumBtree, Page, OffsetNumber);
 	Page		(*splitPage) (RumBtree, Buffer, Buffer, Page, Page, OffsetNumber);
-	void		(*fillRoot) (RumBtree, Buffer, Buffer, Buffer);
+	void		(*fillRoot) (RumBtree, Buffer, Buffer, Buffer, Page, Page, Page);
 
 	bool		isData;
 	bool		searchMode;
@@ -477,7 +477,8 @@ extern void rumFindParents(RumBtree btree, RumBtreeStack *stack, BlockNumber roo
 extern void rumPrepareEntryScan(RumBtree btree, OffsetNumber attnum,
 					Datum key, RumNullCategory category,
 					RumState *rumstate);
-extern void rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf);
+extern void rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
+							 Page page, Page lpage, Page rpage);
 extern IndexTuple rumPageGetLinkItup(Buffer buf);
 extern void rumReadTuple(RumState *rumstate, OffsetNumber attnum,
 	IndexTuple itup, ItemPointerData *ipd, Datum *addInfo, bool *addInfoIsNull);
@@ -515,7 +516,8 @@ extern void rumInsertItemPointers(RumState *rumstate,
 					  uint32 nitem,
 					  GinStatsData *buildStats);
 extern Buffer rumScanBeginPostingTree(RumPostingTreeScan *gdi);
-extern void rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf);
+extern void rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
+							Page page, Page lpage, Page rpage);
 extern void rumPrepareDataScan(RumBtree btree, Relation index, OffsetNumber attnum, RumState *rumstate);
 
 /* rumscan.c */

@@ -575,6 +575,7 @@ RumDataPageAddItem(Page page, void *data, OffsetNumber offset)
 {
 	OffsetNumber maxoff = RumPageGetOpaque(page)->maxoff;
 	char	   *ptr;
+	size_t		size;
 
 	if (offset == InvalidOffsetNumber)
 	{
@@ -588,8 +589,10 @@ RumDataPageAddItem(Page page, void *data, OffsetNumber offset)
 					ptr,
 					(maxoff - offset + 1) * RumSizeOfDataPageItem(page));
 	}
-	memcpy(ptr, data, RumSizeOfDataPageItem(page));
-	((PageHeader) page)->pd_lower = ptr - page;
+	size = RumSizeOfDataPageItem(page);
+	memcpy(ptr, data, size);
+	((PageHeader) page)->pd_lower = (ptr + size) - page;
+	elog(INFO, "RumDataPageAddItem: %d, %d", ((PageHeader) page)->pd_lower, ((PageHeader) page)->pd_upper);
 
 	RumPageGetOpaque(page)->maxoff++;
 }
@@ -700,7 +703,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 {
 	Assert(RumPageIsData(page));
 
-	dataPrepareData(btree, page, off);
+// 	dataPrepareData(btree, page, off);
 
 	if (RumPageIsLeaf(page))
 	{
@@ -786,6 +789,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 	}
 	else
 	{
+		elog(INFO, "dataPlaceToPage: %d", PostingItemGetBlockNumber(&(btree->pitem)));
 		RumDataPageAddItem(page, &(btree->pitem), off);
 	}
 }
@@ -839,7 +843,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	static char lpageCopy[BLCKSZ];
 
-	dataPrepareData(btree, newlPage, off);
+// 	dataPrepareData(btree, newlPage, off);
 	maxoff = RumPageGetOpaque(newlPage)->maxoff;
 
 	/* Copy original data of the page */
@@ -996,6 +1000,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	RumPageGetOpaque(rPage)->maxoff = j - 1;
 
+	elog(INFO, "dataSplitPageLeaf: %d, %d", lbuf, BufferGetBlockNumber(lbuf));
 	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
 	btree->pitem.key = maxLeftIptr;
 	btree->rightblkno = BufferGetBlockNumber(rbuf);
@@ -1036,7 +1041,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	RumInitPage(rPage, RumPageGetOpaque(newlPage)->flags, pageSize);
 	freeSpace = RumDataPageGetFreeSpace(rPage);
-	dataPrepareData(btree, newlPage, off);
+// 	dataPrepareData(btree, newlPage, off);
 
 	memcpy(vector, RumDataPageGetItem(newlPage, FirstOffsetNumber),
 		   maxoff * sizeofitem);
@@ -1163,6 +1168,8 @@ updateItemIndexes(Page page, OffsetNumber attnum, RumState *rumstate)
 	}
 	/* Update freespace of page */
 	RumPageGetOpaque(page)->freespace = RumDataPageFreeSpacePre(page, ptr);
+	/* Adjust pd_lower */
+	((PageHeader) page)->pd_lower = ptr - page;
 	return iptr;
 }
 
@@ -1171,11 +1178,9 @@ updateItemIndexes(Page page, OffsetNumber attnum, RumState *rumstate)
  * Also called from rumxlog, should not use btree
  */
 void
-rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf)
+rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
+				Page page, Page lpage, Page rpage)
 {
-	Page		page = BufferGetPage(root, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
-				lpage = BufferGetPage(lbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
-				rpage = BufferGetPage(rbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 	PostingItem li,
 				ri;
 

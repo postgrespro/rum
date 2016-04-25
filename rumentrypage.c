@@ -501,12 +501,10 @@ rumPageGetLinkItup(Buffer buf)
  * Also called from rumxlog, should not use btree
  */
 void
-rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf)
+rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
+				 Page page, Page lpage, Page rpage)
 {
-	Page		page;
 	IndexTuple	itup;
-
-	page = BufferGetPage(root, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
 
 	itup = rumPageGetLinkItup(lbuf);
 	if (PageAddItem(page, (Item) itup, IndexTupleSize(itup), InvalidOffsetNumber, false, false) == InvalidOffsetNumber)
