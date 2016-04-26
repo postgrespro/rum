@@ -34,3 +34,27 @@ SELECT a FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'bar') ORDER 
 DELETE FROM test_rum;
 
 SELECT count(*) from test_rum;
+
+CREATE TABLE tst (i int4, t tsvector);
+INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(1,100000) i;
+CREATE INDEX tstidx ON tst USING rum (t rum_tsvector_ops);
+
+DELETE FROM tst WHERE i = 1;
+VACUUM tst;
+INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(10001,11000) i;
+
+DELETE FROM tst WHERE i = 2;
+VACUUM tst;
+INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(11001,12000) i;
+
+DELETE FROM tst WHERE i = 3;
+VACUUM tst;
+INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(12001,13000) i;
+
+DELETE FROM tst WHERE i = 4;
+VACUUM tst;
+INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(13001,14000) i;
+
+DELETE FROM tst WHERE i = 5;
+VACUUM tst;
+INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(14001,15000) i;
