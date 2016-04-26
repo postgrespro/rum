@@ -613,8 +613,13 @@ RumPageDeletePostingItem(Page page, OffsetNumber offset)
 	Assert(offset >= FirstOffsetNumber && offset <= maxoff);
 
 	if (offset != maxoff)
-		memmove(RumDataPageGetItem(page, offset), RumDataPageGetItem(page, offset + 1),
-				sizeof(PostingItem) * (maxoff - offset));
+	{
+		char	   *dstptr = RumDataPageGetItem(page, offset),
+				   *sourceptr = RumDataPageGetItem(page, offset + 1);
+		memmove(dstptr, sourceptr, sizeof(PostingItem) * (maxoff - offset));
+		/* Adjust pd_lower */
+		((PageHeader) page)->pd_lower = sourceptr - page;
+	}
 
 	RumPageGetOpaque(page)->maxoff--;
 }
@@ -1090,11 +1095,21 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	RumInitPage(rPage, RumPageGetOpaque(newlPage)->flags, pageSize);
 	RumInitPage(newlPage, RumPageGetOpaque(rPage)->flags, pageSize);
 
-	memcpy(RumDataPageGetItem(newlPage, FirstOffsetNumber), vector, separator * sizeofitem);
+	ptr = RumDataPageGetItem(newlPage, FirstOffsetNumber);
+	memcpy(ptr, vector, separator * sizeofitem);
 	RumPageGetOpaque(newlPage)->maxoff = separator;
-	memcpy(RumDataPageGetItem(rPage, FirstOffsetNumber),
-		 vector + separator * sizeofitem, (maxoff - separator) * sizeofitem);
+	/* Adjust pd_lower */
+	((PageHeader) newlPage)->pd_lower = (ptr + separator * sizeofitem + 1) -
+										newlPage;
+
+	ptr = RumDataPageGetItem(rPage, FirstOffsetNumber);
+	memcpy(ptr, vector + separator * sizeofitem,
+		   (maxoff - separator) * sizeofitem);
 	RumPageGetOpaque(rPage)->maxoff = maxoff - separator;
+	/* Adjust pd_lower */
+	((PageHeader) rPage)->pd_lower = (ptr +
+									 (maxoff - separator) * sizeofitem + 1) -
+									 rPage;
 
 	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
 	if (RumPageIsLeaf(newlPage))
