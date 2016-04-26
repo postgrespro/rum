@@ -257,11 +257,11 @@ rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum,
 			RumPageGetOpaque(page)->maxoff = newMaxOff;
 			updateItemIndexes(page, attnum, &gvs->rumstate);
 
-			GenericXLogFinish(state);
-
 			/* if root is a leaf page, we don't desire further processing */
 			if (!isRoot && RumPageGetOpaque(page)->maxoff < FirstOffsetNumber)
 				hasVoidPage = TRUE;
+
+			GenericXLogFinish(state);
 		}
 		else
 			GenericXLogAbort(state);
@@ -643,13 +643,9 @@ rumbulkdelete(IndexVacuumInfo *info,
 
 	for (;;)
 	{
-		GenericXLogState *state;
-		Page		page;
+		Page		page = BufferGetPage(buffer);
 		Page		resPage;
 		uint32		i;
-
-		state = GenericXLogStart(index);
-		page = GenericXLogRegisterBuffer(state, buffer, 0);
 
 		Assert(!RumPageIsData(page));
 
@@ -659,13 +655,16 @@ rumbulkdelete(IndexVacuumInfo *info,
 
 		if (resPage)
 		{
+			GenericXLogState *state;
+
+			state = GenericXLogStart(index);
+			page = GenericXLogRegisterBuffer(state, buffer, 0);
 			PageRestoreTempPage(resPage, page);
 			GenericXLogFinish(state);
 			UnlockReleaseBuffer(buffer);
 		}
 		else
 		{
-			GenericXLogAbort(state);
 			UnlockReleaseBuffer(buffer);
 		}
 
