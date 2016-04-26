@@ -343,8 +343,7 @@ RumNewBuffer(Relation index)
 		 */
 		if (ConditionalLockBuffer(buffer))
 		{
-			Page		page = BufferGetPage(buffer, NULL, NULL,
-											 BGP_NO_SNAPSHOT_TEST);
+			Page		page = BufferGetPage(buffer);
 
 			if (PageIsNew(page))
 				return buffer;	/* OK to use, if never initialized */
@@ -721,7 +720,7 @@ rumGetStats(Relation index, GinStatsData *stats)
 
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
 	LockBuffer(metabuffer, RUM_SHARE);
-	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	metapage = BufferGetPage(metabuffer);
 	metadata = RumPageGetMeta(metapage);
 
 	stats->nPendingPages = metadata->nPendingPages;

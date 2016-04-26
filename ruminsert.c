@@ -436,7 +436,7 @@ rumEntryInsert(RumState *rumstate,
 	rumPrepareEntryScan(&btree, attnum, key, category, rumstate);
 
 	stack = rumFindLeafPage(&btree, NULL);
-	page = BufferGetPage(stack->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	page = BufferGetPage(stack->buffer);
 
 	if (btree.findItem(&btree, stack))
 	{
@@ -592,8 +592,6 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	MemoryContext		oldCtx;
 	OffsetNumber		attnum;
 	GenericXLogState   *state;
-
-	elog(INFO, "rumbuild");
 
 	if (RelationGetNumberOfBlocks(index) != 0)
 		elog(ERROR, "index \"%s\" already contains data",

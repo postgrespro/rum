@@ -353,8 +353,7 @@ dataLocateItem(RumBtree btree, RumBtreeStack *stack)
 				maxoff;
 	PostingItem *pitem = NULL;
 	int			result;
-	Page		page = BufferGetPage(stack->buffer, NULL, NULL,
-									 BGP_NO_SNAPSHOT_TEST);
+	Page		page = BufferGetPage(stack->buffer);
 
 	Assert(!RumPageIsLeaf(page));
 	Assert(RumPageIsData(page));
@@ -486,8 +485,7 @@ findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
 static bool
 dataLocateLeafItem(RumBtree btree, RumBtreeStack *stack)
 {
-	Page		page = BufferGetPage(stack->buffer, NULL, NULL,
-									 BGP_NO_SNAPSHOT_TEST);
+	Page		page = BufferGetPage(stack->buffer);
 	ItemPointerData iptr;
 	Pointer ptr;
 
@@ -574,27 +572,33 @@ void
 RumDataPageAddItem(Page page, void *data, OffsetNumber offset)
 {
 	OffsetNumber maxoff = RumPageGetOpaque(page)->maxoff;
-	char	   *ptr;
-	size_t		size;
+	char	   *ptr,
+			   *nextptr;
+	size_t		size = RumSizeOfDataPageItem(page);
 
 	if (offset == InvalidOffsetNumber)
 	{
 		ptr = RumDataPageGetItem(page, maxoff + 1);
+		nextptr = ptr + size + 1;
 	}
 	else
 	{
 		ptr = RumDataPageGetItem(page, offset);
 		if (maxoff + 1 - offset != 0)
-			memmove(ptr + RumSizeOfDataPageItem(page),
+		{
+			memmove(ptr + size,
 					ptr,
-					(maxoff - offset + 1) * RumSizeOfDataPageItem(page));
+					(maxoff - offset + 1) * size);
+			nextptr = ptr + size + (maxoff - offset + 1) * size + 1;
+		}
+		else
+			nextptr = ptr + size + 1;
 	}
-	size = RumSizeOfDataPageItem(page);
 	memcpy(ptr, data, size);
-	((PageHeader) page)->pd_lower = (ptr + size) - page;
-	elog(INFO, "RumDataPageAddItem: %d, %d", ((PageHeader) page)->pd_lower, ((PageHeader) page)->pd_upper);
 
 	RumPageGetOpaque(page)->maxoff++;
+	/* Adjust pd_lower */
+	((PageHeader) page)->pd_lower = nextptr - page;
 }
 
 /*
@@ -622,7 +626,7 @@ RumPageDeletePostingItem(Page page, OffsetNumber offset)
 static bool
 dataIsEnoughSpace(RumBtree btree, Buffer buf, OffsetNumber off)
 {
-	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	Page		page = BufferGetPage(buf);
 
 	Assert(RumPageIsData(page));
 	Assert(!btree->isDelete);
@@ -703,7 +707,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 {
 	Assert(RumPageIsData(page));
 
-// 	dataPrepareData(btree, page, off);
+	dataPrepareData(btree, page, off);
 
 	if (RumPageIsLeaf(page))
 	{
@@ -789,7 +793,6 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 	}
 	else
 	{
-		elog(INFO, "dataPlaceToPage: %d", PostingItemGetBlockNumber(&(btree->pitem)));
 		RumDataPageAddItem(page, &(btree->pitem), off);
 	}
 }
@@ -843,7 +846,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	static char lpageCopy[BLCKSZ];
 
-// 	dataPrepareData(btree, newlPage, off);
+	dataPrepareData(btree, newlPage, off);
 	maxoff = RumPageGetOpaque(newlPage)->maxoff;
 
 	/* Copy original data of the page */
@@ -1000,7 +1003,6 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	RumPageGetOpaque(rPage)->maxoff = j - 1;
 
-	elog(INFO, "dataSplitPageLeaf: %d, %d", lbuf, BufferGetBlockNumber(lbuf));
 	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
 	btree->pitem.key = maxLeftIptr;
 	btree->rightblkno = BufferGetBlockNumber(rbuf);
@@ -1028,8 +1030,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	char	   *ptr;
 	OffsetNumber separator;
 	ItemPointer bound;
-	Page		newlPage = PageGetTempPageCopy(BufferGetPage(lbuf, NULL, NULL,
-														 BGP_NO_SNAPSHOT_TEST));
+	Page		newlPage = PageGetTempPageCopy(BufferGetPage(lbuf));
 	ItemPointerData oldbound = *RumDataPageGetRightBound(newlPage);
 	int			sizeofitem = RumSizeOfDataPageItem(newlPage);
 	OffsetNumber maxoff = RumPageGetOpaque(newlPage)->maxoff;
@@ -1041,7 +1042,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	RumInitPage(rPage, RumPageGetOpaque(newlPage)->flags, pageSize);
 	freeSpace = RumDataPageGetFreeSpace(rPage);
-// 	dataPrepareData(btree, newlPage, off);
+	dataPrepareData(btree, newlPage, off);
 
 	memcpy(vector, RumDataPageGetItem(newlPage, FirstOffsetNumber),
 		   maxoff * sizeofitem);
@@ -1123,7 +1124,7 @@ static Page
 dataSplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf,
 			  Page lpage, Page rpage, OffsetNumber off)
 {
-	if (RumPageIsLeaf(BufferGetPage(lbuf, NULL, NULL, BGP_NO_SNAPSHOT_TEST)))
+	if (RumPageIsLeaf(BufferGetPage(lbuf)))
 		return dataSplitPageLeaf(btree, lbuf, rbuf, lpage, rpage, off);
 	else
 		return dataSplitPageInternal(btree, lbuf, rbuf, lpage, rpage, off);

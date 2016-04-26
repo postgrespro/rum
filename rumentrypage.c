@@ -132,8 +132,7 @@ entryLocateEntry(RumBtree btree, RumBtreeStack *stack)
 				maxoff;
 	IndexTuple	itup = NULL;
 	int			result;
-	Page		page = BufferGetPage(stack->buffer, NULL, NULL,
-									 BGP_NO_SNAPSHOT_TEST);
+	Page		page = BufferGetPage(stack->buffer);
 
 	Assert(!RumPageIsLeaf(page));
 	Assert(!RumPageIsData(page));
@@ -204,8 +203,7 @@ entryLocateEntry(RumBtree btree, RumBtreeStack *stack)
 static bool
 entryLocateLeafEntry(RumBtree btree, RumBtreeStack *stack)
 {
-	Page		page = BufferGetPage(stack->buffer, NULL, NULL,
-									 BGP_NO_SNAPSHOT_TEST);
+	Page		page = BufferGetPage(stack->buffer);
 	OffsetNumber low,
 				high;
 
@@ -319,7 +317,7 @@ static bool
 entryIsEnoughSpace(RumBtree btree, Buffer buf, OffsetNumber off)
 {
 	Size		itupsz = 0;
-	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	Page		page = BufferGetPage(buf);
 
 	Assert(btree->entry);
 	Assert(!RumPageIsData(page));
@@ -488,7 +486,7 @@ rumPageGetLinkItup(Buffer buf)
 {
 	IndexTuple	itup,
 				nitup;
-	Page		page = BufferGetPage(buf, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	Page		page = BufferGetPage(buf);
 
 	itup = getRightMostTuple(page);
 	nitup = RumFormInteriorTuple(itup, page, BufferGetBlockNumber(buf));

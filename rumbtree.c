@@ -27,7 +27,7 @@ rumTraverseLock(Buffer buffer, bool searchMode)
 	int			access = RUM_SHARE;
 
 	LockBuffer(buffer, RUM_SHARE);
-	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	page = BufferGetPage(buffer);
 	if (RumPageIsLeaf(page))
 	{
 		if (searchMode == FALSE)
@@ -87,7 +87,7 @@ rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack)
 		stack = stack->parent;
 		pfree(ptr);
 
-		page = BufferGetPage(stack->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(stack->buffer);
 		maxoff = RumPageGetOpaque(page)->maxoff;
 
 		if (rumCompareItemPointers(
@@ -123,7 +123,7 @@ rumFindLeafPage(RumBtree btree, RumBtreeStack *stack)
 
 		stack->off = InvalidOffsetNumber;
 
-		page = BufferGetPage(stack->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(stack->buffer);
 
 		if (isfirst)
 		{
@@ -149,8 +149,7 @@ rumFindLeafPage(RumBtree btree, RumBtreeStack *stack)
 
 			stack->buffer = rumStepRight(stack->buffer, btree->index, access);
 			stack->blkno = rightlink;
-			page = BufferGetPage(stack->buffer, NULL, NULL,
-								 BGP_NO_SNAPSHOT_TEST);
+			page = BufferGetPage(stack->buffer);
 		}
 
 		if (RumPageIsLeaf(page))	/* we found, return locked page */
@@ -201,7 +200,7 @@ Buffer
 rumStepRight(Buffer buffer, Relation index, int lockmode)
 {
 	Buffer		nextbuffer;
-	Page		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	Page		page = BufferGetPage(buffer);
 	bool		isLeaf = RumPageIsLeaf(page);
 	bool		isData = RumPageIsData(page);
 	BlockNumber	blkno = RumPageGetOpaque(page)->rightlink;
@@ -211,7 +210,7 @@ rumStepRight(Buffer buffer, Relation index, int lockmode)
 	UnlockReleaseBuffer(buffer);
 
 	/* Sanity check that the page we stepped to is of similar kind. */
-	page = BufferGetPage(nextbuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	page = BufferGetPage(nextbuffer);
 	if (isLeaf != RumPageIsLeaf(page) || isData != RumPageIsData(page))
 		elog(ERROR, "right sibling of RUM page is of different type");
 
@@ -285,7 +284,7 @@ rumFindParents(RumBtree btree, RumBtreeStack *stack,
 	}
 	root->off = InvalidOffsetNumber;
 
-	page = BufferGetPage(root->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	page = BufferGetPage(root->buffer);
 	Assert(!RumPageIsLeaf(page));
 
 	/* check trivial case */
@@ -303,7 +302,7 @@ rumFindParents(RumBtree btree, RumBtreeStack *stack,
 	{
 		buffer = ReadBuffer(btree->index, blkno);
 		LockBuffer(buffer, RUM_EXCLUSIVE);
-		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(buffer);
 		if (RumPageIsLeaf(page))
 			elog(ERROR, "Lost path");
 
@@ -318,7 +317,7 @@ rumFindParents(RumBtree btree, RumBtreeStack *stack,
 				break;
 			}
 			buffer = rumStepRight(buffer, btree->index, RUM_EXCLUSIVE);
-			page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+			page = BufferGetPage(buffer);
 		}
 
 		if (blkno != InvalidBlockNumber)
@@ -369,14 +368,14 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 	{
 		BlockNumber savedRightLink;
 
-		page = BufferGetPage(stack->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(stack->buffer);
 		savedRightLink = RumPageGetOpaque(page)->rightlink;
 
 		if (btree->isEnoughSpace(btree, stack->buffer, stack->off))
 		{
 			state = GenericXLogStart(index);
 			page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
-			elog(INFO, "rumInsertValue: %d", stack->buffer);
+
 			btree->placeToPage(btree, page, stack->off);
 			GenericXLogFinish(state);
 
@@ -414,7 +413,6 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 				 * newlpage is a pointer to memory page, it doesn't associate with
 				 * buffer, stack->buffer should be untouched
 				 */
-				elog(INFO, "before split: %d", stack->buffer);
 				newlpage = btree->splitPage(btree, stack->buffer, rbuffer,
 											page, rpage, stack->off);
 
@@ -486,7 +484,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 		LockBuffer(parent->buffer, RUM_EXCLUSIVE);
 
 		/* move right if it's needed */
-		page = BufferGetPage(parent->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(parent->buffer);
 		while ((parent->off = btree->findChildPtr(btree, page, stack->blkno, parent->off)) == InvalidOffsetNumber)
 		{
 			BlockNumber rightlink = RumPageGetOpaque(page)->rightlink;
@@ -506,8 +504,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 
 			parent->buffer = rumStepRight(parent->buffer, btree->index, RUM_EXCLUSIVE);
 			parent->blkno = rightlink;
-			page = BufferGetPage(parent->buffer, NULL, NULL,
-								 BGP_NO_SNAPSHOT_TEST);
+			page = BufferGetPage(parent->buffer);
 		}
 
 		UnlockReleaseBuffer(stack->buffer);

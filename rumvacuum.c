@@ -216,7 +216,7 @@ rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum,
 
 	buffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, blkno,
 								RBM_NORMAL, gvs->strategy);
-	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	page = BufferGetPage(buffer);
 
 	/*
 	 * We should be sure that we don't concurrent with inserts, insert process
@@ -412,7 +412,7 @@ rumScanToDelete(RumVacuumState *gvs, BlockNumber blkno, bool isRoot, DataPageDel
 
 	buffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, blkno,
 								RBM_NORMAL, gvs->strategy);
-	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	page = BufferGetPage(buffer);
 
 	Assert(RumPageIsData(page));
 
@@ -490,8 +490,7 @@ rumVacuumPostingTree(RumVacuumState *gvs, OffsetNumber attnum, BlockNumber rootB
 static Page
 rumVacuumEntryPage(RumVacuumState *gvs, Buffer buffer, BlockNumber *roots, OffsetNumber *attnums, uint32 *nroot)
 {
-	Page		origpage = BufferGetPage(buffer, NULL, NULL,
-										 BGP_NO_SNAPSHOT_TEST),
+	Page		origpage = BufferGetPage(buffer),
 				tmppage;
 	OffsetNumber i,
 				maxoff = PageGetMaxOffsetNumber(origpage);
@@ -609,8 +608,7 @@ rumbulkdelete(IndexVacuumInfo *info,
 	/* find leaf page */
 	for (;;)
 	{
-		Page		page = BufferGetPage(buffer, NULL, NULL,
-										 BGP_NO_SNAPSHOT_TEST);
+		Page		page = BufferGetPage(buffer);
 		IndexTuple	itup;
 
 		LockBuffer(buffer, RUM_SHARE);
@@ -759,7 +757,7 @@ rumvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 		buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
 									RBM_NORMAL, info->strategy);
 		LockBuffer(buffer, RUM_SHARE);
-		page = (Page) BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = (Page) BufferGetPage(buffer);
 
 		if (PageIsNew(page) || RumPageIsDeleted(page))
 		{

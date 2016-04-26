@@ -203,8 +203,7 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 	else
 	{
 		LockBuffer(metabuffer, RUM_EXCLUSIVE);
-		metadata = RumPageGetMeta(BufferGetPage(metabuffer, NULL, NULL,
-								  BGP_NO_SNAPSHOT_TEST));
+		metadata = RumPageGetMeta(BufferGetPage(metabuffer));
 
 		if (metadata->head == InvalidBlockNumber ||
 			collector->sumsize + collector->ntuples * sizeof(ItemIdData) > metadata->tailFreeSize)
@@ -525,8 +524,7 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 			buffers[data.ndeleted] = ReadBuffer(index, blknoToDelete);
 			LockBuffer(buffers[data.ndeleted], RUM_EXCLUSIVE);
 
-			page = BufferGetPage(buffers[data.ndeleted], NULL, NULL,
-								 BGP_NO_SNAPSHOT_TEST);
+			page = BufferGetPage(buffers[data.ndeleted]);
 
 			data.ndeleted++;
 
@@ -737,7 +735,7 @@ rumInsertCleanup(RumState *rumstate,
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
 	LockBuffer(metabuffer, RUM_SHARE);
 
-	metapage = BufferGetPage(metabuffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	metapage = BufferGetPage(metabuffer);
 	metadata = RumPageGetMeta(metapage);
 
 	if (metadata->head == InvalidBlockNumber)
@@ -753,7 +751,7 @@ rumInsertCleanup(RumState *rumstate,
 	blkno = metadata->head;
 	buffer = ReadBuffer(index, blkno);
 	LockBuffer(buffer, RUM_SHARE);
-	page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	page = BufferGetPage(buffer);
 
 	LockBuffer(metabuffer, RUM_UNLOCK);
 
@@ -939,7 +937,7 @@ rumInsertCleanup(RumState *rumstate,
 		vacuum_delay_point();
 		buffer = ReadBuffer(index, blkno);
 		LockBuffer(buffer, RUM_SHARE);
-		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(buffer);
 	}
 
 	ReleaseBuffer(metabuffer);

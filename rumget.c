@@ -115,8 +115,7 @@ findItemInPostingPage(Page page, ItemPointer item, OffsetNumber *off,
 static bool
 moveRightIfItNeeded(RumBtreeData *btree, RumBtreeStack *stack)
 {
-	Page		page = BufferGetPage(stack->buffer, NULL, NULL,
-									 BGP_NO_SNAPSHOT_TEST);
+	Page		page = BufferGetPage(stack->buffer);
 
 	if (stack->off > PageGetMaxOffsetNumber(page))
 	{
@@ -162,7 +161,7 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 	{
 		OffsetNumber maxoff, i;
 
-		page = BufferGetPage(buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(buffer);
 		maxoff = RumPageGetOpaque(page)->maxoff;
 
 		if ((RumPageGetOpaque(page)->flags & RUM_DELETED) == 0 &&
@@ -236,7 +235,7 @@ collectMatchBitmap(RumBtreeData *btree, RumBtreeStack *stack,
 		if (moveRightIfItNeeded(btree, stack) == false)
 			return true;
 
-		page = BufferGetPage(stack->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(stack->buffer);
 		itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, stack->off));
 
 		/*
@@ -323,8 +322,7 @@ collectMatchBitmap(RumBtreeData *btree, RumBtreeStack *stack,
 			 * might have occurred, so we need to re-find our position.
 			 */
 			LockBuffer(stack->buffer, RUM_SHARE);
-			page = BufferGetPage(stack->buffer, NULL, NULL,
-								 BGP_NO_SNAPSHOT_TEST);
+			page = BufferGetPage(stack->buffer);
 			if (!RumPageIsLeaf(page))
 			{
 				/*
@@ -344,8 +342,7 @@ collectMatchBitmap(RumBtreeData *btree, RumBtreeStack *stack,
 				if (moveRightIfItNeeded(btree, stack) == false)
 					elog(ERROR, "lost saved point in index");	/* must not happen !!! */
 
-				page = BufferGetPage(stack->buffer, NULL, NULL,
-									 BGP_NO_SNAPSHOT_TEST);
+				page = BufferGetPage(stack->buffer);
 				itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, stack->off));
 
 				if (rumtuple_get_attrnum(btree->rumstate, itup) != attnum)
@@ -417,7 +414,7 @@ restartScanEntry:
 						rumstate);
 	btreeEntry.searchMode = TRUE;
 	stackEntry = rumFindLeafPage(&btreeEntry, NULL);
-	page = BufferGetPage(stackEntry->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	page = BufferGetPage(stackEntry->buffer);
 	needUnlock = TRUE;
 
 	entry->isFinished = TRUE;
@@ -496,8 +493,7 @@ restartScanEntry:
 			 * page during scan. See RUM's vacuum implementation. RefCount is
 			 * increased to keep buffer pinned after freeRumBtreeStack() call.
 			 */
-			page = BufferGetPage(entry->buffer, NULL, NULL,
-								 BGP_NO_SNAPSHOT_TEST);
+			page = BufferGetPage(entry->buffer);
 			entry->predictNumberResult = gdi->stack->predictNumber * RumPageGetOpaque(page)->maxoff;
 
 			/*
@@ -685,11 +681,10 @@ entryGetNextItem(RumState *rumstate, RumScanEntry entry)
 		}
 
 		LockBuffer(entry->buffer, RUM_SHARE);
-		page = BufferGetPage(entry->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(entry->buffer);
 
 		if (scanPage(rumstate, entry, &entry->curItem,
-					 BufferGetPage(entry->buffer, NULL, NULL,
-								   BGP_NO_SNAPSHOT_TEST),
+					 BufferGetPage(entry->buffer),
 					 false))
 		{
 			LockBuffer(entry->buffer, RUM_UNLOCK);
@@ -718,8 +713,7 @@ entryGetNextItem(RumState *rumstate, RumScanEntry entry)
 										 RUM_SHARE);
 			entry->gdi->stack->buffer = entry->buffer;
 			entry->gdi->stack->blkno = BufferGetBlockNumber(entry->buffer);
-			page = BufferGetPage(entry->buffer, NULL, NULL,
-								 BGP_NO_SNAPSHOT_TEST);
+			page = BufferGetPage(entry->buffer);
 
 			entry->offset = InvalidOffsetNumber;
 			if (!ItemPointerIsValid(&entry->curItem) ||
@@ -1324,7 +1318,7 @@ entryFindItem(RumState *rumstate, RumScanEntry entry, ItemPointer item)
 	LockBuffer(entry->buffer, RUM_SHARE);
 
 	if (scanPage(rumstate, entry, item,
-				 BufferGetPage(entry->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
+				 BufferGetPage(entry->buffer),
 				 true))
 	{
 		LockBuffer(entry->buffer, RUM_UNLOCK);
@@ -1338,10 +1332,10 @@ entryFindItem(RumState *rumstate, RumScanEntry entry, ItemPointer item)
 	entry->gdi->stack = rumReFindLeafPage(&entry->gdi->btree, entry->gdi->stack);
 	entry->buffer = entry->gdi->stack->buffer;
 
-	page = BufferGetPage(entry->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+	page = BufferGetPage(entry->buffer);
 
 	if (scanPage(rumstate, entry, item,
-				 BufferGetPage(entry->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST),
+				 BufferGetPage(entry->buffer),
 				 true))
 	{
 		LockBuffer(entry->buffer, RUM_UNLOCK);
@@ -1375,11 +1369,10 @@ entryFindItem(RumState *rumstate, RumScanEntry entry, ItemPointer item)
 		entry->gdi->stack->buffer = entry->buffer;
 		entry->gdi->stack->blkno = blkno;
 		LockBuffer(entry->buffer, RUM_SHARE);
-		page = BufferGetPage(entry->buffer, NULL, NULL, BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(entry->buffer);
 
 		if (scanPage(rumstate, entry, item,
-					 BufferGetPage(entry->buffer, NULL, NULL,
-								   BGP_NO_SNAPSHOT_TEST),
+					 BufferGetPage(entry->buffer),
 					 true))
 		{
 			LockBuffer(entry->buffer, RUM_UNLOCK);
@@ -1610,8 +1603,7 @@ scanGetCandidate(IndexScanDesc scan, pendingPosition *pos)
 	ItemPointerSetInvalid(&pos->item);
 	for (;;)
 	{
-		page = BufferGetPage(pos->pendingBuffer, NULL, NULL,
-							 BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(pos->pendingBuffer);
 
 		maxoff = PageGetMaxOffsetNumber(page);
 		if (pos->firstOffset > maxoff)
@@ -1793,8 +1785,7 @@ collectMatchesForHeapRow(IndexScanDesc scan, pendingPosition *pos)
 		memset(datumExtracted + pos->firstOffset - 1, 0,
 			   sizeof(bool) * (pos->lastOffset - pos->firstOffset));
 
-		page = BufferGetPage(pos->pendingBuffer, NULL, NULL,
-							 BGP_NO_SNAPSHOT_TEST);
+		page = BufferGetPage(pos->pendingBuffer);
 
 		for (i = 0; i < so->nkeys; i++)
 		{
@@ -1993,8 +1984,7 @@ scanPendingInsert(IndexScanDesc scan)
 	TIDBitmap  *tbm = so->tbm;
 
 	LockBuffer(metabuffer, RUM_SHARE);
-	blkno = RumPageGetMeta(BufferGetPage(metabuffer, NULL, NULL,
-										 BGP_NO_SNAPSHOT_TEST))->head;
+	blkno = RumPageGetMeta(BufferGetPage(metabuffer))->head;
 
 	/*
 	 * fetch head of list before unlocking metapage. head page must be pinned
@@ -2082,7 +2072,6 @@ rumgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 	int64		ntids;
 	bool		recheck;
 
-	elog(INFO, "rumgetbitmap");
 	/*
 	 * Set up the scan keys, and check for unsatisfiable query.
 	 */
