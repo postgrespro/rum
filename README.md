@@ -13,5 +13,7 @@ This module available under the same license as
 ## Authors
 
 Alexander Korotkov <a.korotkov@postgrespro.ru> Postgres Professional Ltd., Russia
+
 Oleg Bartunov <oleg@sai.msu.su> Postgres Professional Ltd., Russia
+
 Teodor Sigaev <teodor@sigaev.ru> Postgres Professional Ltd., Russia
