@@ -724,6 +724,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 		Datum		addInfo = 0;
 		bool		addInfoIsNull = false;
 		int			maxoff = RumPageGetOpaque(page)->maxoff;
+		int			freespace;
 
 		/*
 		 * We're going to prevent var-byte re-encoding of whole page.
@@ -760,7 +761,8 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				&btree->items[j], btree->addInfo[j], btree->addInfoIsNull[j],
 				&iptr, btree->rumstate, ptr - page);
 
-			if (RumDataPageFreeSpacePre(page, ptr2) < 0)
+			freespace = RumDataPageFreeSpacePre(page, ptr2);
+			if (freespace < 0)
 				break;
 
 			ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
@@ -790,7 +792,8 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 
 		RumPageGetOpaque(page)->maxoff += i;
 
-		if (RumDataPageFreeSpacePre(page,ptr) < 0)
+		freespace = RumDataPageFreeSpacePre(page,ptr);
+		if (freespace < 0)
 			elog(ERROR, "Not enough of space in leaf page!");
 
 		/* Update indexes in the end of page */
