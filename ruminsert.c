@@ -629,7 +629,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 											  ALLOCSET_DEFAULT_INITSIZE,
 											  ALLOCSET_DEFAULT_MAXSIZE);
 
-	buildstate.funcCtx = AllocSetContextCreate(buildstate.tmpCtx,
+	buildstate.funcCtx = AllocSetContextCreate(CurrentMemoryContext,
 					 "Rum build temporary context for user-defined function",
 											   ALLOCSET_DEFAULT_MINSIZE,
 											   ALLOCSET_DEFAULT_INITSIZE,
@@ -670,6 +670,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	}
 	MemoryContextSwitchTo(oldCtx);
 
+	MemoryContextDelete(buildstate.funcCtx);
 	MemoryContextDelete(buildstate.tmpCtx);
 
 	/*
