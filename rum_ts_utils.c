@@ -39,7 +39,7 @@ typedef struct
 } RumChkVal;
 
 static bool
-checkcondition_gin(void *checkval, QueryOperand *val, ExecPhraseData *data)
+checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 {
 	RumChkVal  *gcv = (RumChkVal *) checkval;
 	int			j;
@@ -83,7 +83,7 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 		res = TS_execute(GETQUERY(query),
 						 &gcv,
 						 false,
-						 checkcondition_gin);
+						 checkcondition_rum);
 	}
 
 	PG_RETURN_BOOL(res);
