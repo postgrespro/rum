@@ -260,8 +260,7 @@ rumvalidate(Oid opclassoid)
 			continue;			/* optional method */
 		if (i == GIN_CONSISTENT_PROC || i == GIN_TRICONSISTENT_PROC)
 			continue;			/* don't need both, see check below loop */
-		if (i == RUM_CONFIG_PROC || i == RUM_PRE_CONSISTENT_PROC ||
-			i == RUM_ORDERING_PROC)
+		if (i == RUM_PRE_CONSISTENT_PROC)
 			continue;
 		ereport(INFO,
 				(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
