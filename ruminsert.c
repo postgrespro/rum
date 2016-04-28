@@ -44,7 +44,8 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 	BlockNumber blkno;
 	Buffer		buffer = RumNewBuffer(index);
 	Page		page;
-	int			i;
+	int			i,
+				freespace;
 	Pointer		ptr;
 	ItemPointerData prev_iptr = {{0,0},0};
 	GenericXLogState *state;
@@ -65,7 +66,8 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[i], addInfo[i],
 			addInfoIsNull[i], &prev_iptr, rumstate);
 	}
-	Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
+	freespace = RumDataPageFreeSpacePre(page, ptr);
+	Assert(freespace >= 0);
 	updateItemIndexes(page, attnum, rumstate);
 
 	GenericXLogFinish(state);

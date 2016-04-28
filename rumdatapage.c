@@ -732,7 +732,8 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 		 */
 		findInLeafPage(btree, page, &off, &iptr, &ptr);
 
-		Assert(RumDataPageFreeSpacePre(page,ptr) >= 0);
+		freespace = RumDataPageFreeSpacePre(page,ptr);
+		Assert(freespace >= 0);
 
 		if (off <= maxoff)
 		{
@@ -768,7 +769,8 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 			ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
 				&btree->items[j], btree->addInfo[j], btree->addInfoIsNull[j],
 				&iptr, btree->rumstate);
-			Assert(RumDataPageFreeSpacePre(page,ptr) >= 0);
+			freespace = RumDataPageFreeSpacePre(page,ptr);
+			Assert(freespace >= 0);
 
 			iptr = btree->items[j];
 			btree->curitem++;
@@ -785,7 +787,10 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
 					&copy_iptr, addInfo, addInfoIsNull,
 					&iptr, btree->rumstate);
-				Assert(RumDataPageFreeSpacePre(page,ptr) >= 0);
+
+				freespace = RumDataPageFreeSpacePre(page,ptr);
+				Assert(freespace >= 0);
+
 				iptr = copy_iptr;
 			}
 		}
@@ -851,6 +856,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	ItemPointerData iptr, prevIptr, maxLeftIptr;
 	int			totalCount = 0;
 	int			maxItemIndex = btree->curitem;
+	int			freespace;
 
 	static char lpageCopy[BLCKSZ];
 
@@ -970,7 +976,8 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 					btree->addInfo[btree->curitem],
 					btree->addInfoIsNull[btree->curitem],
 					&prevIptr, btree->rumstate);
-				Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
+				freespace = RumDataPageFreeSpacePre(page, ptr);
+				Assert(freespace >= 0);
 
 				prevIptr = btree->items[btree->curitem];
 				btree->curitem++;
@@ -984,7 +991,8 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 		ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum, &iptr,
 			addInfo, addInfoIsNull, &prevIptr, btree->rumstate);
-		Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
+		freespace = RumDataPageFreeSpacePre(page, ptr);
+		Assert(freespace >= 0);
 
 		prevIptr = iptr;
 
@@ -1000,7 +1008,8 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 				btree->addInfo[btree->curitem],
 				btree->addInfoIsNull[btree->curitem],
 				&prevIptr, btree->rumstate);
-			Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
+			freespace = RumDataPageFreeSpacePre(page, ptr);
+			Assert(freespace >= 0);
 
 			prevIptr = btree->items[btree->curitem];
 			btree->curitem++;
