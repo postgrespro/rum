@@ -78,11 +78,16 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *
          16.4493 | thinking--“to go or not to go?” We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (4 rows)
 
--- CRASHES
---SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')), *
---	FROM test_rum
---	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
---	ORDER BY a >< to_tsquery('pg_catalog.english', 'way & (go | half)');
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')), *
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
+	ORDER BY a >< to_tsquery('pg_catalog.english', 'way & (go | half)');
+ rum_ts_distance |                                  t                                  |                            a                            
+-----------------+---------------------------------------------------------------------+---------------------------------------------------------
+         9.65659 | thinking--“to go or not to go?” We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+         10.0905 | itself. Put on your “specs” and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+(2 rows)
+
 INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');
 INSERT INTO test_rum (t) VALUES ('345 qwerty copyright');
 INSERT INTO test_rum (t) VALUES ('345 qwerty');

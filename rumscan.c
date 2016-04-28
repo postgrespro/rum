@@ -380,11 +380,11 @@ rumNewScanKey(IndexScanDesc scan)
 
 	so->isVoidRes = false;
 
-  	for (i = 0; i < scan->numberOfKeys; i++)
-  	{
+	for (i = 0; i < scan->numberOfKeys; i++)
+	{
 		initScanKey(so, &scan->keyData[i], &hasNullQuery);
 		if (so->isVoidRes)
-  			break;
+			break;
 	}
 
 	for (i = 0; i < scan->numberOfOrderBys; i++)
@@ -392,7 +392,15 @@ rumNewScanKey(IndexScanDesc scan)
 		initScanKey(so, &scan->orderByData[i], &hasNullQuery);
 		if (so->isVoidRes)
 			break;
-  	}
+	}
+
+	if (scan->numberOfOrderBys > 0)
+	{
+		scan->xs_orderbyvals = palloc0(sizeof(Datum) * scan->numberOfOrderBys);
+		scan->xs_orderbynulls = palloc(sizeof(bool) * scan->numberOfOrderBys);
+		memset(scan->xs_orderbynulls, true, sizeof(bool) *
+			   scan->numberOfOrderBys);
+	}
 
 	/*
 	 * If there are no regular scan keys, generate an EVERYTHING scankey to

@@ -2121,7 +2121,7 @@ rumgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 
 static float8
 keyGetOrdering(RumState *rumstate, MemoryContext tempCtx, RumScanKey key,
-	ItemPointer iptr)
+			   ItemPointer iptr)
 {
 	RumScanEntry entry;
 	int i;
@@ -2221,8 +2221,21 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 	item = rum_tuplesort_getrum(so->sortstate, true, &should_free);
 	if (item)
 	{
+		int i, j = 0;
+
 		scan->xs_ctup.t_self = item->iptr;
 		scan->xs_recheck = item->recheck;
+		scan->xs_recheckorderby = false;
+
+		for (i = 0; i < so->nkeys; i++)
+		{
+			if (!so->keys[i].orderBy)
+				continue;
+			scan->xs_orderbyvals[j] = Float8GetDatum(item->data[j]);
+			scan->xs_orderbynulls[j] = false;
+
+			j++;
+		}
 
 		if (should_free)
 			pfree(item);
