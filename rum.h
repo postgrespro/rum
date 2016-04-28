@@ -296,7 +296,7 @@ typedef struct RumOptions
 	bool		useFastUpdate;	/* use fast updates? */
 } RumOptions;
 
-#define RUM_DEFAULT_USE_FASTUPDATE	true
+#define RUM_DEFAULT_USE_FASTUPDATE	false
 #define RumGetUseFastUpdate(relation) \
 	((relation)->rd_options ? \
 	 ((RumOptions *) (relation)->rd_options)->useFastUpdate : RUM_DEFAULT_USE_FASTUPDATE)
