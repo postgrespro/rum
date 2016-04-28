@@ -92,9 +92,9 @@
  * When the caller requests random access to the sort result, we form
  * the final sorted run on a logical tape which is then "frozen", so
  * that we can access it randomly.  When the caller does not need random
- * access, we return from tuplesort_performsort() as soon as we are down
+ * access, we return from rum_tuplesort_performsort() as soon as we are down
  * to one run per logical tape.  The final merge is then performed
- * on-the-fly as the caller repeatedly calls tuplesort_getXXX; this
+ * on-the-fly as the caller repeatedly calls rum_tuplesort_getXXX; this
  * saves one cycle of writing all the data out to disk and reading it in.
  *
  * Before Postgres 8.2, we always used a seven-tape polyphase merge, on the
@@ -203,7 +203,7 @@ typedef enum
 
 /*
  * Parameters for calculation of number of tapes to use --- see inittapes()
- * and tuplesort_merge_order().
+ * and rum_tuplesort_merge_order().
  *
  * In this calculation we assume that each tape will cost us about 3 blocks
  * worth of buffer space (which is an underestimate for very large data
@@ -241,7 +241,7 @@ struct Tuplesortstate
 	/*
 	 * These function pointers decouple the routines that must know what kind
 	 * of tuple we are sorting from the routines that don't need to know it.
-	 * They are set up by the tuplesort_begin_xxx routines.
+	 * They are set up by the rum_tuplesort_begin_xxx routines.
 	 *
 	 * Function to compare two tuples; result is per qsort() convention, ie:
 	 * <0, 0, >0 according as a<b, a=b, a>b.  The API must match
@@ -361,7 +361,7 @@ struct Tuplesortstate
 
 	/*
 	 * These variables are specific to the MinimalTuple case; they are set by
-	 * tuplesort_begin_heap and used only by the MinimalTuple routines.
+	 * rum_tuplesort_begin_heap and used only by the MinimalTuple routines.
 	 */
 	TupleDesc	tupDesc;
 	SortSupport sortKeys;		/* array of length nKeys */
@@ -374,7 +374,7 @@ struct Tuplesortstate
 
 	/*
 	 * These variables are specific to the CLUSTER case; they are set by
-	 * tuplesort_begin_cluster.  Note CLUSTER also uses tupDesc and
+	 * rum_tuplesort_begin_cluster.  Note CLUSTER also uses tupDesc and
 	 * indexScanKey.
 	 */
 	IndexInfo  *indexInfo;		/* info about index being used for reference */
@@ -382,7 +382,7 @@ struct Tuplesortstate
 
 	/*
 	 * These variables are specific to the IndexTuple case; they are set by
-	 * tuplesort_begin_index_xxx and used only by the IndexTuple routines.
+	 * rum_tuplesort_begin_index_xxx and used only by the IndexTuple routines.
 	 */
 	Relation	heapRel;		/* table the index is being built on */
 	Relation	indexRel;		/* index being built */
@@ -396,7 +396,7 @@ struct Tuplesortstate
 
 	/*
 	 * These variables are specific to the Datum case; they are set by
-	 * tuplesort_begin_datum and used only by the DatumTuple routines.
+	 * rum_tuplesort_begin_datum and used only by the DatumTuple routines.
 	 */
 	Oid			datumType;
 	/* we need typelen and byval in order to know how to copy the Datums. */
@@ -471,7 +471,7 @@ struct Tuplesortstate
 	} while(0)
 
 
-static Tuplesortstate *tuplesort_begin_common(int workMem, bool randomAccess);
+static Tuplesortstate *rum_tuplesort_begin_common(int workMem, bool randomAccess);
 static void puttuple_common(Tuplesortstate *state, SortTuple *tuple);
 static void inittapes(Tuplesortstate *state);
 static void selectnewtape(Tuplesortstate *state);
@@ -483,9 +483,9 @@ static void mergeprereadone(Tuplesortstate *state, int srcTape);
 static void dumptuples(Tuplesortstate *state, bool alltuples);
 static void make_bounded_heap(Tuplesortstate *state);
 static void sort_bounded_heap(Tuplesortstate *state);
-static void tuplesort_heap_insert(Tuplesortstate *state, SortTuple *tuple,
+static void rum_tuplesort_heap_insert(Tuplesortstate *state, SortTuple *tuple,
 					  int tupleindex, bool checkIndex);
-static void tuplesort_heap_siftup(Tuplesortstate *state, bool checkIndex);
+static void rum_tuplesort_heap_siftup(Tuplesortstate *state, bool checkIndex);
 static unsigned int getlen(Tuplesortstate *state, int tapenum, bool eofOK);
 static void markrunend(Tuplesortstate *state, int tapenum);
 static int comparetup_heap(const SortTuple *a, const SortTuple *b,
@@ -822,18 +822,18 @@ loop:
 }
 
 /*
- *		tuplesort_begin_xxx
+ *		rum_tuplesort_begin_xxx
  *
  * Initialize for a tuple sort operation.
  *
- * After calling tuplesort_begin, the caller should call tuplesort_putXXX
- * zero or more times, then call tuplesort_performsort when all the tuples
+ * After calling rum_tuplesort_begin, the caller should call rum_tuplesort_putXXX
+ * zero or more times, then call rum_tuplesort_performsort when all the tuples
  * have been supplied.  After performsort, retrieve the tuples in sorted
- * order by calling tuplesort_getXXX until it returns false/NULL.  (If random
+ * order by calling rum_tuplesort_getXXX until it returns false/NULL.  (If random
  * access was requested, rescan, markpos, and restorepos can also be called.)
- * Call tuplesort_end to terminate the operation and release memory/disk space.
+ * Call rum_tuplesort_end to terminate the operation and release memory/disk space.
  *
- * Each variant of tuplesort_begin has a workMem parameter specifying the
+ * Each variant of rum_tuplesort_begin has a workMem parameter specifying the
  * maximum number of kilobytes of RAM to use before spilling data to disk.
  * (The normal value of this parameter is work_mem, but some callers use
  * other values.)  Each variant also has a randomAccess parameter specifying
@@ -841,7 +841,7 @@ loop:
  */
 
 static Tuplesortstate *
-tuplesort_begin_common(int workMem, bool randomAccess)
+rum_tuplesort_begin_common(int workMem, bool randomAccess)
 {
 	Tuplesortstate *state;
 	MemoryContext sortcontext;
@@ -912,13 +912,13 @@ tuplesort_begin_common(int workMem, bool randomAccess)
 }
 
 Tuplesortstate *
-tuplesort_begin_heap(TupleDesc tupDesc,
+rum_tuplesort_begin_heap(TupleDesc tupDesc,
 					 int nkeys, AttrNumber *attNums,
 					 Oid *sortOperators, Oid *sortCollations,
 					 bool *nullsFirstFlags,
 					 int workMem, bool randomAccess)
 {
-	Tuplesortstate *state = tuplesort_begin_common(workMem, randomAccess);
+	Tuplesortstate *state = rum_tuplesort_begin_common(workMem, randomAccess);
 	MemoryContext oldcontext;
 	int			i;
 
@@ -976,11 +976,11 @@ tuplesort_begin_heap(TupleDesc tupDesc,
 }
 
 Tuplesortstate *
-tuplesort_begin_cluster(TupleDesc tupDesc,
+rum_tuplesort_begin_cluster(TupleDesc tupDesc,
 						Relation indexRel,
 						int workMem, bool randomAccess)
 {
-	Tuplesortstate *state = tuplesort_begin_common(workMem, randomAccess);
+	Tuplesortstate *state = rum_tuplesort_begin_common(workMem, randomAccess);
 	MemoryContext oldcontext;
 
 	Assert(indexRel->rd_rel->relam == BTREE_AM_OID);
@@ -1037,12 +1037,12 @@ tuplesort_begin_cluster(TupleDesc tupDesc,
 }
 
 Tuplesortstate *
-tuplesort_begin_index_btree(Relation heapRel,
+rum_tuplesort_begin_index_btree(Relation heapRel,
 							Relation indexRel,
 							bool enforceUnique,
 							int workMem, bool randomAccess)
 {
-	Tuplesortstate *state = tuplesort_begin_common(workMem, randomAccess);
+	Tuplesortstate *state = rum_tuplesort_begin_common(workMem, randomAccess);
 	MemoryContext oldcontext;
 
 	oldcontext = MemoryContextSwitchTo(state->sortcontext);
@@ -1080,12 +1080,12 @@ tuplesort_begin_index_btree(Relation heapRel,
 }
 
 Tuplesortstate *
-tuplesort_begin_index_hash(Relation heapRel,
+rum_tuplesort_begin_index_hash(Relation heapRel,
 						   Relation indexRel,
 						   uint32 hash_mask,
 						   int workMem, bool randomAccess)
 {
-	Tuplesortstate *state = tuplesort_begin_common(workMem, randomAccess);
+	Tuplesortstate *state = rum_tuplesort_begin_common(workMem, randomAccess);
 	MemoryContext oldcontext;
 
 	oldcontext = MemoryContextSwitchTo(state->sortcontext);
@@ -1117,9 +1117,9 @@ tuplesort_begin_index_hash(Relation heapRel,
 }
 
 Tuplesortstate *
-tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess)
+rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess)
 {
-	Tuplesortstate *state = tuplesort_begin_common(workMem, randomAccess);
+	Tuplesortstate *state = rum_tuplesort_begin_common(workMem, randomAccess);
 	MemoryContext oldcontext;
 
 	oldcontext = MemoryContextSwitchTo(state->sortcontext);
@@ -1152,11 +1152,11 @@ tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess)
 }
 
 Tuplesortstate *
-tuplesort_begin_datum(Oid datumType, Oid sortOperator, Oid sortCollation,
+rum_tuplesort_begin_datum(Oid datumType, Oid sortOperator, Oid sortCollation,
 					  bool nullsFirstFlag,
 					  int workMem, bool randomAccess)
 {
-	Tuplesortstate *state = tuplesort_begin_common(workMem, randomAccess);
+	Tuplesortstate *state = rum_tuplesort_begin_common(workMem, randomAccess);
 	MemoryContext oldcontext;
 	int16		typlen;
 	bool		typbyval;
@@ -1206,7 +1206,7 @@ tuplesort_begin_datum(Oid datumType, Oid sortOperator, Oid sortCollation,
 }
 
 /*
- * tuplesort_set_bound
+ * rum_tuplesort_set_bound
  *
  *	Advise tuplesort that at most the first N result tuples are required.
  *
@@ -1218,7 +1218,7 @@ tuplesort_begin_datum(Oid datumType, Oid sortOperator, Oid sortCollation,
  * requested.
  */
 void
-tuplesort_set_bound(Tuplesortstate *state, int64 bound)
+rum_tuplesort_set_bound(Tuplesortstate *state, int64 bound)
 {
 	/* Assert we're called before loading any tuples */
 	Assert(state->status == TSS_INITIAL);
@@ -1240,16 +1240,16 @@ tuplesort_set_bound(Tuplesortstate *state, int64 bound)
 }
 
 /*
- * tuplesort_end
+ * rum_tuplesort_end
  *
  *	Release resources and clean up.
  *
- * NOTE: after calling this, any pointers returned by tuplesort_getXXX are
+ * NOTE: after calling this, any pointers returned by rum_tuplesort_getXXX are
  * pointing to garbage.  Be careful not to attempt to use or free such
  * pointers afterwards!
  */
 void
-tuplesort_end(Tuplesortstate *state)
+rum_tuplesort_end(Tuplesortstate *state)
 {
 	/* context swap probably not needed, but let's be safe */
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
@@ -1437,7 +1437,7 @@ noalloc:
  * Note that the input data is always copied; the caller need not save it.
  */
 void
-tuplesort_puttupleslot(Tuplesortstate *state, TupleTableSlot *slot)
+rum_tuplesort_puttupleslot(Tuplesortstate *state, TupleTableSlot *slot)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
@@ -1459,7 +1459,7 @@ tuplesort_puttupleslot(Tuplesortstate *state, TupleTableSlot *slot)
  * Note that the input data is always copied; the caller need not save it.
  */
 void
-tuplesort_putheaptuple(Tuplesortstate *state, HeapTuple tup)
+rum_tuplesort_putheaptuple(Tuplesortstate *state, HeapTuple tup)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
@@ -1481,7 +1481,7 @@ tuplesort_putheaptuple(Tuplesortstate *state, HeapTuple tup)
  * Note that the input tuple is always copied; the caller need not save it.
  */
 void
-tuplesort_putindextuple(Tuplesortstate *state, IndexTuple tuple)
+rum_tuplesort_putindextuple(Tuplesortstate *state, IndexTuple tuple)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
@@ -1503,7 +1503,7 @@ tuplesort_putindextuple(Tuplesortstate *state, IndexTuple tuple)
  * If the Datum is pass-by-ref type, the value will be copied.
  */
 void
-tuplesort_putdatum(Tuplesortstate *state, Datum val, bool isNull)
+rum_tuplesort_putdatum(Tuplesortstate *state, Datum val, bool isNull)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
@@ -1532,7 +1532,7 @@ tuplesort_putdatum(Tuplesortstate *state, Datum val, bool isNull)
 }
 
 void
-tuplesort_putrum(Tuplesortstate *state, RumSortItem *item)
+rum_tuplesort_putrum(Tuplesortstate *state, RumSortItem *item)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
@@ -1635,8 +1635,8 @@ puttuple_common(Tuplesortstate *state, SortTuple *tuple)
 			{
 				/* discard top of heap, sift up, insert new tuple */
 				free_sort_tuple(state, &state->memtuples[0]);
-				tuplesort_heap_siftup(state, false);
-				tuplesort_heap_insert(state, tuple, 0, false);
+				rum_tuplesort_heap_siftup(state, false);
+				rum_tuplesort_heap_insert(state, tuple, 0, false);
 			}
 			break;
 
@@ -1657,9 +1657,9 @@ puttuple_common(Tuplesortstate *state, SortTuple *tuple)
 			 */
 			Assert(state->memtupcount > 0);
 			if (COMPARETUP(state, tuple, &state->memtuples[0]) >= 0)
-				tuplesort_heap_insert(state, tuple, state->currentRun, true);
+				rum_tuplesort_heap_insert(state, tuple, state->currentRun, true);
 			else
-				tuplesort_heap_insert(state, tuple, state->currentRun + 1, true);
+				rum_tuplesort_heap_insert(state, tuple, state->currentRun + 1, true);
 
 			/*
 			 * If we are over the memory limit, dump tuples till we're under.
@@ -1677,7 +1677,7 @@ puttuple_common(Tuplesortstate *state, SortTuple *tuple)
  * All tuples have been provided; finish the sort.
  */
 void
-tuplesort_performsort(Tuplesortstate *state)
+rum_tuplesort_performsort(Tuplesortstate *state)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 
@@ -1772,7 +1772,7 @@ tuplesort_performsort(Tuplesortstate *state)
  * If *should_free is set, the caller must pfree stup.tuple when done with it.
  */
 static bool
-tuplesort_gettuple_common(Tuplesortstate *state, bool forward,
+rum_tuplesort_gettuple_common(Tuplesortstate *state, bool forward,
 						  SortTuple *stup, bool *should_free)
 {
 	unsigned int tuplen;
@@ -1930,7 +1930,7 @@ tuplesort_gettuple_common(Tuplesortstate *state, bool forward,
 					state->availMem += tuplen;
 					state->mergeavailmem[srcTape] += tuplen;
 				}
-				tuplesort_heap_siftup(state, false);
+				rum_tuplesort_heap_siftup(state, false);
 				if ((tupIndex = state->mergenext[srcTape]) == 0)
 				{
 					/*
@@ -1952,7 +1952,7 @@ tuplesort_gettuple_common(Tuplesortstate *state, bool forward,
 				state->mergenext[srcTape] = newtup->tupindex;
 				if (state->mergenext[srcTape] == 0)
 					state->mergelast[srcTape] = 0;
-				tuplesort_heap_insert(state, newtup, srcTape, false);
+				rum_tuplesort_heap_insert(state, newtup, srcTape, false);
 				/* put the now-unused memtuples entry on the freelist */
 				newtup->tupindex = state->mergefreelist;
 				state->mergefreelist = tupIndex;
@@ -1973,14 +1973,14 @@ tuplesort_gettuple_common(Tuplesortstate *state, bool forward,
  * and return FALSE.
  */
 bool
-tuplesort_gettupleslot(Tuplesortstate *state, bool forward,
+rum_tuplesort_gettupleslot(Tuplesortstate *state, bool forward,
 					   TupleTableSlot *slot)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
 	bool		should_free;
 
-	if (!tuplesort_gettuple_common(state, forward, &stup, &should_free))
+	if (!rum_tuplesort_gettuple_common(state, forward, &stup, &should_free))
 		stup.tuple = NULL;
 
 	MemoryContextSwitchTo(oldcontext);
@@ -2003,12 +2003,12 @@ tuplesort_gettupleslot(Tuplesortstate *state, bool forward,
  * caller must pfree the returned tuple when done with it.
  */
 HeapTuple
-tuplesort_getheaptuple(Tuplesortstate *state, bool forward, bool *should_free)
+rum_tuplesort_getheaptuple(Tuplesortstate *state, bool forward, bool *should_free)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
 
-	if (!tuplesort_gettuple_common(state, forward, &stup, should_free))
+	if (!rum_tuplesort_gettuple_common(state, forward, &stup, should_free))
 		stup.tuple = NULL;
 
 	MemoryContextSwitchTo(oldcontext);
@@ -2022,13 +2022,13 @@ tuplesort_getheaptuple(Tuplesortstate *state, bool forward, bool *should_free)
  * caller must pfree the returned tuple when done with it.
  */
 IndexTuple
-tuplesort_getindextuple(Tuplesortstate *state, bool forward,
+rum_tuplesort_getindextuple(Tuplesortstate *state, bool forward,
 						bool *should_free)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
 
-	if (!tuplesort_gettuple_common(state, forward, &stup, should_free))
+	if (!rum_tuplesort_gettuple_common(state, forward, &stup, should_free))
 		stup.tuple = NULL;
 
 	MemoryContextSwitchTo(oldcontext);
@@ -2044,14 +2044,14 @@ tuplesort_getindextuple(Tuplesortstate *state, bool forward,
  * and is now owned by the caller.
  */
 bool
-tuplesort_getdatum(Tuplesortstate *state, bool forward,
+rum_tuplesort_getdatum(Tuplesortstate *state, bool forward,
 				   Datum *val, bool *isNull)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
 	bool		should_free;
 
-	if (!tuplesort_gettuple_common(state, forward, &stup, &should_free))
+	if (!rum_tuplesort_gettuple_common(state, forward, &stup, &should_free))
 	{
 		MemoryContextSwitchTo(oldcontext);
 		return false;
@@ -2077,12 +2077,12 @@ tuplesort_getdatum(Tuplesortstate *state, bool forward,
 }
 
 RumSortItem *
-tuplesort_getrum(Tuplesortstate *state, bool forward, bool *should_free)
+rum_tuplesort_getrum(Tuplesortstate *state, bool forward, bool *should_free)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
 
-	if (!tuplesort_gettuple_common(state, forward, &stup, should_free))
+	if (!rum_tuplesort_gettuple_common(state, forward, &stup, should_free))
 		stup.tuple = NULL;
 
 	MemoryContextSwitchTo(oldcontext);
@@ -2092,13 +2092,13 @@ tuplesort_getrum(Tuplesortstate *state, bool forward, bool *should_free)
 
 
 /*
- * tuplesort_merge_order - report merge order we'll use for given memory
+ * rum_tuplesort_merge_order - report merge order we'll use for given memory
  * (note: "merge order" just means the number of input tapes in the merge).
  *
  * This is exported for use by the planner.  allowedMem is in bytes.
  */
 int
-tuplesort_merge_order(long allowedMem)
+rum_tuplesort_merge_order(long allowedMem)
 {
 	int			mOrder;
 
@@ -2135,7 +2135,7 @@ inittapes(Tuplesortstate *state)
 	long		tapeSpace;
 
 	/* Compute number of tapes to use: merge order plus 1 */
-	maxTapes = tuplesort_merge_order(state->allowedMem) + 1;
+	maxTapes = rum_tuplesort_merge_order(state->allowedMem) + 1;
 
 	/*
 	 * We must have at least 2*maxTapes slots in the memtuples[] array, else
@@ -2202,7 +2202,7 @@ inittapes(Tuplesortstate *state)
 		/* Must copy source tuple to avoid possible overwrite */
 		SortTuple	stup = state->memtuples[j];
 
-		tuplesort_heap_insert(state, &stup, 0, false);
+		rum_tuplesort_heap_insert(state, &stup, 0, false);
 	}
 	Assert(state->memtupcount == ntuples);
 
@@ -2433,7 +2433,7 @@ mergeonerun(Tuplesortstate *state)
 		spaceFreed = state->availMem - priorAvail;
 		state->mergeavailmem[srcTape] += spaceFreed;
 		/* compact the heap */
-		tuplesort_heap_siftup(state, false);
+		rum_tuplesort_heap_siftup(state, false);
 		if ((tupIndex = state->mergenext[srcTape]) == 0)
 		{
 			/* out of preloaded data on this tape, try to read more */
@@ -2447,7 +2447,7 @@ mergeonerun(Tuplesortstate *state)
 		state->mergenext[srcTape] = tup->tupindex;
 		if (state->mergenext[srcTape] == 0)
 			state->mergelast[srcTape] = 0;
-		tuplesort_heap_insert(state, tup, srcTape, false);
+		rum_tuplesort_heap_insert(state, tup, srcTape, false);
 		/* put the now-unused memtuples entry on the freelist */
 		tup->tupindex = state->mergefreelist;
 		state->mergefreelist = tupIndex;
@@ -2550,7 +2550,7 @@ beginmerge(Tuplesortstate *state)
 			state->mergenext[srcTape] = tup->tupindex;
 			if (state->mergenext[srcTape] == 0)
 				state->mergelast[srcTape] = 0;
-			tuplesort_heap_insert(state, tup, srcTape, false);
+			rum_tuplesort_heap_insert(state, tup, srcTape, false);
 			/* put the now-unused memtuples entry on the freelist */
 			tup->tupindex = state->mergefreelist;
 			state->mergefreelist = tupIndex;
@@ -2677,7 +2677,7 @@ dumptuples(Tuplesortstate *state, bool alltuples)
 		Assert(state->memtupcount > 0);
 		WRITETUP(state, state->tp_tapenum[state->destTape],
 				 &state->memtuples[0]);
-		tuplesort_heap_siftup(state, true);
+		rum_tuplesort_heap_siftup(state, true);
 
 		/*
 		 * If the heap is empty *or* top run number has changed, we've
@@ -2711,10 +2711,10 @@ dumptuples(Tuplesortstate *state, bool alltuples)
 }
 
 /*
- * tuplesort_rescan		- rewind and replay the scan
+ * rum_tuplesort_rescan		- rewind and replay the scan
  */
 void
-tuplesort_rescan(Tuplesortstate *state)
+rum_tuplesort_rescan(Tuplesortstate *state)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 
@@ -2746,10 +2746,10 @@ tuplesort_rescan(Tuplesortstate *state)
 }
 
 /*
- * tuplesort_markpos	- saves current position in the merged sort file
+ * rum_tuplesort_markpos	- saves current position in the merged sort file
  */
 void
-tuplesort_markpos(Tuplesortstate *state)
+rum_tuplesort_markpos(Tuplesortstate *state)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 
@@ -2777,11 +2777,11 @@ tuplesort_markpos(Tuplesortstate *state)
 }
 
 /*
- * tuplesort_restorepos - restores current position in merged sort file to
+ * rum_tuplesort_restorepos - restores current position in merged sort file to
  *						  last saved position
  */
 void
-tuplesort_restorepos(Tuplesortstate *state)
+rum_tuplesort_restorepos(Tuplesortstate *state)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 
@@ -2798,7 +2798,7 @@ tuplesort_restorepos(Tuplesortstate *state)
 								 state->result_tape,
 								 state->markpos_block,
 								 state->markpos_offset))
-				elog(ERROR, "tuplesort_restorepos failed");
+				elog(ERROR, "rum_tuplesort_restorepos failed");
 			state->eof_reached = state->markpos_eof;
 			break;
 		default:
@@ -2810,14 +2810,14 @@ tuplesort_restorepos(Tuplesortstate *state)
 }
 
 /*
- * tuplesort_get_stats - extract summary statistics
+ * rum_tuplesort_get_stats - extract summary statistics
  *
- * This can be called after tuplesort_performsort() finishes to obtain
+ * This can be called after rum_tuplesort_performsort() finishes to obtain
  * printable summary information about how the sort was performed.
  * spaceUsed is measured in kilobytes.
  */
 void
-tuplesort_get_stats(Tuplesortstate *state,
+rum_tuplesort_get_stats(Tuplesortstate *state,
 					const char **sortMethod,
 					const char **spaceType,
 					long *spaceUsed)
@@ -2917,13 +2917,13 @@ make_bounded_heap(Tuplesortstate *state)
 			/* Must copy source tuple to avoid possible overwrite */
 			SortTuple	stup = state->memtuples[i];
 
-			tuplesort_heap_insert(state, &stup, 0, false);
+			rum_tuplesort_heap_insert(state, &stup, 0, false);
 
 			/* If heap too full, discard largest entry */
 			if (state->memtupcount > state->bound)
 			{
 				free_sort_tuple(state, &state->memtuples[0]);
-				tuplesort_heap_siftup(state, false);
+				rum_tuplesort_heap_siftup(state, false);
 			}
 		}
 	}
@@ -2954,7 +2954,7 @@ sort_bounded_heap(Tuplesortstate *state)
 		SortTuple	stup = state->memtuples[0];
 
 		/* this sifts-up the next-largest entry and decreases memtupcount */
-		tuplesort_heap_siftup(state, false);
+		rum_tuplesort_heap_siftup(state, false);
 		state->memtuples[state->memtupcount] = stup;
 	}
 	state->memtupcount = tupcount;
@@ -2980,7 +2980,7 @@ sort_bounded_heap(Tuplesortstate *state)
  * is, it might get overwritten before being moved into the heap!
  */
 static void
-tuplesort_heap_insert(Tuplesortstate *state, SortTuple *tuple,
+rum_tuplesort_heap_insert(Tuplesortstate *state, SortTuple *tuple,
 					  int tupleindex, bool checkIndex)
 {
 	SortTuple  *memtuples;
@@ -3021,7 +3021,7 @@ tuplesort_heap_insert(Tuplesortstate *state, SortTuple *tuple,
  * Decrement memtupcount, and sift up to maintain the heap invariant.
  */
 static void
-tuplesort_heap_siftup(Tuplesortstate *state, bool checkIndex)
+rum_tuplesort_heap_siftup(Tuplesortstate *state, bool checkIndex)
 {
 	SortTuple  *memtuples = state->memtuples;
 	SortTuple  *tuple;

@@ -24,6 +24,15 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'knew&
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'among');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'structure&ancient');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(complimentary|sight)&(sending|heart)');
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
+	ORDER BY a >< to_tsquery('pg_catalog.english', 'way');
+-- CRASHES
+--SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')), *
+--	FROM test_rum
+--	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
+--	ORDER BY a >< to_tsquery('pg_catalog.english', 'way & (go | half)');
 
 INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');
 INSERT INTO test_rum (t) VALUES ('345 qwerty copyright');

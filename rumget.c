@@ -2175,7 +2175,7 @@ insertScanItem(RumScanOpaque so, bool recheck)
 		item->data[j] = keyGetOrdering(&so->rumstate, so->tempCtx, &so->keys[i], &so->iptr);
 		j++;
 	}
-	tuplesort_putrum(so->sortstate, item);
+	rum_tuplesort_putrum(so->sortstate, item);
 }
 
 bool
@@ -2202,7 +2202,7 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 		so->tbm = NULL;
 		so->entriesIncrIndex = -1;
 		so->firstCall = false;
-		so->sortstate = tuplesort_begin_rum(work_mem, so->norderbys, false);
+		so->sortstate = rum_tuplesort_begin_rum(work_mem, so->norderbys, false);
 
 		scanPendingInsert(scan);
 
@@ -2215,10 +2215,10 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 		{
 			insertScanItem(so, recheck);
 		}
-		tuplesort_performsort(so->sortstate);
+		rum_tuplesort_performsort(so->sortstate);
 	}
 
-	item = tuplesort_getrum(so->sortstate, true, &should_free);
+	item = rum_tuplesort_getrum(so->sortstate, true, &should_free);
 	if (item)
 	{
 		scan->xs_ctup.t_self = item->iptr;

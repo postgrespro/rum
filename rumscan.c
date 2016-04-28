@@ -456,7 +456,7 @@ rumendscan(IndexScanDesc scan)
 	freeScanKeys(so);
 
 	if (so->sortstate)
-		tuplesort_end(so->sortstate);
+		rum_tuplesort_end(so->sortstate);
 
 	MemoryContextDelete(so->tempCtx);
 
