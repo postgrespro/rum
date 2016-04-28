@@ -57,7 +57,7 @@ rumhandler(PG_FUNCTION_ARGS)
 	amroutine->amstrategies = 0;
 	amroutine->amsupport = 9;
 	amroutine->amcanorder = false;
-	amroutine->amcanorderbyop = false;
+	amroutine->amcanorderbyop = true;
 	amroutine->amcanbackward = false;
 	amroutine->amcanunique = false;
 	amroutine->amcanmulticol = true;

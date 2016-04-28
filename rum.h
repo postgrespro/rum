@@ -743,6 +743,7 @@ extern Datum rum_extract_tsquery(PG_FUNCTION_ARGS);
 extern Datum rum_tsvector_config(PG_FUNCTION_ARGS);
 extern Datum rum_tsquery_pre_consistent(PG_FUNCTION_ARGS);
 extern Datum rum_tsquery_distance(PG_FUNCTION_ARGS);
+extern Datum rum_ts_distance(PG_FUNCTION_ARGS);
 
 /* GUC parameters */
 extern PGDLLIMPORT int RumFuzzySearchLimit;

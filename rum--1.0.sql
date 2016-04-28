@@ -7,6 +7,18 @@ LANGUAGE C;
 CREATE ACCESS METHOD rum TYPE INDEX HANDLER rumhandler;
 
 -- Opclasses
+CREATE FUNCTION rum_ts_distance(tsvector,tsquery)
+RETURNS float4
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR >< (
+        LEFTARG = tsvector,
+        RIGHTARG = tsquery,
+        PROCEDURE = rum_ts_distance,
+        COMMUTATOR = '><'
+);
+
 CREATE FUNCTION rum_extract_tsvector(tsvector,internal,internal,internal,internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
@@ -37,6 +49,7 @@ FOR TYPE tsvector USING rum
 AS
         OPERATOR        1       @@ (tsvector, tsquery),
         OPERATOR        2       @@@ (tsvector, tsquery),
+        OPERATOR        3       >< (tsvector, tsquery) FOR ORDER BY pg_catalog.float_ops,
         FUNCTION        1       bttextcmp(text, text),
         FUNCTION        2       rum_extract_tsvector(tsvector,internal,internal,internal,internal),
         FUNCTION        3       rum_extract_tsquery(tsvector,internal,smallint,internal,internal,internal,internal),
