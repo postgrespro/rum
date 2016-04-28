@@ -12,6 +12,9 @@ CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 
 SET enable_seqscan=off;
 
+explain (costs off)
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
+
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'have&wish');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'knew&brain');

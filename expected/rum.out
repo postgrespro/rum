@@ -6,6 +6,17 @@ FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('a', 'pg_catalog.english'
 CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 \copy test_rum(t) from 'data/rum.data';
 SET enable_seqscan=off;
+explain (costs off)
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
+                            QUERY PLAN                            
+------------------------------------------------------------------
+ Aggregate
+   ->  Bitmap Heap Scan on test_rum
+         Recheck Cond: (a @@ '''ever'' | ''wrote'''::tsquery)
+         ->  Bitmap Index Scan on rumidx
+               Index Cond: (a @@ '''ever'' | ''wrote'''::tsquery)
+(5 rows)
+
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
  count 
 -------
