@@ -482,11 +482,10 @@ entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf,
  * return newly allocated rightmost tuple
  */
 IndexTuple
-rumPageGetLinkItup(Buffer buf)
+rumPageGetLinkItup(Buffer buf, Page page)
 {
 	IndexTuple	itup,
 				nitup;
-	Page		page = BufferGetPage(buf);
 
 	itup = getRightMostTuple(page);
 	nitup = RumFormInteriorTuple(itup, page, BufferGetBlockNumber(buf));
@@ -504,12 +503,12 @@ rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
 {
 	IndexTuple	itup;
 
-	itup = rumPageGetLinkItup(lbuf);
+	itup = rumPageGetLinkItup(lbuf, lpage);
 	if (PageAddItem(page, (Item) itup, IndexTupleSize(itup), InvalidOffsetNumber, false, false) == InvalidOffsetNumber)
 		elog(ERROR, "failed to add item to index root page");
 	pfree(itup);
 
-	itup = rumPageGetLinkItup(rbuf);
+	itup = rumPageGetLinkItup(rbuf, rpage);
 	if (PageAddItem(page, (Item) itup, IndexTupleSize(itup), InvalidOffsetNumber, false, false) == InvalidOffsetNumber)
 		elog(ERROR, "failed to add item to index root page");
 	pfree(itup);
