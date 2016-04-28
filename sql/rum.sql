@@ -14,6 +14,9 @@ SET enable_seqscan=off;
 
 explain (costs off)
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
+explain (costs off)
+SELECT * FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote')
+ORDER BY a >< to_tsquery('pg_catalog.english', 'ever|wrote');
 
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'have&wish');

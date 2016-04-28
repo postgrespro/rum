@@ -662,7 +662,7 @@ extern void rumNewScanKey(IndexScanDesc scan);
 
 /* rumget.c */
 extern int64 rumgetbitmap(IndexScanDesc scan, TIDBitmap *tbm);
-extern Datum rumgettuple(PG_FUNCTION_ARGS);
+extern bool rumgettuple(IndexScanDesc scan, ScanDirection direction);
 
 /* rumvacuum.c */
 extern IndexBulkDeleteResult *rumbulkdelete(IndexVacuumInfo *info,

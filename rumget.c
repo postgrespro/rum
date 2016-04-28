@@ -2178,10 +2178,9 @@ insertScanItem(RumScanOpaque so, bool recheck)
 	tuplesort_putrum(so->sortstate, item);
 }
 
-Datum
-rumgettuple(PG_FUNCTION_ARGS)
+bool
+rumgettuple(IndexScanDesc scan, ScanDirection direction)
 {
-	IndexScanDesc scan = (IndexScanDesc) PG_GETARG_POINTER(0);
 	bool		recheck;
 	RumScanOpaque so = (RumScanOpaque)scan->opaque;
 	RumSortItem *item;

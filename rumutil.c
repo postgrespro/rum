@@ -77,10 +77,10 @@ rumhandler(PG_FUNCTION_ARGS)
 	amroutine->amcanreturn = NULL;
 	amroutine->amcostestimate = gincostestimate;
 	amroutine->amoptions = rumoptions;
- 	amroutine->amvalidate = rumvalidate;
+	amroutine->amvalidate = rumvalidate;
 	amroutine->ambeginscan = rumbeginscan;
 	amroutine->amrescan = rumrescan;
-	amroutine->amgettuple = NULL;
+	amroutine->amgettuple = rumgettuple;
 	amroutine->amgetbitmap = rumgetbitmap;
 	amroutine->amendscan = rumendscan;
 	amroutine->ammarkpos = NULL;
