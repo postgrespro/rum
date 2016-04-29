@@ -59,4 +59,4 @@ AS
         FUNCTION        7       rum_tsvector_config(internal),
         FUNCTION        8       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         FUNCTION        9       rum_tsquery_distance(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),
-        STORAGE         tsvector;
+        STORAGE         text;
