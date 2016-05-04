@@ -23,8 +23,6 @@ sub test_index_replay
 	my $queries = qq(SET enable_seqscan=off;
 SET enable_bitmapscan=on;
 SET enable_indexscan=on;
-SELECT * FROM tst WHERE i = 0;
-SELECT * FROM tst WHERE i = 3;
 SELECT * FROM tst WHERE t \@@ to_tsquery('simple', 'b');
 SELECT * FROM tst WHERE t \@@ to_tsquery('simple', 'f');
 SELECT * FROM tst WHERE i = 3 AND t \@@ to_tsquery('simple', 'c');

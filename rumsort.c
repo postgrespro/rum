@@ -3863,7 +3863,7 @@ copytup_rum(Tuplesortstate *state, SortTuple *stup, void *tup)
 {
 	RumSortItem *item = (RumSortItem *)tup;
 
-	stup->datum1 = Float8GetDatum(item->data[0]);
+	stup->datum1 = Float8GetDatum(state->nKeys > 0 ? item->data[0] : 0);
 	stup->isnull1 = false;
 	stup->tuple = tup;
 	USEMEM(state, GetMemoryChunkSpace(tup));
@@ -3900,7 +3900,7 @@ readtup_rum(Tuplesortstate *state, SortTuple *stup,
 	USEMEM(state, GetMemoryChunkSpace(item));
 	LogicalTapeReadExact(state->tapeset, tapenum,
 						 (void *)item, RumSortItemSize(state->nKeys));
-	stup->datum1 = Float8GetDatum(item->data[0]);
+	stup->datum1 = Float8GetDatum(state->nKeys > 0 ? item->data[0] : 0);
 	stup->isnull1 = false;
 	stup->tuple = item;
 

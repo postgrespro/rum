@@ -62,7 +62,7 @@ typedef struct
 {
 	ItemPointerData iptr;
 	bool			recheck;
-	float8			data[1];
+	float8			data[FLEXIBLE_ARRAY_MEMBER];
 } RumSortItem;
 
 #define RumSortItemSize(nKeys) (offsetof(RumSortItem,data)+(nKeys)*sizeof(float8))
