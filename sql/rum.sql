@@ -17,6 +17,9 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|
 explain (costs off)
 SELECT * FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote')
 ORDER BY a >< to_tsquery('pg_catalog.english', 'ever|wrote');
+explain (costs off)
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
+													'def <-> fgr');
 
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'have&wish');
@@ -24,6 +27,10 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'knew&
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'among');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'structure&ancient');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(complimentary|sight)&(sending|heart)');
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
+													'def <-> fgr');
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
+													'def <2> fgr');
 SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')

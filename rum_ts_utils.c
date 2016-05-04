@@ -24,6 +24,7 @@ PG_FUNCTION_INFO_V1(rum_extract_tsvector);
 PG_FUNCTION_INFO_V1(rum_extract_tsquery);
 PG_FUNCTION_INFO_V1(rum_tsvector_config);
 PG_FUNCTION_INFO_V1(rum_tsquery_pre_consistent);
+PG_FUNCTION_INFO_V1(rum_tsquery_consistent);
 PG_FUNCTION_INFO_V1(rum_tsquery_distance);
 PG_FUNCTION_INFO_V1(rum_ts_distance);
 
@@ -43,23 +44,27 @@ static float calc_rank_pos_or(float *w, Datum *addInfo, bool *addInfoIsNull,
 
 static float calc_rank_or(const float *w, TSVector t, TSQuery q);
 static float calc_rank_and(const float *w, TSVector t, TSQuery q);
+static int count_pos(char *ptr, int len);
+static char * decompress_pos(char *ptr, uint16 *pos);
 
-typedef struct
+	typedef struct
 {
 	QueryItem  *first_item;
-	bool	   *check;
 	int		   *map_item_operand;
+	bool	   *check;
 	bool	   *need_recheck;
+	Datum	   *addInfo;
+	bool	   *addInfoIsNull;
 } RumChkVal;
 
 static bool
-checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
+pre_checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 {
 	RumChkVal  *gcv = (RumChkVal *) checkval;
 	int			j;
 
 	/* if any val requiring a weight is used, set recheck flag */
-	if (val->weight != 0)
+	if (val->weight != 0 || data != NULL)
 		*(gcv->need_recheck) = true;
 
 	/* convert item's number to corresponding entry's (operand's) number */
@@ -76,8 +81,8 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 
 	TSQuery		query = PG_GETARG_TSQUERY(2);
 
-	Pointer    *extra_data = (Pointer *) PG_GETARG_POINTER(4);
-	bool	    recheck;
+	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
+	bool		recheck;
 	bool		res = FALSE;
 
 	if (query->size > 0)
@@ -97,11 +102,94 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 		res = TS_execute(GETQUERY(query),
 						 &gcv,
 						 false,
-						 checkcondition_rum);
+						 pre_checkcondition_rum);
 	}
 
 	PG_RETURN_BOOL(res);
 }
+
+static bool
+checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
+{
+	RumChkVal  *gcv = (RumChkVal *) checkval;
+	int			j;
+
+	/* if any val requiring a weight is used, set recheck flag */
+	if (val->weight != 0)
+		*(gcv->need_recheck) = true;
+
+	/* convert item's number to corresponding entry's (operand's) number */
+	j = gcv->map_item_operand[((QueryItem *) val) - gcv->first_item];
+
+	/* return presence of current entry in indexed value */
+	if (!gcv->check[j])
+		return false;
+
+	if (data && gcv->addInfo && gcv->addInfoIsNull[j] == false)
+	{
+		bytea	*positions = DatumGetByteaP(gcv->addInfo[j]);
+		int32	i;
+		char	*ptrt;
+		WordEntryPos post;
+
+		data->npos = count_pos(VARDATA_ANY(positions),
+							   VARSIZE_ANY_EXHDR(positions));
+		data->pos = palloc(sizeof(*data->pos) * data->npos);
+		data->allocated = true;
+
+		ptrt = (char *)VARDATA_ANY(positions);
+		post = 0;
+
+		for(i=0; i<data->npos; i++)
+		{
+			ptrt = decompress_pos(ptrt, &post);
+			data->pos[i] = post;
+		}
+	}
+
+	return true;
+}
+
+Datum
+rum_tsquery_consistent(PG_FUNCTION_ARGS)
+{
+	bool		*check = (bool *) PG_GETARG_POINTER(0);
+	/* StrategyNumber strategy = PG_GETARG_UINT16(1); */
+	TSQuery		query = PG_GETARG_TSQUERY(2);
+	/* int32	nkeys = PG_GETARG_INT32(3); */
+	Pointer		*extra_data = (Pointer *) PG_GETARG_POINTER(4);
+	bool		*recheck = (bool *) PG_GETARG_POINTER(5);
+	Datum		*addInfo = (Datum *) PG_GETARG_POINTER(8);
+	bool		*addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
+	bool		res = FALSE;
+
+	/* The query requires recheck only if it involves
+	 * weights */
+	*recheck = false;
+
+	if (query->size > 0)
+	{
+		QueryItem  *item;
+		RumChkVal   gcv;
+
+		/*
+		 * check-parameter array has one entry for each value
+		 * (operand) in the query.
+		 */
+		gcv.first_item = item = GETQUERY(query);
+		gcv.check = check;
+		gcv.map_item_operand = (int *) (extra_data[0]);
+		gcv.need_recheck = recheck;
+		gcv.addInfo = addInfo;
+		gcv.addInfoIsNull = addInfoIsNull;
+
+		res = TS_execute(GETQUERY(query), &gcv, true, checkcondition_rum);
+	}
+
+	PG_RETURN_BOOL(res);
+}
+
+
 
 static float weights[] = {0.1f, 0.2f, 0.4f, 1.0f};
 
@@ -409,7 +497,8 @@ calc_rank_pos(float *w, TSQuery q, Datum *addInfo, bool *addInfoIsNull, int size
 		return 0.0;
 
 	/* XXX: What about NOT? */
-	res = (item->type == QI_OPR && item->qoperator.oper == OP_AND) ?
+	res = (item->type == QI_OPR && (item->qoperator.oper == OP_AND ||
+									item->qoperator.oper == OP_PHRASE)) ?
 		calc_rank_pos_and(w, addInfo, addInfoIsNull, size) :
 		calc_rank_pos_or(w, addInfo, addInfoIsNull, size);
 
@@ -801,7 +890,7 @@ rum_extract_tsquery(PG_FUNCTION_ARGS)
 					j;
 		bool	   *partialmatch;
 		int		   *map_item_operand;
-		char       *operand = GETOPERAND(query);
+		char	   *operand = GETOPERAND(query);
 		QueryOperand **operands;
 
 		/*

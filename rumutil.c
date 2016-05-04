@@ -210,7 +210,7 @@ initRumState(RumState *state, Relation index)
 			state->canPreConsistent[i] = false;
 		}
 
-  		/*
+		/*
 		 * Check opclass capability to do order by.
 		 */
 		if (index_getprocid(index, i + 1, RUM_ORDERING_PROC) != InvalidOid)

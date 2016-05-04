@@ -30,6 +30,16 @@ ORDER BY a >< to_tsquery('pg_catalog.english', 'ever|wrote');
                Index Cond: (a @@ '''ever'' | ''wrote'''::tsquery)
 (6 rows)
 
+explain (costs off)
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
+													'def <-> fgr');
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Aggregate
+   ->  Index Scan using rumidx on test_rum
+         Index Cond: (a @@ '''def'' <-> ''fgr'''::tsquery)
+(3 rows)
+
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
  count 
 -------
@@ -61,6 +71,20 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'struc
 (1 row)
 
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(complimentary|sight)&(sending|heart)');
+ count 
+-------
+     2
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
+													'def <-> fgr');
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
+													'def <2> fgr');
  count 
 -------
      2
