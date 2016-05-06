@@ -34,7 +34,7 @@ The module provides new operators.
 
 |       Operator      | Returns |                 Description
 | ------------------- | ------- | ----------------------------------------------
-| tsvector >< tsquery | float4  | Returns distance between tsvector and tsquery.
+| tsvector &gt;&lt; tsquery | float4  | Returns distance between tsvector and tsquery.
 
 ## Examples
 
