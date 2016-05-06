@@ -23,10 +23,10 @@ sub test_index_replay
 	my $queries = qq(SET enable_seqscan=off;
 SET enable_bitmapscan=on;
 SET enable_indexscan=on;
-SELECT * FROM tst WHERE t \@@ to_tsquery('simple', 'b');
-SELECT * FROM tst WHERE t \@@ to_tsquery('simple', 'f');
-SELECT * FROM tst WHERE i = 3 AND t \@@ to_tsquery('simple', 'c');
-SELECT * FROM tst WHERE i = 7 AND t \@@ to_tsquery('simple', 'e');
+SELECT * FROM tst WHERE t \@@ to_tsquery('simple', 'qscfq');
+SELECT * FROM tst WHERE t \@@ to_tsquery('simple', 'ztcow');
+SELECT * FROM tst WHERE t \@@ to_tsquery('simple', 'jqljy');
+SELECT * FROM tst WHERE t \@@ to_tsquery('simple', 'lvnex');
 );
 
 	# Run test queries and compare their result
@@ -54,7 +54,11 @@ $node_standby->start;
 # Create some rum index on master
 $node_master->psql("postgres", "CREATE EXTENSION rum;");
 $node_master->psql("postgres", "CREATE TABLE tst (i int4, t tsvector);");
-$node_master->psql("postgres", "INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(1,100000) i;");
+$node_master->psql("postgres", "INSERT INTO tst SELECT i%10,
+					to_tsvector('simple', array_to_string(array(
+								select substr('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', trunc(random() * 52)::integer + 1, 1)
+								FROM   generate_series(i, i + 4)), ''))
+					FROM generate_series(1,100000) i;");
 $node_master->psql("postgres", "CREATE INDEX rumidx ON tst USING rum (t rum_tsvector_ops);");
 
 # Test that queries give same result
@@ -68,6 +72,10 @@ for my $i (1..10)
 	$node_master->psql("postgres", "VACUUM tst;");
 	test_index_replay("vacuum $i");
 	my ($start, $end) = (100001 + ($i - 1) * 10000, 100000 + $i * 10000);
-	$node_master->psql("postgres", "INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series($start,$end) i;");
+	$node_master->psql("postgres", "INSERT INTO tst SELECT i%10,
+						to_tsvector('simple', array_to_string(array(
+									select substr('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', trunc(random() * 52)::integer + 1, 1)
+									FROM   generate_series(i, i + 4)), ''))
+						FROM generate_series($start,$end) i;");
 	test_index_replay("insert $i");
 }
