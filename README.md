@@ -18,12 +18,12 @@ Before build and install **rum** you should ensure following:
 
 Typical installation procedure may look like this:
 
-$ git clone https://github.com/postgrespro/rum
-$ cd rum
-$ make USE_PGXS=1
-$ sudo make USE_PGXS=1 install
-$ make USE_PGXS=1 installcheck
-$ psql DB -c "CREATE EXTENSION rum;"
+    $ git clone https://github.com/postgrespro/rum
+    $ cd rum
+    $ make USE_PGXS=1
+    $ sudo make USE_PGXS=1 install
+    $ make USE_PGXS=1 installcheck
+    $ psql DB -c "CREATE EXTENSION rum;"
 
 ## New access method and operator class
 
