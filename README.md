@@ -1,8 +1,8 @@
-# RUM - RUM access methods
+# RUM - RUM access method
 
 ## Introduction
 
-The **rum** module provides access methods to work with RUM index. It is based
+The **rum** module provides access method to work with RUM index. It is based
 on the GIN access methods code.
 
 ## License
