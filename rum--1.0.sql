@@ -66,7 +66,46 @@ AS
         STORAGE         text;
 
 
--- timestamp
+-- timestamp ops
+
+CREATE FUNCTION timestamp_distance(timestamp, timestamp)
+RETURNS float8
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR <-> (
+	PROCEDURE = timestamp_distance,
+	LEFTARG = timestamp,
+	RIGHTARG = timestamp,
+	COMMUTATOR = <->
+);
+
+CREATE FUNCTION timestamp_left_distance(timestamp, timestamp)
+RETURNS float8
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR <-| (
+	PROCEDURE = timestamp_left_distance,
+	LEFTARG = timestamp,
+	RIGHTARG = timestamp,
+	COMMUTATOR = |->
+);
+
+CREATE FUNCTION timestamp_right_distance(timestamp, timestamp)
+RETURNS float8
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR |-> (
+	PROCEDURE = timestamp_right_distance,
+	LEFTARG = timestamp,
+	RIGHTARG = timestamp,
+	COMMUTATOR = <-|
+);
+
+
+-- timestamp operator class
 
 CREATE FUNCTION rum_timestamp_extract_value(timestamp,internal,internal,internal,internal)
 RETURNS internal

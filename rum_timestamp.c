@@ -139,3 +139,80 @@ rum_timestamp_consistent(PG_FUNCTION_ARGS)
 	*recheck = false;
 	PG_RETURN_BOOL(true);
 }
+
+PG_FUNCTION_INFO_V1(timestamp_distance);
+Datum
+timestamp_distance(PG_FUNCTION_ARGS)
+{
+	Timestamp	dt1 = PG_GETARG_TIMESTAMP(0);
+	Timestamp	dt2 = PG_GETARG_TIMESTAMP(1);
+	double		diff;
+
+	if (TIMESTAMP_NOT_FINITE(dt1) || TIMESTAMP_NOT_FINITE(dt2))
+	{
+		if (TIMESTAMP_NOT_FINITE(dt1) && TIMESTAMP_NOT_FINITE(dt2))
+			diff = 0;
+		else
+			diff = get_float8_infinity();
+	}
+	else
+	{
+		/* see timestamp_mi */
+		diff = (dt1 > dt2) ? dt1 - dt2 : dt2 - dt1;
+		diff /= 1e6;
+	}
+
+	PG_RETURN_FLOAT8(diff);
+}
+
+PG_FUNCTION_INFO_V1(timestamp_left_distance);
+Datum
+timestamp_left_distance(PG_FUNCTION_ARGS)
+{
+	Timestamp	dt1 = PG_GETARG_TIMESTAMP(0);
+	Timestamp	dt2 = PG_GETARG_TIMESTAMP(1);
+	double		diff;
+
+	if (TIMESTAMP_NOT_FINITE(dt1) || TIMESTAMP_NOT_FINITE(dt2))
+	{
+		if (TIMESTAMP_NOT_FINITE(dt1) && TIMESTAMP_NOT_FINITE(dt2))
+			diff = 0;
+		else
+			diff = get_float8_infinity();
+	}
+	else
+	{
+		/* see timestamp_mi */
+		diff = (dt1 > dt2) ? get_float8_infinity() : dt2 - dt1;
+		diff /= 1e6;
+	}
+
+	PG_RETURN_FLOAT8(diff);
+}
+
+PG_FUNCTION_INFO_V1(timestamp_right_distance);
+Datum
+timestamp_right_distance(PG_FUNCTION_ARGS)
+{
+	Timestamp	dt1 = PG_GETARG_TIMESTAMP(0);
+	Timestamp	dt2 = PG_GETARG_TIMESTAMP(1);
+	double		diff;
+
+	if (TIMESTAMP_NOT_FINITE(dt1) || TIMESTAMP_NOT_FINITE(dt2))
+	{
+		if (TIMESTAMP_NOT_FINITE(dt1) && TIMESTAMP_NOT_FINITE(dt2))
+			diff = 0;
+		else
+			diff = get_float8_infinity();
+	}
+	else
+	{
+		/* see timestamp_mi */
+		diff = (dt1 > dt2) ? dt1 - dt2 : get_float8_infinity();
+		diff /= 1e6;
+	}
+
+	PG_RETURN_FLOAT8(diff);
+}
+
+
