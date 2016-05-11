@@ -20,6 +20,7 @@
 #include "storage/lmgr.h"
 #include "utils/guc.h"
 #include "utils/index_selfuncs.h"
+#include "utils/lsyscache.h"
 
 #include "rum.h"
 
@@ -29,6 +30,8 @@ void		_PG_init(void);
 
 PG_FUNCTION_INFO_V1(rumhandler);
 
+/* Kind of relation optioms for rum index */
+static relopt_kind rum_relopt_kind;
 /*
  * Module load callback
  */
@@ -43,6 +46,12 @@ _PG_init(void)
 					0, 0, INT_MAX,
 					PGC_USERSET, 0,
 					NULL, NULL, NULL);
+
+	rum_relopt_kind = add_reloption_kind();
+
+	add_string_reloption(rum_relopt_kind, "orderby",
+						 "Column name to order by operation",
+						 NULL, NULL);
 }
 
 /*
@@ -241,6 +250,29 @@ initRumState(RumState *state, Relation index)
 			state->supportCollation[i] = index->rd_indcollation[i];
 		else
 			state->supportCollation[i] = DEFAULT_COLLATION_OID;
+	}
+
+	state->attrnOrderByColumn = InvalidAttrNumber;
+
+	if (index->rd_options)
+	{
+		RumOptions	*options = (RumOptions*) index->rd_options;
+
+		if (options->orderByColumn > 0)
+		{
+			char		*colname = (char *) options + options->orderByColumn;
+			AttrNumber	attrnOrderByHeapColumn;
+
+			attrnOrderByHeapColumn = get_attnum(index->rd_index->indrelid, colname);
+
+			if (!AttributeNumberIsValid(attrnOrderByHeapColumn))
+				elog(ERROR, "attribute \"%s\" is not found in table", colname);
+
+			state->attrnOrderByColumn = get_attnum(index->rd_id, colname);
+
+			if (!AttributeNumberIsValid(state->attrnOrderByColumn))
+				elog(ERROR, "attribute \"%s\" is not found in index", colname);
+		}
 	}
 }
 
@@ -685,10 +717,11 @@ rumoptions(Datum reloptions, bool validate)
 	RumOptions *rdopts;
 	int			numoptions;
 	static const relopt_parse_elt tab[] = {
-		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(RumOptions, useFastUpdate)}
+		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(RumOptions, useFastUpdate)},
+		{"orderby", RELOPT_TYPE_STRING, offsetof(RumOptions, orderByColumn)}
 	};
 
-	options = parseRelOptions(reloptions, validate, RELOPT_KIND_GIN,
+	options = parseRelOptions(reloptions, validate, rum_relopt_kind,
 							  &numoptions);
 
 	/* if none set, we're done */

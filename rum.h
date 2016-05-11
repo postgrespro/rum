@@ -294,6 +294,7 @@ typedef struct RumOptions
 {
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	bool		useFastUpdate;	/* use fast updates? */
+	int			orderByColumn;
 } RumOptions;
 
 #define RUM_DEFAULT_USE_FASTUPDATE	false
@@ -315,6 +316,7 @@ typedef struct RumState
 {
 	Relation	index;
 	bool		oneCol;			/* true if single-column index */
+	AttrNumber	attrnOrderByColumn;
 
 	/*
 	 * origTupDesc is the nominal tuple descriptor of the index, ie, the i'th
