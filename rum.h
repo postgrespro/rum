@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  *
- * bloom.h
+ * rum.h
  *	  Exported definitions for RUM index.
  *
  * Portions Copyright (c) 2015-2016, Postgres Professional
