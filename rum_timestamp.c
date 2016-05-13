@@ -215,4 +215,39 @@ timestamp_right_distance(PG_FUNCTION_ARGS)
 	PG_RETURN_FLOAT8(diff);
 }
 
+#define RUM_TMST_DISTANCE			20
+#define RUM_TMST_LEFT_DISTANCE		21
+#define RUM_TMST_RIGHT_DISTANCE		22
+
+PG_FUNCTION_INFO_V1(rum_timestamp_outer_distance);
+Datum
+rum_timestamp_outer_distance(PG_FUNCTION_ARGS)
+{
+	StrategyNumber	strategy = PG_GETARG_UINT16(2);
+	Datum		diff;
+
+	switch(strategy)
+	{
+		case RUM_TMST_DISTANCE:
+			diff = DirectFunctionCall2(timestamp_distance,
+									   PG_GETARG_DATUM(0),
+									   PG_GETARG_DATUM(1));
+			break;
+		case RUM_TMST_LEFT_DISTANCE:
+			diff = DirectFunctionCall2(timestamp_left_distance,
+									   PG_GETARG_DATUM(0),
+									   PG_GETARG_DATUM(1));
+			break;
+		case RUM_TMST_RIGHT_DISTANCE:
+			diff = DirectFunctionCall2(timestamp_right_distance,
+									   PG_GETARG_DATUM(0),
+									   PG_GETARG_DATUM(1));
+			break;
+		default:
+			elog(ERROR, "rum_timestamp_outer_distance: unknown strategy %u",
+				 strategy);
+	}
+
+	PG_RETURN_DATUM(diff);
+}
 

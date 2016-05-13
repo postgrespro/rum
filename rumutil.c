@@ -52,6 +52,9 @@ _PG_init(void)
 	add_string_reloption(rum_relopt_kind, "orderby",
 						 "Column name to order by operation",
 						 NULL, NULL);
+	add_string_reloption(rum_relopt_kind, "addto",
+						 "Column name to add a order by column",
+						 NULL, NULL);
 }
 
 /*
@@ -64,7 +67,7 @@ rumhandler(PG_FUNCTION_ARGS)
 	IndexAmRoutine *amroutine = makeNode(IndexAmRoutine);
 
 	amroutine->amstrategies = 0;
-	amroutine->amsupport = 9;
+	amroutine->amsupport = RUMNProcs;
 	amroutine->amcanorder = false;
 	amroutine->amcanorderbyop = true;
 	amroutine->amcanbackward = false;
@@ -115,6 +118,49 @@ initRumState(RumState *state, Relation index)
 	state->oneCol = (origTupdesc->natts == 1) ? true : false;
 	state->origTupdesc = origTupdesc;
 
+	state->attrnOrderByColumn = InvalidAttrNumber;
+	state->attrnAddToColumn = InvalidAttrNumber;
+	if (index->rd_options)
+	{
+		RumOptions	*options = (RumOptions*) index->rd_options;
+
+		if (options->orderByColumn > 0)
+		{
+			char		*colname = (char *) options + options->orderByColumn;
+			AttrNumber	attrnOrderByHeapColumn;
+
+			attrnOrderByHeapColumn = get_attnum(index->rd_index->indrelid, colname);
+
+			if (!AttributeNumberIsValid(attrnOrderByHeapColumn))
+				elog(ERROR, "attribute \"%s\" is not found in table", colname);
+
+			state->attrnOrderByColumn = get_attnum(index->rd_id, colname);
+
+			if (!AttributeNumberIsValid(state->attrnOrderByColumn))
+				elog(ERROR, "attribute \"%s\" is not found in index", colname);
+		}
+
+		if (options->addToColumn > 0)
+		{
+			char		*colname = (char *) options + options->addToColumn;
+			AttrNumber	attrnAddToHeapColumn;
+
+			attrnAddToHeapColumn = get_attnum(index->rd_index->indrelid, colname);
+
+			if (!AttributeNumberIsValid(attrnAddToHeapColumn))
+				elog(ERROR, "attribute \"%s\" is not found in table", colname);
+
+			state->attrnAddToColumn = get_attnum(index->rd_id, colname);
+
+			if (!AttributeNumberIsValid(state->attrnAddToColumn))
+				elog(ERROR, "attribute \"%s\" is not found in index", colname);
+		}
+
+		if (!(AttributeNumberIsValid(state->attrnOrderByColumn) &&
+			  AttributeNumberIsValid(state->attrnAddToColumn)))
+			elog(ERROR, "AddTo and OrderBy colums should be defined both");
+	}
+
 	for (i = 0; i < origTupdesc->natts; i++)
 	{
 		RumConfig rumConfig;
@@ -129,7 +175,19 @@ initRumState(RumState *state, Relation index)
 
 			FunctionCall1(&state->configFn[i], PointerGetDatum(&rumConfig));
 		}
-		state->addInfoTypeOid[i] = rumConfig.addInfoTypeOid;
+
+		if (state->attrnAddToColumn == i+1)
+		{
+			if (OidIsValid(rumConfig.addInfoTypeOid)) 
+				elog(ERROR, "AddTo could should not have AddInfo");
+
+			state->addInfoTypeOid[i] = origTupdesc->attrs[
+					state->attrnOrderByColumn - 1]->atttypid;
+		}
+		else
+		{
+			state->addInfoTypeOid[i] = rumConfig.addInfoTypeOid;
+		}
 
 		if (state->oneCol)
 		{
@@ -234,6 +292,18 @@ initRumState(RumState *state, Relation index)
 			state->canOrdering[i] = false;
 		}
 
+		if (index_getprocid(index, i + 1, RUM_OUTER_ORDERING_PROC) != InvalidOid)
+		{
+			fmgr_info_copy(&(state->outerOrderingFn[i]),
+				index_getprocinfo(index, i + 1, RUM_OUTER_ORDERING_PROC),
+						CurrentMemoryContext);
+			state->canOuterOrdering[i] = true;
+		}
+		else
+		{
+			state->canOuterOrdering[i] = false;
+		}
+
 		/*
 		 * If the index column has a specified collation, we should honor that
 		 * while doing comparisons.  However, we may have a collatable storage
@@ -250,29 +320,6 @@ initRumState(RumState *state, Relation index)
 			state->supportCollation[i] = index->rd_indcollation[i];
 		else
 			state->supportCollation[i] = DEFAULT_COLLATION_OID;
-	}
-
-	state->attrnOrderByColumn = InvalidAttrNumber;
-
-	if (index->rd_options)
-	{
-		RumOptions	*options = (RumOptions*) index->rd_options;
-
-		if (options->orderByColumn > 0)
-		{
-			char		*colname = (char *) options + options->orderByColumn;
-			AttrNumber	attrnOrderByHeapColumn;
-
-			attrnOrderByHeapColumn = get_attnum(index->rd_index->indrelid, colname);
-
-			if (!AttributeNumberIsValid(attrnOrderByHeapColumn))
-				elog(ERROR, "attribute \"%s\" is not found in table", colname);
-
-			state->attrnOrderByColumn = get_attnum(index->rd_id, colname);
-
-			if (!AttributeNumberIsValid(state->attrnOrderByColumn))
-				elog(ERROR, "attribute \"%s\" is not found in index", colname);
-		}
 	}
 }
 
@@ -718,7 +765,8 @@ rumoptions(Datum reloptions, bool validate)
 	int			numoptions;
 	static const relopt_parse_elt tab[] = {
 		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(RumOptions, useFastUpdate)},
-		{"orderby", RELOPT_TYPE_STRING, offsetof(RumOptions, orderByColumn)}
+		{"orderby", RELOPT_TYPE_STRING, offsetof(RumOptions, orderByColumn)},
+		{"addto", RELOPT_TYPE_STRING, offsetof(RumOptions, addToColumn)}
 	};
 
 	options = parseRelOptions(reloptions, validate, rum_relopt_kind,

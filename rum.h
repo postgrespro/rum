@@ -295,6 +295,7 @@ typedef struct RumOptions
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	bool		useFastUpdate;	/* use fast updates? */
 	int			orderByColumn;
+	int			addToColumn;
 } RumOptions;
 
 #define RUM_DEFAULT_USE_FASTUPDATE	false
@@ -317,6 +318,7 @@ typedef struct RumState
 	Relation	index;
 	bool		oneCol;			/* true if single-column index */
 	AttrNumber	attrnOrderByColumn;
+	AttrNumber	attrnAddToColumn;
 
 	/*
 	 * origTupDesc is the nominal tuple descriptor of the index, ie, the i'th
@@ -345,12 +347,14 @@ typedef struct RumState
 	FmgrInfo	configFn[INDEX_MAX_KEYS];			/* optional method */
 	FmgrInfo	preConsistentFn[INDEX_MAX_KEYS];			/* optional method */
 	FmgrInfo	orderingFn[INDEX_MAX_KEYS];			/* optional method */
+	FmgrInfo	outerOrderingFn[INDEX_MAX_KEYS];			/* optional method */
 	/* canPartialMatch[i] is true if comparePartialFn[i] is valid */
 	bool		canPartialMatch[INDEX_MAX_KEYS];
 	/* canPreConsistent[i] is true if preConsistentFn[i] is valid */
 	bool		canPreConsistent[INDEX_MAX_KEYS];
 	/* canOrdering[i] is true if orderingFn[i] is valid */
 	bool		canOrdering[INDEX_MAX_KEYS];
+	bool		canOuterOrdering[INDEX_MAX_KEYS];
 	/* Collations to pass to the support functions */
 	Oid			supportCollation[INDEX_MAX_KEYS];
 } RumState;
@@ -738,7 +742,8 @@ extern void rumInsertCleanup(RumState *rumstate,
 #define RUM_CONFIG_PROC				7
 #define RUM_PRE_CONSISTENT_PROC		8
 #define RUM_ORDERING_PROC			9
-#define RUMNProcs					9
+#define RUM_OUTER_ORDERING_PROC		10
+#define RUMNProcs					10
 
 extern Datum rum_extract_tsvector(PG_FUNCTION_ARGS);
 extern Datum rum_extract_tsquery(PG_FUNCTION_ARGS);

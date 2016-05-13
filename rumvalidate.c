@@ -161,6 +161,11 @@ rumvalidate(Oid opclassoid)
 											INTERNALOID, INTERNALOID,
 											INTERNALOID);
 				break;
+			case RUM_OUTER_ORDERING_PROC:
+				ok = check_amproc_signature(procform->amproc, FLOAT8OID, false,
+											3, 3,
+											opcintype, opcintype, INT2OID);
+				break;
 			default:
 				ereport(INFO,
 						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
