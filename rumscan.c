@@ -301,9 +301,9 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 	int32		searchMode = GIN_SEARCH_MODE_DEFAULT;
 
 	/*
-		* We assume that RUM-indexable operators are strict, so a null query
-		* argument means an unsatisfiable query.
-		*/
+	 * We assume that RUM-indexable operators are strict, so a null query
+	 * argument means an unsatisfiable query.
+	 */
 	if (skey->sk_flags & SK_ISNULL)
 	{
 		so->isVoidRes = true;
