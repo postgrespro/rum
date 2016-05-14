@@ -6,6 +6,10 @@
 #include "utils/builtins.h"
 #include "utils/timestamp.h"
 
+#define RUM_TMST_DISTANCE			20
+#define RUM_TMST_LEFT_DISTANCE		21
+#define RUM_TMST_RIGHT_DISTANCE		22
+
 typedef struct QueryInfo
 {
 	StrategyNumber	strategy;
@@ -59,6 +63,9 @@ rum_timestamp_extract_query(PG_FUNCTION_ARGS)
 		case BTGreaterStrategyNumber:
 			*ptr_partialmatch = true;
 		case BTEqualStrategyNumber:
+		case RUM_TMST_DISTANCE:
+		case RUM_TMST_LEFT_DISTANCE:
+		case RUM_TMST_RIGHT_DISTANCE:
 			entries[0] = datum;
 			break;
 		default:
@@ -214,10 +221,6 @@ timestamp_right_distance(PG_FUNCTION_ARGS)
 
 	PG_RETURN_FLOAT8(diff);
 }
-
-#define RUM_TMST_DISTANCE			20
-#define RUM_TMST_LEFT_DISTANCE		21
-#define RUM_TMST_RIGHT_DISTANCE		22
 
 PG_FUNCTION_INFO_V1(rum_timestamp_outer_distance);
 Datum

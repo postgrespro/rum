@@ -561,13 +561,16 @@ typedef struct RumScanKeyData
 	bool	   *entryRes;
 	Datum	   *addInfo;
 	bool	   *addInfoIsNull;
+	bool		useAddToColumn;
+	Datum		outerAddInfo;
+	bool		outerAddInfoIsNull;
 
 	/* other data needed for calling consistentFn */
 	Datum		query;
 	/* NB: these three arrays have only nuserentries elements! */
 	Datum	   *queryValues;
 	RumNullCategory *queryCategories;
-	Pointer    *extra_data;
+	Pointer		*extra_data;
 	StrategyNumber strategy;
 	int32		searchMode;
 	OffsetNumber attnum;

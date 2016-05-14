@@ -140,16 +140,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	/* Non-default search modes add one "hidden" entry to each key */
 	if (searchMode != GIN_SEARCH_MODE_DEFAULT)
 		nQueryValues++;
-	key->nentries = nQueryValues;
-	key->nuserentries = nUserQueryValues;
 	key->orderBy = orderBy;
-
-	key->scanEntry = (RumScanEntry *) palloc(sizeof(RumScanEntry) * nQueryValues);
-	key->entryRes = (bool *) palloc0(sizeof(bool) * nQueryValues);
-	key->addInfo = (Datum *) palloc0(sizeof(Datum) * nQueryValues);
-	key->addInfoIsNull = (bool *) palloc(sizeof(bool) * nQueryValues);
-	for (i = 0; i < nQueryValues; i++)
-		key->addInfoIsNull[i] = true;
 
 	key->query = query;
 	key->queryValues = queryValues;
@@ -158,11 +149,38 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	key->strategy = strategy;
 	key->searchMode = searchMode;
 	key->attnum = attnum;
+	key->useAddToColumn = false;
 
 	ItemPointerSetMin(&key->curItem);
 	key->curItemMatches = false;
 	key->recheckCurItem = false;
 	key->isFinished = false;
+
+	if (key->orderBy && key->attnum == rumstate->attrnOrderByColumn)
+	{
+		if (nQueryValues != 1)
+			elog(ERROR, "extractQuery should return only one value");
+		if (rumstate->canOuterOrdering[attnum - 1] == false)
+			elog(ERROR,"doesn't support ordering as additional info");
+
+		key->useAddToColumn = true;
+		key->attnum = rumstate->attrnAddToColumn;
+		key->nentries = 0;
+		key->nuserentries = 0;
+
+		key->outerAddInfoIsNull = true;
+
+		return;
+	}
+
+	key->nentries = nQueryValues;
+	key->nuserentries = nUserQueryValues;
+	key->scanEntry = (RumScanEntry *) palloc(sizeof(RumScanEntry) * nQueryValues);
+	key->entryRes = (bool *) palloc0(sizeof(bool) * nQueryValues);
+	key->addInfo = (Datum *) palloc0(sizeof(Datum) * nQueryValues);
+	key->addInfoIsNull = (bool *) palloc(sizeof(bool) * nQueryValues);
+	for (i = 0; i < nQueryValues; i++)
+		key->addInfoIsNull[i] = true;
 
 	for (i = 0; i < nQueryValues; i++)
 	{
@@ -233,8 +251,11 @@ freeScanKeys(RumScanOpaque so)
 	{
 		RumScanKey	key = so->keys + i;
 
-		pfree(key->scanEntry);
-		pfree(key->entryRes);
+		if (key->nentries > 0)
+		{
+			pfree(key->scanEntry);
+			pfree(key->entryRes);
+		}
 	}
 
 	pfree(so->keys);
@@ -275,7 +296,7 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 	Datum	   *queryValues;
 	int32		nQueryValues = 0;
 	bool	   *partial_matches = NULL;
-	Pointer    *extra_data = NULL;
+	Pointer	   *extra_data = NULL;
 	bool	   *nullFlags = NULL;
 	int32		searchMode = GIN_SEARCH_MODE_DEFAULT;
 
