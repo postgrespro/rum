@@ -149,6 +149,41 @@ calc_wraps(QueryItemWrap *wrap, int *num)
 	return result;
 }
 
+static bool
+check_allnegative(QueryItemWrap *wrap)
+{
+	if (wrap->type == QI_VAL)
+	{
+		return wrap->not;
+	}
+	else if (wrap->oper == OP_AND)
+	{
+		int		i;
+		for (i = 0; i < wrap->operandsCount; i++)
+		{
+			if (!check_allnegative(&wrap->operands[i]))
+				return false;
+		}
+		return true;
+	}
+	else if (wrap->oper == OP_OR)
+	{
+		int		i;
+		for (i = 0; i < wrap->operandsCount; i++)
+		{
+			if (check_allnegative(&wrap->operands[i]))
+				return true;
+		}
+		return false;
+	}
+	else
+	{
+		elog(ERROR, "check_allnegative: invalid node");
+		return false;
+	}
+
+}
+
 #define MAX_ENCODED_LEN 5
 
 /*
@@ -221,12 +256,12 @@ extract_wraps(QueryItemWrap *wrap, ExtractContext *context, int level)
 {
 	if (wrap->type == QI_VAL)
 	{
-		bytea		   *addinfo = (bytea *) palloc(VARHDRSZ + level * MAX_ENCODED_LEN);
+		bytea		   *addinfo = (bytea *) palloc(VARHDRSZ + Max(level, 1) * MAX_ENCODED_LEN);
 		unsigned char  *ptr = (unsigned char *)VARDATA(addinfo);
 		int				index = context->index;
 
 		context->entries[index] = PointerGetDatum(cstring_to_text_with_len(context->operand + wrap->distance, wrap->length));
-		elog(NOTICE, "%s", text_to_cstring(DatumGetPointer(context->entries[index])));
+		elog(NOTICE, "%s", text_to_cstring(DatumGetTextP(context->entries[index])));
 
 		while (wrap->parent)
 		{
@@ -242,6 +277,11 @@ extract_wraps(QueryItemWrap *wrap, ExtractContext *context, int level)
 				sum |= 1;
 			encode_varbyte(sum, &ptr);
 			wrap = parent;
+		}
+		if (level == 0 && wrap->not)
+		{
+			encode_varbyte(1, &ptr);
+			encode_varbyte(4 | 1, &ptr);
 		}
 		SET_VARSIZE(addinfo, ptr - (unsigned char *)addinfo);
 
@@ -278,6 +318,7 @@ ruminv_extract_tsquery(PG_FUNCTION_ARGS)
 {
 	TSQuery		query = PG_GETARG_TSQUERY(0);
 	int32	   *nentries = (int32 *) PG_GETARG_POINTER(1);
+	bool	  **nullFlags = (bool **) PG_GETARG_POINTER(2);
 	Datum	   **addInfo = (Datum **) PG_GETARG_POINTER(3);
 	bool	   **addInfoIsNull = (bool **) PG_GETARG_POINTER(4);
 	Datum	   *entries = NULL;
@@ -285,13 +326,26 @@ ruminv_extract_tsquery(PG_FUNCTION_ARGS)
 	QueryItemWrap *wrap;
 	ExtractContext context;
 	int			num = 1;
+	bool		extractNull;
 
 	wrap = make_query_item_wrap(item, NULL, false);
 	*nentries = calc_wraps(wrap, &num);
+	extractNull = check_allnegative(wrap);
+	if (extractNull)
+		(*nentries)++;
 
 	entries = (Datum *) palloc(sizeof(Datum) * (*nentries));
 	*addInfo = (Datum *) palloc(sizeof(Datum) * (*nentries));
 	*addInfoIsNull = (bool *) palloc(sizeof(bool) * (*nentries));
+	if (extractNull)
+	{
+		int	i;
+		*nullFlags = (bool *) palloc(sizeof(bool) * (*nentries));
+		for (i = 0; i < *nentries - 1; i++)
+			(*nullFlags)[i] = false;
+		(*nullFlags)[*nentries - 1] = true;
+		(*addInfoIsNull)[*nentries - 1] = true;
+	}
 
 	context.addInfo = *addInfo;
 	context.addInfoIsNull = *addInfoIsNull;
@@ -322,29 +376,32 @@ ruminv_extract_tsvector(PG_FUNCTION_ARGS)
 	bool	  **ptr_partialmatch = (bool **) PG_GETARG_POINTER(3);
 	Pointer   **extra_data = (Pointer **) PG_GETARG_POINTER(4);
 
-	/* bool   **nullFlags = (bool **) PG_GETARG_POINTER(5); */
+	bool	   **nullFlags = (bool **) PG_GETARG_POINTER(5);
 	int32	   *searchMode = (int32 *) PG_GETARG_POINTER(6);
 	Datum	   *entries = NULL;
 
-	*nentries = vector->size;
+	*nentries = vector->size + 1;
+	*extra_data = NULL;
+	*ptr_partialmatch = NULL;
+	*searchMode = GIN_SEARCH_MODE_DEFAULT;
+
+	entries = (Datum *) palloc(sizeof(Datum) * (*nentries));
+	*nullFlags = (bool *) palloc(sizeof(bool) * (*nentries));
 	if (vector->size > 0)
 	{
 		int			i;
 		WordEntry  *we = ARRPTR(vector);
 
-		*extra_data = NULL;
-		*ptr_partialmatch = NULL;
-		*searchMode = GIN_SEARCH_MODE_DEFAULT;
-
-		entries = (Datum *) palloc(sizeof(Datum) * vector->size);
 		for (i = 0; i < vector->size; i++)
 		{
 			text	   *txt;
 
 			txt = cstring_to_text_with_len(STRPTR(vector) + we[i].pos, we[i].len);
 			entries[i] = PointerGetDatum(txt);
+			(*nullFlags)[i] = false;
 		}
 	}
+	(*nullFlags)[*nentries - 1] = true;
 	PG_FREE_IF_COPY(vector, 0);
 	PG_RETURN_POINTER(entries);
 }
@@ -368,14 +425,15 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
-	bool		res = false;
+	bool		res = false,
+				allFalse = true;
 	int			i,
 				lastIndex = 0;
 	TmpNode		nodes[256];
 
 	*recheck = false;
 
-	for (i = 0; i < nkeys; i++)
+	for (i = 0; i < nkeys - 1; i++)
 	{
 		unsigned char *ptr,
 					  *ptrEnd;
@@ -384,6 +442,8 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 
 		if (!check[i])
 			continue;
+
+		allFalse = false;
 
 		if (addInfoIsNull[i])
 			elog(ERROR, "Unexpected addInfoIsNull");
@@ -445,26 +505,33 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 		}
 	}
 
-/*	for (i = 0; i < lastIndex; i++)
+	if (allFalse && check[nkeys - 1])
 	{
-		elog(NOTICE, "s %d %d %d %d", i, nodes[i].sum, nodes[i].parent, nodes[i].not);
-	}*/
-
-	for (i = lastIndex - 1; i >= 0; i--)
+		res = true;
+	}
+	else
 	{
-		if (nodes[i].parent != -2)
+	/*	for (i = 0; i < lastIndex; i++)
 		{
-			if (nodes[i].sum > 0)
+			elog(NOTICE, "s %d %d %d %d", i, nodes[i].sum, nodes[i].parent, nodes[i].not);
+		}*/
+
+		for (i = lastIndex - 1; i >= 0; i--)
+		{
+			if (nodes[i].parent != -2)
 			{
-				if (nodes[i].parent == -1)
+				if (nodes[i].sum > 0)
 				{
-					res = true;
-					break;
-				}
-				else
-				{
-					int parent = nodes[i].parent;
-					nodes[parent].sum += nodes[i].not ? -1 : 1;
+					if (nodes[i].parent == -1)
+					{
+						res = true;
+						break;
+					}
+					else
+					{
+						int parent = nodes[i].parent;
+						nodes[parent].sum += nodes[i].not ? -1 : 1;
+					}
 				}
 			}
 		}
