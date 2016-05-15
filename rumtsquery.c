@@ -16,6 +16,7 @@
 #include "tsearch/ts_utils.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/bytea.h"
 
 #include "rum.h"
 
@@ -225,11 +226,13 @@ extract_wraps(QueryItemWrap *wrap, ExtractContext *context, int level)
 		int				index = context->index;
 
 		context->entries[index] = PointerGetDatum(cstring_to_text_with_len(context->operand + wrap->distance, wrap->length));
+		elog(NOTICE, "%s", text_to_cstring(DatumGetPointer(context->entries[index])));
 
 		while (wrap->parent)
 		{
 			QueryItemWrap  *parent = wrap->parent;
 			uint32			sum;
+			elog(NOTICE, "%d %d %d", parent->num, parent->sum, wrap->not);
 			encode_varbyte((uint32) parent->num, &ptr);
 			sum = (uint32)abs(parent->sum);
 			sum <<= 2;
@@ -338,7 +341,7 @@ ruminv_extract_tsvector(PG_FUNCTION_ARGS)
 		{
 			text	   *txt;
 
-			txt = cstring_to_text_with_len(STRPTR(vector) + we->pos, we->len);
+			txt = cstring_to_text_with_len(STRPTR(vector) + we[i].pos, we[i].len);
 			entries[i] = PointerGetDatum(txt);
 		}
 	}
@@ -364,7 +367,7 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 	/* Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4); */
 	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
-	/* bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9); */
+	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
 	bool		res = false;
 	int			i,
 				lastIndex = 0;
@@ -374,13 +377,21 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 
 	for (i = 0; i < nkeys; i++)
 	{
-		unsigned char *ptr = (unsigned char *)VARDATA_ANY(DatumGetPointer(addInfo[i])),
-				*ptrEnd;
-		int		size = VARSIZE_ANY_EXHDR(DatumGetPointer(addInfo[i]));
+		unsigned char *ptr,
+					  *ptrEnd;
+		int		size;
 		TmpNode *child = NULL;
 
 		if (!check[i])
 			continue;
+
+		if (addInfoIsNull[i])
+			elog(ERROR, "Unexpected addInfoIsNull");
+
+		ptr = (unsigned char *)VARDATA_ANY(DatumGetPointer(addInfo[i]));
+		size = VARSIZE_ANY_EXHDR(DatumGetPointer(addInfo[i]));
+
+/*		elog(NOTICE, "%d %s", i, DatumGetPointer(DirectFunctionCall1(byteaout, addInfo[i])));*/
 
 		if (size == 0)
 		{
@@ -401,6 +412,8 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 			sum = (sumVal & 2) ? (-sum) : (sum);
 
 			index = num - 1;
+
+/*			elog(NOTICE, "a %d %d %d %d", i, index, sum, not);*/
 
 			if (child)
 			{
@@ -432,6 +445,11 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 		}
 	}
 
+/*	for (i = 0; i < lastIndex; i++)
+	{
+		elog(NOTICE, "s %d %d %d %d", i, nodes[i].sum, nodes[i].parent, nodes[i].not);
+	}*/
+
 	for (i = lastIndex - 1; i >= 0; i--)
 	{
 		if (nodes[i].parent != -2)
@@ -446,13 +464,13 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 				else
 				{
 					int parent = nodes[i].parent;
-					nodes[parent].sum += nodes[i].not ? 1 : -1;
+					nodes[parent].sum += nodes[i].not ? -1 : 1;
 				}
 			}
 		}
 	}
 
-	elog(NOTICE, "%d", res);
+/*	elog(NOTICE, "%d", res);*/
 
 	PG_RETURN_BOOL(res);
 }
