@@ -59,10 +59,9 @@ AS
         FUNCTION        3       rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal),
         FUNCTION        4       rum_tsquery_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         FUNCTION        5       gin_cmp_prefix(text,text,smallint,internal),
-        FUNCTION        6       gin_tsquery_triconsistent(internal,smallint,tsvector,int,internal,internal,internal),
-        FUNCTION        7       rum_tsvector_config(internal),
-        FUNCTION        8       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
-        FUNCTION        9       rum_tsquery_distance(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),
+        FUNCTION        6       rum_tsvector_config(internal),
+        FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
+        FUNCTION        8       rum_tsquery_distance(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),
         STORAGE         text;
 
 -- timestamp ops
@@ -146,7 +145,7 @@ AS
 	FUNCTION        4 rum_timestamp_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal),
 	FUNCTION        5 rum_timestamp_compare_prefix(timestamp,timestamp,smallint,internal),
 	-- support to timestamp disttance in rum_tsvector_timestamp_ops
-	FUNCTION		10 rum_timestamp_outer_distance(timestamp, timestamp, smallint),
+	FUNCTION		9 rum_timestamp_outer_distance(timestamp, timestamp, smallint),
 	OPERATOR		20		<-> (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
 	OPERATOR		21		<-| (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
 	OPERATOR		22		|-> (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
@@ -169,8 +168,7 @@ AS
         FUNCTION        3       rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal),
         FUNCTION        4       rum_tsquery_timestamp_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         FUNCTION        5       gin_cmp_prefix(text,text,smallint,internal),
-        FUNCTION        6       gin_tsquery_triconsistent(internal,smallint,tsvector,int,internal,internal,internal),
-        FUNCTION        8       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
+        FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         STORAGE         text;
 
 

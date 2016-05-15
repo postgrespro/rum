@@ -742,11 +742,11 @@ extern void rumInsertCleanup(RumState *rumstate,
 				 bool vac_delay, IndexBulkDeleteResult *stats);
 
 /* rum_ts_utils.c */
-#define RUM_CONFIG_PROC				7
-#define RUM_PRE_CONSISTENT_PROC		8
-#define RUM_ORDERING_PROC			9
-#define RUM_OUTER_ORDERING_PROC		10
-#define RUMNProcs					10
+#define RUM_CONFIG_PROC				6
+#define RUM_PRE_CONSISTENT_PROC		7
+#define RUM_ORDERING_PROC			8
+#define RUM_OUTER_ORDERING_PROC		9
+#define RUMNProcs					9
 
 extern Datum rum_extract_tsvector(PG_FUNCTION_ARGS);
 extern Datum rum_extract_tsquery(PG_FUNCTION_ARGS);
