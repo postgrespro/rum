@@ -819,6 +819,7 @@ ruminsert(Relation index, Datum *values, bool *isnull,
 		outerAddInfoIsNull = isnull[rumstate.attrnOrderByColumn - 1];
 	}
 
+#ifdef NOT_USED
 	if (RumGetUseFastUpdate(index))
 	{
 		RumTupleCollector collector;
@@ -834,6 +835,7 @@ ruminsert(Relation index, Datum *values, bool *isnull,
 		rumHeapTupleFastInsert(&rumstate, &collector);
 	}
 	else
+#endif
 	{
 		for (i = 0; i < rumstate.origTupdesc->natts; i++)
 			rumHeapTupleInsert(&rumstate, (OffsetNumber) (i + 1),
