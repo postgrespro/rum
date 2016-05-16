@@ -1,7 +1,7 @@
 # contrib/rum/Makefile
 
 MODULE_big = rum
-OBJS = rumsort.o rum_ts_utils.o \
+OBJS = rumsort.o rum_ts_utils.o rumtsquery.o \
 	rumbtree.o rumbulk.o rumdatapage.o \
 	rumentrypage.o rumfast.o rumget.o ruminsert.o \
 	rumscan.o rumutil.o rumvacuum.o rumvalidate.o \
@@ -11,7 +11,7 @@ EXTENSION = rum
 DATA = rum--1.0.sql
 PGFILEDESC = "RUM index access method"
 
-REGRESS = rum timestamp orderby
+REGRESS = rum ruminv timestamp orderby
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
