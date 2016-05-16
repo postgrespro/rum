@@ -172,3 +172,33 @@ AS
         STORAGE         text;
 
 
+CREATE FUNCTION ruminv_extract_tsquery(tsquery,internal,internal,internal,internal)
+RETURNS internal
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION ruminv_extract_tsvector(tsvector,internal,smallint,internal,internal,internal,internal)
+RETURNS internal
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION ruminv_tsvector_consistent(internal, smallint, tsvector, integer, internal, internal, internal, internal)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION ruminv_tsquery_config(internal)
+RETURNS void
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR CLASS rum_tsquery_ops
+DEFAULT FOR TYPE tsquery USING rum
+AS
+        OPERATOR        1       @@ (tsquery, tsvector),
+        FUNCTION        1       gin_cmp_tslexeme(text, text),
+        FUNCTION        2       ruminv_extract_tsquery(tsquery,internal,internal,internal,internal),
+        FUNCTION        3       ruminv_extract_tsvector(tsvector,internal,smallint,internal,internal,internal,internal),
+        FUNCTION        4       ruminv_tsvector_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
+        FUNCTION        6       ruminv_tsquery_config(internal),
+        STORAGE         text;
