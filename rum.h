@@ -489,6 +489,7 @@ extern IndexTuple rumPageGetLinkItup(Buffer buf, Page page);
 extern void rumReadTuple(RumState *rumstate, OffsetNumber attnum,
 	IndexTuple itup, ItemPointerData *ipd, Datum *addInfo, bool *addInfoIsNull);
 extern ItemPointerData updateItemIndexes(Page page, OffsetNumber attnum, RumState *rumstate);
+extern void checkLeafDataPage(RumState *rumstate, AttrNumber attrnum, Page page);
 
 /* rumdatapage.c */
 extern int rumCompareItemPointers(ItemPointer a, ItemPointer b);

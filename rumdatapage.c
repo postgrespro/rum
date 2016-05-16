@@ -431,7 +431,8 @@ findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
 	 */
 	for (i = 0; i < RumDataLeafIndexCount; i++)
 	{
-		RumDataLeafItemIndex *index = &RumPageGetIndexes(page)[i];
+		RumDataLeafItemIndex	*index = RumPageGetIndexes(page) + i;
+
 		if (index->offsetNumer == InvalidOffsetNumber)
 			break;
 
@@ -1196,9 +1197,60 @@ updateItemIndexes(Page page, OffsetNumber attnum, RumState *rumstate)
 	}
 	/* Update freespace of page */
 	RumPageGetOpaque(page)->freespace = RumDataPageFreeSpacePre(page, ptr);
-	/* Adjust pd_lower */
+	/* Adjust pd_lower and pd_upper */
 	((PageHeader) page)->pd_lower = ptr - page;
+	((PageHeader) page)->pd_upper = ((char*)RumPageGetIndexes(page)) - page;
+
 	return iptr;
+}
+
+void
+checkLeafDataPage(RumState *rumstate, AttrNumber attnum, Page page)
+{
+	Offset					maxoff, i;
+	char					*ptr;
+	ItemPointerData			iptr;
+	RumDataLeafItemIndex	*index, *previndex = NULL;
+
+	if (!(RumPageGetOpaque(page)->flags & RUM_DATA))
+		return;
+
+	maxoff = RumPageGetOpaque(page)->maxoff;
+	ptr = RumDataPageGetData(page);
+	iptr.ip_blkid.bi_lo = 0;
+	iptr.ip_blkid.bi_hi = 0;
+	iptr.ip_posid = 0;
+
+	Assert(RumPageGetOpaque(page)->flags & RUM_LEAF);
+
+	for(i = FirstOffsetNumber; i <= maxoff; i++)
+		ptr = rumDataPageLeafRead(ptr, attnum, &iptr, NULL, NULL, rumstate);
+
+	Assert((char*)RumPageGetIndexes(page) == page + ((PageHeader)page)->pd_upper);
+
+	for(i = 0; i <RumDataLeafIndexCount; i++)
+	{
+		index = RumPageGetIndexes(page) + i;
+
+		if (index->offsetNumer == InvalidOffsetNumber)
+			break;
+
+		Assert(index->pageOffset < ((PageHeader)page)->pd_lower);
+
+		if (previndex)
+		{
+			Assert(previndex->offsetNumer < index->offsetNumer);
+			Assert(previndex->pageOffset < index->pageOffset);
+			Assert(rumCompareItemPointers(&index->iptr, &previndex->iptr) > 0);
+		}
+
+		if (i != RumDataLeafIndexCount - 1)
+		{
+			iptr = index->iptr;
+			rumDataPageLeafRead(RumDataPageGetData(page) + index->pageOffset,
+								attnum, &iptr, NULL, NULL, rumstate);
+		}
+	}
 }
 
 /*
