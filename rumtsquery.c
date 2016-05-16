@@ -256,18 +256,47 @@ extract_wraps(QueryItemWrap *wrap, ExtractContext *context, int level)
 {
 	if (wrap->type == QI_VAL)
 	{
-		bytea		   *addinfo = (bytea *) palloc(VARHDRSZ + Max(level, 1) * MAX_ENCODED_LEN);
-		unsigned char  *ptr = (unsigned char *)VARDATA(addinfo);
+		bytea		   *addinfo;
+		unsigned char  *ptr;
 		int				index = context->index;
 
-		context->entries[index] = PointerGetDatum(cstring_to_text_with_len(context->operand + wrap->distance, wrap->length));
-		elog(NOTICE, "%s", text_to_cstring(DatumGetTextP(context->entries[index])));
+
+		for (index = 0; index < context->index; index++)
+		{
+			text *entry;
+			entry = DatumGetByteaP(context->entries[index]);
+			if (VARSIZE_ANY_EXHDR(entry) == wrap->length &&
+				!memcmp(context->operand + wrap->distance, VARDATA_ANY(entry), wrap->length))
+					break;
+		}
+
+		if (index >= context->index)
+		{
+			index = context->index;
+			addinfo = (bytea *) palloc(VARHDRSZ + 2 * Max(level, 1) * MAX_ENCODED_LEN);
+			ptr = (unsigned char *) VARDATA(addinfo);
+			context->entries[index] = PointerGetDatum(cstring_to_text_with_len(context->operand + wrap->distance, wrap->length));
+			context->addInfo[index] = PointerGetDatum(addinfo);
+			context->addInfoIsNull[index] = false;
+			context->index++;
+			/*ptrEnd = (unsigned char *) VARDATA(addinfo) + VARHDRSZ + 2 * Max(level, 1) * MAX_ENCODED_LEN;*/
+		}
+		else
+		{
+			addinfo = DatumGetByteaP(context->addInfo[index]);
+			addinfo = (bytea *) repalloc(addinfo,
+				VARSIZE(addinfo) + 2 * Max(level, 1) * MAX_ENCODED_LEN);
+			context->addInfo[index] = PointerGetDatum(addinfo);
+			ptr = (unsigned char *) VARDATA(addinfo) + VARSIZE_ANY_EXHDR(addinfo);
+			/*ptrEnd = (unsigned char *) VARDATA(addinfo) + VARSIZE_ANY_EXHDR(addinfo) + 2 * Max(level, 1) * MAX_ENCODED_LEN;*/
+		}
+		/*elog(NOTICE, "%s", text_to_cstring(DatumGetTextP(context->entries[index])));*/
 
 		while (wrap->parent)
 		{
 			QueryItemWrap  *parent = wrap->parent;
 			uint32			sum;
-			elog(NOTICE, "%d %d %d", parent->num, parent->sum, wrap->not);
+			/*elog(NOTICE, "%d %d %d", parent->num, parent->sum, wrap->not);*/
 			encode_varbyte((uint32) parent->num, &ptr);
 			sum = (uint32)abs(parent->sum);
 			sum <<= 2;
@@ -283,11 +312,9 @@ extract_wraps(QueryItemWrap *wrap, ExtractContext *context, int level)
 			encode_varbyte(1, &ptr);
 			encode_varbyte(4 | 1, &ptr);
 		}
+		/*Assert(ptr <= ptrEnd);*/
 		SET_VARSIZE(addinfo, ptr - (unsigned char *)addinfo);
-
-		context->addInfo[index] = PointerGetDatum(addinfo);
-		context->addInfoIsNull[index] = false;
-		context->index++;
+		/*elog(NOTICE, "%s", DatumGetPointer(DirectFunctionCall1(byteaout, PointerGetDatum(addinfo))));*/
 	}
 	else if (wrap->type == QI_OPR)
 	{
@@ -325,27 +352,19 @@ ruminv_extract_tsquery(PG_FUNCTION_ARGS)
 	QueryItem  *item = GETQUERY(query);
 	QueryItemWrap *wrap;
 	ExtractContext context;
-	int			num = 1;
+	int			num = 1,
+				count;
 	bool		extractNull;
 
 	wrap = make_query_item_wrap(item, NULL, false);
-	*nentries = calc_wraps(wrap, &num);
+	count = calc_wraps(wrap, &num);
 	extractNull = check_allnegative(wrap);
 	if (extractNull)
-		(*nentries)++;
+		count++;
 
-	entries = (Datum *) palloc(sizeof(Datum) * (*nentries));
-	*addInfo = (Datum *) palloc(sizeof(Datum) * (*nentries));
-	*addInfoIsNull = (bool *) palloc(sizeof(bool) * (*nentries));
-	if (extractNull)
-	{
-		int	i;
-		*nullFlags = (bool *) palloc(sizeof(bool) * (*nentries));
-		for (i = 0; i < *nentries - 1; i++)
-			(*nullFlags)[i] = false;
-		(*nullFlags)[*nentries - 1] = true;
-		(*addInfoIsNull)[*nentries - 1] = true;
-	}
+	entries = (Datum *) palloc(sizeof(Datum) * count);
+	*addInfo = (Datum *) palloc(sizeof(Datum) * count);
+	*addInfoIsNull = (bool *) palloc(sizeof(bool) * count);
 
 	context.addInfo = *addInfo;
 	context.addInfoIsNull = *addInfoIsNull;
@@ -354,6 +373,20 @@ ruminv_extract_tsquery(PG_FUNCTION_ARGS)
 	context.index = 0;
 
 	extract_wraps(wrap, &context, 0);
+
+	count = context.index;
+	if (extractNull)
+	{
+		int	i;
+
+		count++;
+		*nullFlags = (bool *) palloc(sizeof(bool) * count);
+		for (i = 0; i < count - 1; i++)
+			(*nullFlags)[i] = false;
+		(*nullFlags)[count - 1] = true;
+		(*addInfoIsNull)[count - 1] = true;
+	}
+	*nentries = count;
 
 /*	elog(NOTICE, "%d", *nentries);
 	for (i = 0; i < *nentries; i++)
@@ -451,7 +484,7 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 		ptr = (unsigned char *)VARDATA_ANY(DatumGetPointer(addInfo[i]));
 		size = VARSIZE_ANY_EXHDR(DatumGetPointer(addInfo[i]));
 
-/*		elog(NOTICE, "%d %s", i, DatumGetPointer(DirectFunctionCall1(byteaout, addInfo[i])));*/
+		/*elog(NOTICE, "%d %s", i, DatumGetPointer(DirectFunctionCall1(byteaout, addInfo[i])));*/
 
 		if (size == 0)
 		{
@@ -473,7 +506,7 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 
 			index = num - 1;
 
-/*			elog(NOTICE, "a %d %d %d %d", i, index, sum, not);*/
+			/*elog(NOTICE, "a %d %d %d %d", i, index, sum, not);*/
 
 			if (child)
 			{
@@ -501,7 +534,10 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 					nodes[index].sum++;
 			}
 
-			child = &nodes[index];
+			if (index == 0)
+				child = NULL;
+			else
+				child = &nodes[index];
 		}
 	}
 
@@ -511,7 +547,7 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 	}
 	else
 	{
-	/*	for (i = 0; i < lastIndex; i++)
+		/*for (i = 0; i < lastIndex; i++)
 		{
 			elog(NOTICE, "s %d %d %d %d", i, nodes[i].sum, nodes[i].parent, nodes[i].not);
 		}*/
