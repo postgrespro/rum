@@ -60,6 +60,11 @@ typedef RumPageOpaqueData *RumPageOpaque;
 typedef struct RumMetaPageData
 {
 	/*
+	 * RUM version number
+	 */
+	uint32		rumVersion;
+
+	/*
 	 * Pointers to head and tail of pending list, which consists of RUM_LIST
 	 * pages.  These store fast-inserted entries that haven't yet been moved
 	 * into the regular RUM structure.
@@ -86,21 +91,9 @@ typedef struct RumMetaPageData
 	BlockNumber nEntryPages;
 	BlockNumber nDataPages;
 	int64		nEntries;
-
-	/*
-	 * RUM version number (ideally this should have been at the front, but too
-	 * late now.  Don't move it!)
-	 *
-	 * Currently 1 (for indexes initialized in 9.1 or later)
-	 *
-	 * Version 0 (indexes initialized in 9.0 or before) is compatible but may
-	 * be missing null entries, including both null keys and placeholders.
-	 * Reject full-index-scan attempts on such indexes.
-	 */
-	int32		rumVersion;
 } RumMetaPageData;
 
-#define RUM_CURRENT_VERSION		1
+#define RUM_CURRENT_VERSION		(0xC0DE0001)
 
 #define RumPageGetMeta(p) \
 	((RumMetaPageData *) PageGetContents(p))

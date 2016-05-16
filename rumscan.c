@@ -436,24 +436,6 @@ rumNewScanKey(IndexScanDesc scan)
 					   NULL, NULL, NULL, NULL, false);
 	}
 
-	/*
-	 * If the index is version 0, it may be missing null and placeholder
-	 * entries, which would render searches for nulls and full-index scans
-	 * unreliable.  Throw an error if so.
-	 */
-	if (hasNullQuery && !so->isVoidRes)
-	{
-		GinStatsData rumStats;
-
-		rumGetStats(scan->indexRelation, &rumStats);
-		if (rumStats.ginVersion < 1)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("old RUM indexes do not support whole-index scans nor searches for nulls"),
-					 errhint("To fix this, do REINDEX INDEX \"%s\".",
-							 RelationGetRelationName(scan->indexRelation))));
-	}
-
 	pgstat_count_index_scan(scan->indexRelation);
 }
 

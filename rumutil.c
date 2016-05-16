@@ -811,6 +811,9 @@ rumGetStats(Relation index, GinStatsData *stats)
 	stats->nEntries = metadata->nEntries;
 	stats->ginVersion = metadata->rumVersion;
 
+	if (stats->ginVersion != RUM_CURRENT_VERSION)
+		elog(ERROR, "unexpected RUM index version. Reindex");
+
 	UnlockReleaseBuffer(metabuffer);
 }
 
