@@ -407,7 +407,8 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 				state = GenericXLogStart(index);
 
 				page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
-				rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
+				rpage = GenericXLogRegisterBuffer(state, rbuffer,
+												  GENERIC_XLOG_FULL_IMAGE);
 
 				/*
 				 * newlpage is a pointer to memory page, it doesn't associate with
@@ -421,7 +422,8 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 				 * pointer on root to left and right page
 				 */
 				lbuffer = RumNewBuffer(btree->index);
-				lpage = GenericXLogRegisterBuffer(state, lbuffer, 0);
+				lpage = GenericXLogRegisterBuffer(state, lbuffer,
+												  GENERIC_XLOG_FULL_IMAGE);
 
 				RumPageGetOpaque(rpage)->rightlink = InvalidBlockNumber;
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
