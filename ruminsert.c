@@ -577,9 +577,9 @@ rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 		while ((list = rumGetBAEntry(&buildstate->accum,
 								  &attnum, &key, &category, &nlist)) != NULL)
 		{
-			ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(ItemPointerData) *nlist);
-			Datum *addInfo = (Datum *)palloc(sizeof(Datum) * nlist);
-			bool *addInfoIsNull = (bool *)palloc(sizeof(bool) * nlist);
+			ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(*iptrs) *nlist);
+			Datum *addInfo = (Datum *)palloc(sizeof(*addInfo) * nlist);
+			bool *addInfoIsNull = (bool *)palloc(sizeof(*addInfoIsNull) * nlist);
 			int i;
 
 			for (i = 0; i < nlist; i++)
@@ -594,6 +594,10 @@ rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 			CHECK_FOR_INTERRUPTS();
 			rumEntryInsert(&buildstate->rumstate, attnum, key, category,
 						   iptrs, addInfo, addInfoIsNull, nlist, &buildstate->buildStats);
+
+			pfree(addInfoIsNull);
+			pfree(addInfo);
+			pfree(iptrs);
 		}
 
 		MemoryContextReset(buildstate->tmpCtx);
