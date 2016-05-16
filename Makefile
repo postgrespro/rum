@@ -10,7 +10,7 @@ EXTENSION = rum
 DATA = rum--1.0.sql
 PGFILEDESC = "RUM index access method"
 
-REGRESS = rum
+REGRESS = rum ruminv
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config

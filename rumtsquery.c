@@ -413,17 +413,19 @@ ruminv_extract_tsvector(PG_FUNCTION_ARGS)
 	int32	   *searchMode = (int32 *) PG_GETARG_POINTER(6);
 	Datum	   *entries = NULL;
 
-	*nentries = vector->size + 1;
-	*extra_data = NULL;
-	*ptr_partialmatch = NULL;
 	*searchMode = GIN_SEARCH_MODE_DEFAULT;
 
-	entries = (Datum *) palloc(sizeof(Datum) * (*nentries));
-	*nullFlags = (bool *) palloc(sizeof(bool) * (*nentries));
 	if (vector->size > 0)
 	{
 		int			i;
 		WordEntry  *we = ARRPTR(vector);
+
+		*nentries = vector->size + 1;
+		*extra_data = NULL;
+		*ptr_partialmatch = NULL;
+
+		entries = (Datum *) palloc(sizeof(Datum) * (*nentries));
+		*nullFlags = (bool *) palloc(sizeof(bool) * (*nentries));
 
 		for (i = 0; i < vector->size; i++)
 		{
@@ -433,8 +435,12 @@ ruminv_extract_tsvector(PG_FUNCTION_ARGS)
 			entries[i] = PointerGetDatum(txt);
 			(*nullFlags)[i] = false;
 		}
+		(*nullFlags)[*nentries - 1] = true;
 	}
-	(*nullFlags)[*nentries - 1] = true;
+	else
+	{
+		*nentries = 0;
+	}
 	PG_FREE_IF_COPY(vector, 0);
 	PG_RETURN_POINTER(entries);
 }
