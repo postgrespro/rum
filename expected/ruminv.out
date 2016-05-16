@@ -267,3 +267,7 @@ SELECT * FROM test_invrum WHERE q @@ 'a c d'::tsvector;
  ( 'a' | 'b' ) & ( 'c' | 'd' )
 (5 rows)
 
+INSERT INTO test_invrum VALUES ('a:*'::tsquery);
+ERROR:  Indexing of prefix tsqueries isn't supported yet
+INSERT INTO test_invrum VALUES ('a <-> b'::tsquery);
+ERROR:  Indexing of phrase tsqueries isn't supported yet

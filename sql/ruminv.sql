@@ -43,3 +43,6 @@ SELECT * FROM test_invrum WHERE q @@ 'b d'::tsvector;
 SELECT * FROM test_invrum WHERE q @@ 'a b d'::tsvector;
 SELECT * FROM test_invrum WHERE q @@ 'c d'::tsvector;
 SELECT * FROM test_invrum WHERE q @@ 'a c d'::tsvector;
+
+INSERT INTO test_invrum VALUES ('a:*'::tsquery);
+INSERT INTO test_invrum VALUES ('a <-> b'::tsquery);

@@ -73,6 +73,10 @@ make_query_item_wrap(QueryItem *item, QueryItemWrap *parent, bool not)
 	{
 		QueryOperand   *operand = (QueryOperand *) item;
 		QueryItemWrap  *wrap = add_child(parent);
+
+		if (operand->prefix)
+			elog(ERROR, "Indexing of prefix tsqueries isn't supported yet");
+
 		wrap->type = QI_VAL;
 		wrap->distance = operand->distance;
 		wrap->length = operand->length;
@@ -111,6 +115,7 @@ make_query_item_wrap(QueryItem *item, QueryItemWrap *parent, bool not)
 			}
 		}
 		case OP_PHRASE:
+			elog(ERROR, "Indexing of phrase tsqueries isn't supported yet");
 		default:
 			elog(ERROR, "Invalid tsquery operator");
 	}
