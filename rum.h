@@ -686,8 +686,8 @@ extern IndexBulkDeleteResult *rumvacuumcleanup(IndexVacuumInfo *info,
 typedef struct
 {
 	ItemPointerData	iptr;
-	Datum			addInfo;
 	bool			addInfoIsNull;
+	Datum			addInfo;
 } RumEntryAccumulatorItem;
 
 /* rumvalidate.c */
