@@ -640,6 +640,7 @@ typedef struct
 typedef struct RumScanOpaqueData
 {
 	MemoryContext tempCtx;
+	MemoryContext keyCtx;		/* used to hold key and entry data */
 	RumState	rumstate;
 
 	RumScanKey	keys;			/* one per scan qualifier expr */
