@@ -2242,7 +2242,7 @@ insertScanItem(RumScanOpaque so, bool recheck)
 				Assert(!so->keys[i].orderBy);
 				Assert(!so->keys[i].useAddToColumn);
 
-				for(j = 0; j < so->nkeys; j++)
+				for(j = i; j < so->nkeys; j++)
 				{
 					if (so->keys[j].useAddToColumn &&
 						so->keys[j].outerAddInfoIsNull == true)
