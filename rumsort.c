@@ -1536,12 +1536,15 @@ rum_tuplesort_putrum(Tuplesortstate *state, RumSortItem *item)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
+	RumSortItem *itemCopy = palloc(RumSortItemSize(state->nKeys));
+
+	memcpy(itemCopy, item, RumSortItemSize(state->nKeys));
 
 	/*
 	 * Copy the given tuple into memory we control, and decrease availMem.
 	 * Then call the common code.
 	 */
-	COPYTUP(state, &stup, (void *) item);
+	COPYTUP(state, &stup, (void *) itemCopy);
 
 	puttuple_common(state, &stup);
 
