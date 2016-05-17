@@ -396,6 +396,7 @@ collectMatchBitmap(RumBtreeData *btree, RumBtreeStack *stack,
 			tbm_add_tuples(scanEntry->matchBitmap,
 						   ipd, RumGetNPosting(itup), false);
 			scanEntry->predictNumberResult += RumGetNPosting(itup);
+			pfree(ipd);
 		}
 
 		/*
@@ -423,6 +424,8 @@ restartScanEntry:
 	entry->curAddInfoIsNull = true;
 	entry->offset = InvalidOffsetNumber;
 	entry->list = NULL;
+	entry->addInfo = NULL;
+	entry->addInfoIsNull = NULL;
 	entry->gdi = NULL;
 	entry->nlist = 0;
 	entry->matchBitmap = NULL;

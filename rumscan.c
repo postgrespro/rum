@@ -255,6 +255,9 @@ freeScanKeys(RumScanOpaque so)
 		{
 			pfree(key->scanEntry);
 			pfree(key->entryRes);
+			pfree(key->addInfo);
+			pfree(key->addInfoIsNull);
+			pfree(key->queryCategories);
 		}
 	}
 
@@ -278,6 +281,10 @@ freeScanKeys(RumScanOpaque so)
 		}
 		if (entry->list)
 			pfree(entry->list);
+		if (entry->addInfo)
+			pfree(entry->addInfo);
+		if (entry->addInfoIsNull)
+			pfree(entry->addInfoIsNull);
 		if (entry->matchIterator)
 			tbm_end_iterate(entry->matchIterator);
 		if (entry->matchBitmap)
@@ -457,6 +464,9 @@ rumrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 		memmove(scan->orderByData, orderbys,
 				scan->numberOfOrderBys * sizeof(ScanKeyData));
 	}
+
+	if (so->sortstate)
+		rum_tuplesort_end(so->sortstate);
 }
 
 void
