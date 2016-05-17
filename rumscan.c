@@ -255,6 +255,9 @@ freeScanKeys(RumScanOpaque so)
 		{
 			pfree(key->scanEntry);
 			pfree(key->entryRes);
+			pfree(key->addInfo);
+			pfree(key->addInfoIsNull);
+			pfree(key->queryCategories);
 		}
 	}
 
