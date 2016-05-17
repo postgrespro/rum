@@ -36,6 +36,12 @@ rumComputeDatumSize(Size data_length, Datum val, bool typbyval, char typalign,
 		 */
 		data_length += VARATT_CONVERTED_SHORT_SIZE(DatumGetPointer(val));
 	}
+	else if (typbyval)
+	{
+		/* do not align type pass-by-value because anyway we
+		 * will copy Datum */
+		data_length = att_addlength_datum(data_length, typlen, val);
+	}
 	else
 	{
 		data_length = att_align_datum(data_length, typalign, typlen, val);
@@ -60,8 +66,34 @@ rumDatumWrite(Pointer ptr, Datum datum, bool typbyval, char typalign,
 	if (typbyval)
 	{
 		/* pass-by-value */
-		ptr = (char *) att_align_nominal(ptr, typalign);
-		store_att_byval(ptr, datum, typlen);
+		union {
+			int16	i16;
+			int32	i32;
+		} u;
+
+		/* align-safe version of store_att_byval(ptr, datum, typlen); */
+		switch(typlen)
+		{
+			case sizeof(char):
+				*ptr = DatumGetChar(datum);
+				break;
+			case sizeof(int16):
+				u.i16 = DatumGetInt16(datum);
+				memcpy(ptr, &u.i16, sizeof(int16));
+				break;
+			case sizeof(int32):
+				u.i32 = DatumGetInt32(datum);
+				memcpy(ptr, &u.i32, sizeof(int32));
+				break;
+#if SIZEOF_DATUM == 8
+			case sizeof(Datum):
+				memcpy(ptr, &datum, sizeof(Datum));
+				break;
+#endif
+			default:
+				elog(ERROR, "unsupported byval length: %d", (int) (typlen));
+		}
+
 		data_length = typlen;
 	}
 	else if (typlen == -1)

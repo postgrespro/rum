@@ -851,9 +851,47 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
 	if (!isNull)
 	{
 		attr = rumstate->addAttrs[attnum - 1];
-		ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen, ptr);
-		if (addInfo)
-			*addInfo = fetch_att(ptr,  attr->attbyval,  attr->attlen);
+
+		if (attr->attbyval)
+		{
+			/* do not use aligment for pass-by-value types */
+			if (addInfo)
+			{
+				union {
+					int16	i16;
+					int32	i32;
+				} u;
+
+				switch(attr->attlen)
+				{
+					case sizeof(char):
+						*addInfo = Int8GetDatum(*ptr);
+						break;
+					case sizeof(int16):
+						memcpy(&u.i16, ptr, sizeof(int16));
+						*addInfo = Int16GetDatum(u.i16);
+						break;
+					case sizeof(int32):
+						memcpy(&u.i32, ptr, sizeof(int32));
+						*addInfo = Int32GetDatum(u.i32);
+						break;
+#if SIZEOF_DATUM == 8
+					case sizeof(Datum):
+						memcpy(addInfo, ptr, sizeof(Datum));
+						break;
+#endif
+					default:
+						elog(ERROR, "unsupported byval length: %d", (int) (attr->attlen));
+				}
+			}
+		}
+		else
+		{
+			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen, ptr);
+			if (addInfo)
+				*addInfo = fetch_att(ptr,  attr->attbyval,  attr->attlen);
+		}
+
 		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);
 	}
 	return ptr;
