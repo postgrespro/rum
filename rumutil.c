@@ -55,6 +55,9 @@ _PG_init(void)
 	add_string_reloption(rum_relopt_kind, "addto",
 						 "Column name to add a order by column",
 						 NULL, NULL);
+	add_bool_reloption(rum_relopt_kind, "use_alternative_order",
+					   "Use (addinfo, itempointer) order instead of just itempointer",
+					   false);
 }
 
 /*
@@ -158,7 +161,16 @@ initRumState(RumState *state, Relation index)
 
 		if (!(AttributeNumberIsValid(state->attrnOrderByColumn) &&
 			  AttributeNumberIsValid(state->attrnAddToColumn)))
-			elog(ERROR, "AddTo and OrderBy colums should be defined both");
+			elog(ERROR, "AddTo and OrderBy columns should be defined both");
+
+		if (options->useAlternativeOrder)
+		{
+			if (!(AttributeNumberIsValid(state->attrnOrderByColumn) &&
+				  AttributeNumberIsValid(state->attrnAddToColumn)))
+				elog(ERROR, "to use alternative ordering AddTo and OrderBy should be defined");
+
+			state->useAlternativeOrder = true;
+		}
 	}
 
 	for (i = 0; i < origTupdesc->natts; i++)
@@ -766,7 +778,8 @@ rumoptions(Datum reloptions, bool validate)
 	static const relopt_parse_elt tab[] = {
 		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(RumOptions, useFastUpdate)},
 		{"orderby", RELOPT_TYPE_STRING, offsetof(RumOptions, orderByColumn)},
-		{"addto", RELOPT_TYPE_STRING, offsetof(RumOptions, addToColumn)}
+		{"addto", RELOPT_TYPE_STRING, offsetof(RumOptions, addToColumn)},
+		{"use_alternative_order", RELOPT_TYPE_BOOL, offsetof(RumOptions, useAlternativeOrder)}
 	};
 
 	options = parseRelOptions(reloptions, validate, rum_relopt_kind,

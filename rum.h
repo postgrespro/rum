@@ -287,6 +287,7 @@ typedef struct RumOptions
 {
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	bool		useFastUpdate;	/* use fast updates? */
+	bool		useAlternativeOrder;
 	int			orderByColumn;
 	int			addToColumn;
 } RumOptions;
@@ -302,6 +303,11 @@ typedef struct RumOptions
 #define RUM_SHARE	BUFFER_LOCK_SHARE
 #define RUM_EXCLUSIVE  BUFFER_LOCK_EXCLUSIVE
 
+typedef struct RumKey {
+	ItemPointerData		ipd;
+	bool				isNull;
+	Datum				addToCompare;
+} RumKey;
 
 /*
  * RumState: working data structure describing the index being worked on
@@ -310,6 +316,7 @@ typedef struct RumState
 {
 	Relation	index;
 	bool		oneCol;			/* true if single-column index */
+	bool		useAlternativeOrder;
 	AttrNumber	attrnOrderByColumn;
 	AttrNumber	attrnAddToColumn;
 
@@ -486,6 +493,7 @@ extern void checkLeafDataPage(RumState *rumstate, AttrNumber attrnum, Page page)
 
 /* rumdatapage.c */
 extern int rumCompareItemPointers(ItemPointer a, ItemPointer b);
+extern int compareRumKey(RumState *state, RumKey *a, RumKey *b);
 extern char *rumDataPageLeafWriteItemPointer(char *ptr, ItemPointer iptr, ItemPointer prev, bool addInfoIsNull);
 extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
 	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,

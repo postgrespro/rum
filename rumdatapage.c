@@ -267,6 +267,42 @@ rumCompareItemPointers(ItemPointer a, ItemPointer b)
 	return (ba > bb) ? 1 : -1;
 }
 
+int
+compareRumKey(RumState *state, RumKey *a, RumKey *b)
+{
+
+	/* assume NULL is greate than any real value */
+	if (state->useAlternativeOrder)
+	{
+		if (a->isNull == false && b->isNull == false)
+		{
+			int res;
+			AttrNumber	attnum = state->attrnOrderByColumn;
+
+			res = DatumGetInt32(FunctionCall2Coll(
+									&state->compareFn[attnum - 1],
+									state->supportCollation[attnum - 1],
+									a->addToCompare, b->addToCompare));
+			if (res != 0)
+				return res;
+			/* fallback to ItemPointerCompare */
+		}
+		else if (a->isNull == true)
+		{
+			if (b->isNull == false)
+				return 1; 
+			/* fallback to ItemPointerCompare */
+		}
+		else
+		{
+			Assert(b->isNull == true);
+			return -1;
+		}
+	}
+
+	return rumCompareItemPointers(&a->ipd, &b->ipd);
+}
+
 /*
  * Merge two ordered arrays of itempointers, eliminating any duplicates.
  * Returns the number of items in the result.
