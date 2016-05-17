@@ -281,6 +281,10 @@ freeScanKeys(RumScanOpaque so)
 		}
 		if (entry->list)
 			pfree(entry->list);
+		if (entry->addInfo)
+			pfree(entry->addInfo);
+		if (entry->addInfoIsNull)
+			pfree(entry->addInfoIsNull);
 		if (entry->matchIterator)
 			tbm_end_iterate(entry->matchIterator);
 		if (entry->matchBitmap)
