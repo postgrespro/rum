@@ -33,11 +33,19 @@ rumbeginscan(Relation rel, int nkeys, int norderbys)
 	so->keys = NULL;
 	so->nkeys = 0;
 	so->firstCall = true;
+	so->totalentries = 0;
+	so->sortedEntries = NULL;
 	so->tempCtx = AllocSetContextCreate(CurrentMemoryContext,
 										"Rum scan temporary context",
 										ALLOCSET_DEFAULT_MINSIZE,
 										ALLOCSET_DEFAULT_INITSIZE,
 										ALLOCSET_DEFAULT_MAXSIZE);
+	so->keyCtx = AllocSetContextCreate(CurrentMemoryContext,
+									   "Gin scan key context",
+									   ALLOCSET_DEFAULT_MINSIZE,
+									   ALLOCSET_DEFAULT_INITSIZE,
+									   ALLOCSET_DEFAULT_MAXSIZE);
+
 	initRumState(&so->rumstate, scan->indexRelation);
 
 	scan->opaque = so;
@@ -249,32 +257,6 @@ freeScanKeys(RumScanOpaque so)
 {
 	uint32		i;
 
-	if (so->keys == NULL)
-		return;
-
-	for (i = 0; i < so->nkeys; i++)
-	{
-		RumScanKey	key = so->keys + i;
-
-		if (key->nentries > 0)
-		{
-			if (key->scanEntry)
-				pfree(key->scanEntry);
-			if (key->entryRes)
-				pfree(key->entryRes);
-			if (key->addInfo)
-				pfree(key->addInfo);
-			if (key->addInfoIsNull)
-				pfree(key->addInfoIsNull);
-			if (key->queryCategories)
-				pfree(key->queryCategories);
-		}
-	}
-
-	pfree(so->keys);
-	so->keys = NULL;
-	so->nkeys = 0;
-
 	for (i = 0; i < so->totalentries; i++)
 	{
 		RumScanEntry entry = so->entries[i];
@@ -302,7 +284,10 @@ freeScanKeys(RumScanOpaque so)
 		pfree(entry);
 	}
 
-	pfree(so->entries);
+	MemoryContextReset(so->keyCtx);
+	so->keys = NULL;
+	so->nkeys = 0;
+
 	if (so->sortedEntries)
 		pfree(so->sortedEntries);
 	so->entries = NULL;
@@ -406,6 +391,14 @@ rumNewScanKey(IndexScanDesc scan)
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	int			i;
 	bool		hasNullQuery = false;
+	MemoryContext oldCtx;
+
+	/*
+	 * Allocate all the scan key information in the key context. (If
+	 * extractQuery leaks anything there, it won't be reset until the end of
+	 * scan or rescan, but that's OK.)
+	 */
+	oldCtx = MemoryContextSwitchTo(so->keyCtx);
 
 	/* if no scan keys provided, allocate extra EVERYTHING RumScanKey */
 	so->keys = (RumScanKey)
@@ -457,6 +450,8 @@ rumNewScanKey(IndexScanDesc scan)
 					   NULL, NULL, NULL, NULL, false);
 	}
 
+	MemoryContextSwitchTo(oldCtx);
+
 	pgstat_count_index_scan(scan->indexRelation);
 }
 
@@ -497,6 +492,7 @@ rumendscan(IndexScanDesc scan)
 		rum_tuplesort_end(so->sortstate);
 
 	MemoryContextDelete(so->tempCtx);
+	MemoryContextDelete(so->keyCtx);
 
 	pfree(so);
 }

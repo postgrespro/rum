@@ -602,15 +602,18 @@ scan_entry_cmp(const void *p1, const void *p2)
 static void
 startScan(IndexScanDesc scan)
 {
+	MemoryContext oldCtx = CurrentMemoryContext;
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	RumState   *rumstate = &so->rumstate;
 	uint32		i;
 	bool		useFastScan = false;
 
+	MemoryContextSwitchTo(so->keyCtx);
 	for (i = 0; i < so->totalentries; i++)
 	{
 		startScanEntry(rumstate, so->entries[i]);
 	}
+	MemoryContextSwitchTo(oldCtx);
 
 	if (RumFuzzySearchLimit > 0)
 	{
