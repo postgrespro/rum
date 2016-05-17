@@ -92,7 +92,11 @@ callConsistentFn(RumState *rumstate, RumScanKey key)
 			if (key->entryRes[i] && key->addInfoIsNull[0] == false)
 			{
 				key->outerAddInfoIsNull = false;
-				/* XXX FIXME only pass-by-value!!! */
+				/*
+				 * XXX FIXME only pass-by-value!!!
+				 * Value should be copied to long-lived memory context and,
+				 * somehow, freeed. Seems, the last is real problem
+				 */
 				key->outerAddInfo = key->addInfo[0];
 				break;
 			}
