@@ -170,6 +170,11 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 
 		key->outerAddInfoIsNull = true;
 
+		key->scanEntry = NULL;
+		key->entryRes = NULL;
+		key->addInfo = NULL;
+		key->addInfoIsNull = NULL;
+
 		return;
 	}
 
@@ -253,11 +258,16 @@ freeScanKeys(RumScanOpaque so)
 
 		if (key->nentries > 0)
 		{
-			pfree(key->scanEntry);
-			pfree(key->entryRes);
-			pfree(key->addInfo);
-			pfree(key->addInfoIsNull);
-			pfree(key->queryCategories);
+			if (key->scanEntry)
+				pfree(key->scanEntry);
+			if (key->entryRes)
+				pfree(key->entryRes);
+			if (key->addInfo)
+				pfree(key->addInfo);
+			if (key->addInfoIsNull)
+				pfree(key->addInfoIsNull);
+			if (key->queryCategories)
+				pfree(key->queryCategories);
 		}
 	}
 
