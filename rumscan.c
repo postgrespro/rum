@@ -476,7 +476,10 @@ rumrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 	}
 
 	if (so->sortstate)
+	{
 		rum_tuplesort_end(so->sortstate);
+		so->sortstate = NULL;
+	}
 }
 
 void
