@@ -911,6 +911,12 @@ rum_tuplesort_begin_common(int workMem, bool randomAccess)
 	return state;
 }
 
+MemoryContext
+rum_tuplesort_get_memorycontext(Tuplesortstate *state)
+{
+	return state->sortcontext;
+}
+
 Tuplesortstate *
 rum_tuplesort_begin_heap(TupleDesc tupDesc,
 					 int nkeys, AttrNumber *attNums,
@@ -1536,15 +1542,12 @@ rum_tuplesort_putrum(Tuplesortstate *state, RumSortItem *item)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
-	RumSortItem *itemCopy = palloc(RumSortItemSize(state->nKeys));
-
-	memcpy(itemCopy, item, RumSortItemSize(state->nKeys));
 
 	/*
 	 * Copy the given tuple into memory we control, and decrease availMem.
 	 * Then call the common code.
 	 */
-	COPYTUP(state, &stup, (void *) itemCopy);
+	COPYTUP(state, &stup, (void *) item);
 
 	puttuple_common(state, &stup);
 
