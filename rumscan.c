@@ -303,7 +303,10 @@ freeScanKeys(RumScanOpaque so)
 	}
 
 	pfree(so->entries);
+	if (so->sortedEntries)
+		pfree(so->sortedEntries);
 	so->entries = NULL;
+	so->sortedEntries = NULL;
 	so->totalentries = 0;
 }
 
@@ -415,6 +418,7 @@ rumNewScanKey(IndexScanDesc scan)
 	so->allocentries = 32;
 	so->entries = (RumScanEntry *)
 		palloc0(so->allocentries * sizeof(RumScanEntry));
+	so->sortedEntries = NULL;
 
 	so->isVoidRes = false;
 

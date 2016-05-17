@@ -2257,6 +2257,7 @@ insertScanItem(RumScanOpaque so, bool recheck)
 		j++;
 	}
 	rum_tuplesort_putrum(so->sortstate, item);
+	pfree(item);
 }
 
 bool
