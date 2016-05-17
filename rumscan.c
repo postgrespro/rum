@@ -475,6 +475,9 @@ rumrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 		memmove(scan->orderByData, orderbys,
 				scan->numberOfOrderBys * sizeof(ScanKeyData));
 	}
+
+	if (so->sortstate)
+		rum_tuplesort_end(so->sortstate);
 }
 
 void
