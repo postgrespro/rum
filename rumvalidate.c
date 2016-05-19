@@ -135,13 +135,6 @@ rumvalidate(Oid opclassoid)
 											4, 4, opckeytype, opckeytype,
 											INT2OID, INTERNALOID);
 				break;
-			case GIN_TRICONSISTENT_PROC:
-				ok = check_amproc_signature(procform->amproc, CHAROID, false,
-											7, 7, INTERNALOID, INT2OID,
-											opcintype, INT4OID,
-											INTERNALOID, INTERNALOID,
-											INTERNALOID);
-				break;
 			case RUM_CONFIG_PROC:
 				ok = check_amproc_signature(procform->amproc, VOIDOID, false,
 											1, 1, INTERNALOID);
@@ -160,6 +153,11 @@ rumvalidate(Oid opclassoid)
 											INTERNALOID, INTERNALOID,
 											INTERNALOID, INTERNALOID,
 											INTERNALOID);
+				break;
+			case RUM_OUTER_ORDERING_PROC:
+				ok = check_amproc_signature(procform->amproc, FLOAT8OID, false,
+											3, 3,
+											opcintype, opcintype, INT2OID);
 				break;
 			default:
 				ereport(INFO,
@@ -258,8 +256,8 @@ rumvalidate(Oid opclassoid)
 			continue;			/* got it */
 		if (i == GIN_COMPARE_PARTIAL_PROC)
 			continue;			/* optional method */
-		if (i == GIN_CONSISTENT_PROC || i == GIN_TRICONSISTENT_PROC)
-			continue;			/* don't need both, see check below loop */
+		if (i == GIN_CONSISTENT_PROC)
+			continue;
 		if (i == RUM_PRE_CONSISTENT_PROC)
 			continue;
 		ereport(INFO,
@@ -269,17 +267,14 @@ rumvalidate(Oid opclassoid)
 		result = false;
 	}
 	if (!opclassgroup ||
-		((opclassgroup->functionset & (1 << GIN_CONSISTENT_PROC)) == 0 &&
-		 (opclassgroup->functionset & (1 << GIN_TRICONSISTENT_PROC)) == 0))
+		(opclassgroup->functionset & (1 << GIN_CONSISTENT_PROC)) == 0) 
 	{
 		ereport(INFO,
 				(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-				 errmsg("rum opclass %s is missing support function %d or %d",
-						opclassname,
-						GIN_CONSISTENT_PROC, GIN_TRICONSISTENT_PROC)));
+				 errmsg("rum opclass %s is missing support function %d",
+						opclassname, GIN_CONSISTENT_PROC)));
 		result = false;
 	}
-
 
 	ReleaseCatCacheList(proclist);
 	ReleaseCatCacheList(oprlist);

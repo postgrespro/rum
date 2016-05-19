@@ -1,0 +1,273 @@
+CREATE TABLE test_invrum(q tsquery);
+INSERT INTO test_invrum VALUES ('a|b'::tsquery);
+INSERT INTO test_invrum VALUES ('a&b'::tsquery);
+INSERT INTO test_invrum VALUES ('!(a|b)'::tsquery);
+INSERT INTO test_invrum VALUES ('!(a&b)'::tsquery);
+INSERT INTO test_invrum VALUES ('!a|b'::tsquery);
+INSERT INTO test_invrum VALUES ('a&!b'::tsquery);
+INSERT INTO test_invrum VALUES ('(a|b)&c'::tsquery);
+INSERT INTO test_invrum VALUES ('(!(a|b))&c'::tsquery);
+INSERT INTO test_invrum VALUES ('(a|b)&(c|d)'::tsquery);
+INSERT INTO test_invrum VALUES ('!a'::tsquery);
+SELECT * FROM test_invrum WHERE q @@ ''::tsvector;
+ q 
+---
+(0 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a'::tsvector;
+       q        
+----------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ 'a' & !'b'
+(3 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'b'::tsvector;
+       q        
+----------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ !'a'
+(4 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a b'::tsvector;
+     q      
+------------
+ 'a' | 'b'
+ 'a' & 'b'
+ !'a' | 'b'
+(3 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'c'::tsvector;
+          q           
+----------------------
+ !( 'a' | 'b' )
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ !( 'a' | 'b' ) & 'c'
+ !'a'
+(5 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a c'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ 'a' & !'b'
+ ( 'a' | 'b' ) & 'c'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+(5 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'b c'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ ( 'a' | 'b' ) & 'c'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+ !'a'
+(6 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a b c'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ 'a' & 'b'
+ !'a' | 'b'
+ ( 'a' | 'b' ) & 'c'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+(5 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'd'::tsvector;
+       q        
+----------------
+ !( 'a' | 'b' )
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ !'a'
+(4 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a d'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ 'a' & !'b'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+(4 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'b d'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+ !'a'
+(5 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a b d'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ 'a' & 'b'
+ !'a' | 'b'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+(4 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'c d'::tsvector;
+          q           
+----------------------
+ !( 'a' | 'b' )
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ !( 'a' | 'b' ) & 'c'
+ !'a'
+(5 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a c d'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ 'a' & !'b'
+ ( 'a' | 'b' ) & 'c'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+(5 rows)
+
+CREATE INDEX test_invrum_idx ON test_invrum USING rum(q);
+SET enable_seqscan = OFF;
+SELECT * FROM test_invrum WHERE q @@ ''::tsvector;
+ q 
+---
+(0 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a'::tsvector;
+       q        
+----------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ 'a' & !'b'
+(3 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'b'::tsvector;
+       q        
+----------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ !'a'
+(4 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a b'::tsvector;
+     q      
+------------
+ 'a' | 'b'
+ 'a' & 'b'
+ !'a' | 'b'
+(3 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'c'::tsvector;
+          q           
+----------------------
+ !( 'a' | 'b' )
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ !( 'a' | 'b' ) & 'c'
+ !'a'
+(5 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a c'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ 'a' & !'b'
+ ( 'a' | 'b' ) & 'c'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+(5 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'b c'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ ( 'a' | 'b' ) & 'c'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+ !'a'
+(6 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a b c'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ 'a' & 'b'
+ !'a' | 'b'
+ ( 'a' | 'b' ) & 'c'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+(5 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'd'::tsvector;
+       q        
+----------------
+ !( 'a' | 'b' )
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ !'a'
+(4 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a d'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ 'a' & !'b'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+(4 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'b d'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+ !'a'
+(5 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a b d'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ 'a' & 'b'
+ !'a' | 'b'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+(4 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'c d'::tsvector;
+          q           
+----------------------
+ !( 'a' | 'b' )
+ !( 'a' & 'b' )
+ !'a' | 'b'
+ !( 'a' | 'b' ) & 'c'
+ !'a'
+(5 rows)
+
+SELECT * FROM test_invrum WHERE q @@ 'a c d'::tsvector;
+               q               
+-------------------------------
+ 'a' | 'b'
+ !( 'a' & 'b' )
+ 'a' & !'b'
+ ( 'a' | 'b' ) & 'c'
+ ( 'a' | 'b' ) & ( 'c' | 'd' )
+(5 rows)
+
+INSERT INTO test_invrum VALUES ('a:*'::tsquery);
+ERROR:  Indexing of prefix tsqueries isn't supported yet
+INSERT INTO test_invrum VALUES ('a <-> b'::tsquery);
+ERROR:  Indexing of phrase tsqueries isn't supported yet

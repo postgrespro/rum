@@ -33,11 +33,19 @@ rumbeginscan(Relation rel, int nkeys, int norderbys)
 	so->keys = NULL;
 	so->nkeys = 0;
 	so->firstCall = true;
+	so->totalentries = 0;
+	so->sortedEntries = NULL;
 	so->tempCtx = AllocSetContextCreate(CurrentMemoryContext,
 										"Rum scan temporary context",
 										ALLOCSET_DEFAULT_MINSIZE,
 										ALLOCSET_DEFAULT_INITSIZE,
 										ALLOCSET_DEFAULT_MAXSIZE);
+	so->keyCtx = AllocSetContextCreate(CurrentMemoryContext,
+									   "Gin scan key context",
+									   ALLOCSET_DEFAULT_MINSIZE,
+									   ALLOCSET_DEFAULT_INITSIZE,
+									   ALLOCSET_DEFAULT_MAXSIZE);
+
 	initRumState(&so->rumstate, scan->indexRelation);
 
 	scan->opaque = so;
@@ -140,16 +148,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	/* Non-default search modes add one "hidden" entry to each key */
 	if (searchMode != GIN_SEARCH_MODE_DEFAULT)
 		nQueryValues++;
-	key->nentries = nQueryValues;
-	key->nuserentries = nUserQueryValues;
 	key->orderBy = orderBy;
-
-	key->scanEntry = (RumScanEntry *) palloc(sizeof(RumScanEntry) * nQueryValues);
-	key->entryRes = (bool *) palloc0(sizeof(bool) * nQueryValues);
-	key->addInfo = (Datum *) palloc0(sizeof(Datum) * nQueryValues);
-	key->addInfoIsNull = (bool *) palloc(sizeof(bool) * nQueryValues);
-	for (i = 0; i < nQueryValues; i++)
-		key->addInfoIsNull[i] = true;
 
 	key->query = query;
 	key->queryValues = queryValues;
@@ -158,11 +157,43 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	key->strategy = strategy;
 	key->searchMode = searchMode;
 	key->attnum = attnum;
+	key->useAddToColumn = false;
 
 	ItemPointerSetMin(&key->curItem);
 	key->curItemMatches = false;
 	key->recheckCurItem = false;
 	key->isFinished = false;
+
+	if (key->orderBy && key->attnum == rumstate->attrnOrderByColumn)
+	{
+		if (nQueryValues != 1)
+			elog(ERROR, "extractQuery should return only one value");
+		if (rumstate->canOuterOrdering[attnum - 1] == false)
+			elog(ERROR,"doesn't support ordering as additional info");
+
+		key->useAddToColumn = true;
+		key->attnum = rumstate->attrnAddToColumn;
+		key->nentries = 0;
+		key->nuserentries = 0;
+
+		key->outerAddInfoIsNull = true;
+
+		key->scanEntry = NULL;
+		key->entryRes = NULL;
+		key->addInfo = NULL;
+		key->addInfoIsNull = NULL;
+
+		return;
+	}
+
+	key->nentries = nQueryValues;
+	key->nuserentries = nUserQueryValues;
+	key->scanEntry = (RumScanEntry *) palloc(sizeof(RumScanEntry) * nQueryValues);
+	key->entryRes = (bool *) palloc0(sizeof(bool) * nQueryValues);
+	key->addInfo = (Datum *) palloc0(sizeof(Datum) * nQueryValues);
+	key->addInfoIsNull = (bool *) palloc(sizeof(bool) * nQueryValues);
+	for (i = 0; i < nQueryValues; i++)
+		key->addInfoIsNull[i] = true;
 
 	for (i = 0; i < nQueryValues; i++)
 	{
@@ -226,21 +257,6 @@ freeScanKeys(RumScanOpaque so)
 {
 	uint32		i;
 
-	if (so->keys == NULL)
-		return;
-
-	for (i = 0; i < so->nkeys; i++)
-	{
-		RumScanKey	key = so->keys + i;
-
-		pfree(key->scanEntry);
-		pfree(key->entryRes);
-	}
-
-	pfree(so->keys);
-	so->keys = NULL;
-	so->nkeys = 0;
-
 	for (i = 0; i < so->totalentries; i++)
 	{
 		RumScanEntry entry = so->entries[i];
@@ -257,6 +273,10 @@ freeScanKeys(RumScanOpaque so)
 		}
 		if (entry->list)
 			pfree(entry->list);
+		if (entry->addInfo)
+			pfree(entry->addInfo);
+		if (entry->addInfoIsNull)
+			pfree(entry->addInfoIsNull);
 		if (entry->matchIterator)
 			tbm_end_iterate(entry->matchIterator);
 		if (entry->matchBitmap)
@@ -264,8 +284,14 @@ freeScanKeys(RumScanOpaque so)
 		pfree(entry);
 	}
 
-	pfree(so->entries);
+	MemoryContextReset(so->keyCtx);
+	so->keys = NULL;
+	so->nkeys = 0;
+
+	if (so->sortedEntries)
+		pfree(so->sortedEntries);
 	so->entries = NULL;
+	so->sortedEntries = NULL;
 	so->totalentries = 0;
 }
 
@@ -275,14 +301,14 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 	Datum	   *queryValues;
 	int32		nQueryValues = 0;
 	bool	   *partial_matches = NULL;
-	Pointer    *extra_data = NULL;
+	Pointer	   *extra_data = NULL;
 	bool	   *nullFlags = NULL;
 	int32		searchMode = GIN_SEARCH_MODE_DEFAULT;
 
 	/*
-		* We assume that RUM-indexable operators are strict, so a null query
-		* argument means an unsatisfiable query.
-		*/
+	 * We assume that RUM-indexable operators are strict, so a null query
+	 * argument means an unsatisfiable query.
+	 */
 	if (skey->sk_flags & SK_ISNULL)
 	{
 		so->isVoidRes = true;
@@ -365,6 +391,14 @@ rumNewScanKey(IndexScanDesc scan)
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	int			i;
 	bool		hasNullQuery = false;
+	MemoryContext oldCtx;
+
+	/*
+	 * Allocate all the scan key information in the key context. (If
+	 * extractQuery leaks anything there, it won't be reset until the end of
+	 * scan or rescan, but that's OK.)
+	 */
+	oldCtx = MemoryContextSwitchTo(so->keyCtx);
 
 	/* if no scan keys provided, allocate extra EVERYTHING RumScanKey */
 	so->keys = (RumScanKey)
@@ -377,6 +411,7 @@ rumNewScanKey(IndexScanDesc scan)
 	so->allocentries = 32;
 	so->entries = (RumScanEntry *)
 		palloc0(so->allocentries * sizeof(RumScanEntry));
+	so->sortedEntries = NULL;
 
 	so->isVoidRes = false;
 
@@ -415,23 +450,7 @@ rumNewScanKey(IndexScanDesc scan)
 					   NULL, NULL, NULL, NULL, false);
 	}
 
-	/*
-	 * If the index is version 0, it may be missing null and placeholder
-	 * entries, which would render searches for nulls and full-index scans
-	 * unreliable.  Throw an error if so.
-	 */
-	if (hasNullQuery && !so->isVoidRes)
-	{
-		GinStatsData rumStats;
-
-		rumGetStats(scan->indexRelation, &rumStats);
-		if (rumStats.ginVersion < 1)
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("old RUM indexes do not support whole-index scans nor searches for nulls"),
-					 errhint("To fix this, do REINDEX INDEX \"%s\".",
-							 RelationGetRelationName(scan->indexRelation))));
-	}
+	MemoryContextSwitchTo(oldCtx);
 
 	pgstat_count_index_scan(scan->indexRelation);
 }
@@ -454,6 +473,12 @@ rumrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 		memmove(scan->orderByData, orderbys,
 				scan->numberOfOrderBys * sizeof(ScanKeyData));
 	}
+
+	if (so->sortstate)
+	{
+		rum_tuplesort_end(so->sortstate);
+		so->sortstate = NULL;
+	}
 }
 
 void
@@ -467,6 +492,7 @@ rumendscan(IndexScanDesc scan)
 		rum_tuplesort_end(so->sortstate);
 
 	MemoryContextDelete(so->tempCtx);
+	MemoryContextDelete(so->keyCtx);
 
 	pfree(so);
 }

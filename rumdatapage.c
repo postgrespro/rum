@@ -36,6 +36,12 @@ rumComputeDatumSize(Size data_length, Datum val, bool typbyval, char typalign,
 		 */
 		data_length += VARATT_CONVERTED_SHORT_SIZE(DatumGetPointer(val));
 	}
+	else if (typbyval)
+	{
+		/* do not align type pass-by-value because anyway we
+		 * will copy Datum */
+		data_length = att_addlength_datum(data_length, typlen, val);
+	}
 	else
 	{
 		data_length = att_align_datum(data_length, typalign, typlen, val);
@@ -60,8 +66,34 @@ rumDatumWrite(Pointer ptr, Datum datum, bool typbyval, char typalign,
 	if (typbyval)
 	{
 		/* pass-by-value */
-		ptr = (char *) att_align_nominal(ptr, typalign);
-		store_att_byval(ptr, datum, typlen);
+		union {
+			int16	i16;
+			int32	i32;
+		} u;
+
+		/* align-safe version of store_att_byval(ptr, datum, typlen); */
+		switch(typlen)
+		{
+			case sizeof(char):
+				*ptr = DatumGetChar(datum);
+				break;
+			case sizeof(int16):
+				u.i16 = DatumGetInt16(datum);
+				memcpy(ptr, &u.i16, sizeof(int16));
+				break;
+			case sizeof(int32):
+				u.i32 = DatumGetInt32(datum);
+				memcpy(ptr, &u.i32, sizeof(int32));
+				break;
+#if SIZEOF_DATUM == 8
+			case sizeof(Datum):
+				memcpy(ptr, &datum, sizeof(Datum));
+				break;
+#endif
+			default:
+				elog(ERROR, "unsupported byval length: %d", (int) (typlen));
+		}
+
 		data_length = typlen;
 	}
 	else if (typlen == -1)
@@ -267,6 +299,42 @@ rumCompareItemPointers(ItemPointer a, ItemPointer b)
 	return (ba > bb) ? 1 : -1;
 }
 
+int
+compareRumKey(RumState *state, RumKey *a, RumKey *b)
+{
+
+	/* assume NULL is greate than any real value */
+	if (state->useAlternativeOrder)
+	{
+		if (a->isNull == false && b->isNull == false)
+		{
+			int res;
+			AttrNumber	attnum = state->attrnOrderByColumn;
+
+			res = DatumGetInt32(FunctionCall2Coll(
+									&state->compareFn[attnum - 1],
+									state->supportCollation[attnum - 1],
+									a->addToCompare, b->addToCompare));
+			if (res != 0)
+				return res;
+			/* fallback to ItemPointerCompare */
+		}
+		else if (a->isNull == true)
+		{
+			if (b->isNull == false)
+				return 1; 
+			/* fallback to ItemPointerCompare */
+		}
+		else
+		{
+			Assert(b->isNull == true);
+			return -1;
+		}
+	}
+
+	return rumCompareItemPointers(&a->ipd, &b->ipd);
+}
+
 /*
  * Merge two ordered arrays of itempointers, eliminating any duplicates.
  * Returns the number of items in the result.
@@ -431,7 +499,8 @@ findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
 	 */
 	for (i = 0; i < RumDataLeafIndexCount; i++)
 	{
-		RumDataLeafItemIndex *index = &RumPageGetIndexes(page)[i];
+		RumDataLeafItemIndex	*index = RumPageGetIndexes(page) + i;
+
 		if (index->offsetNumer == InvalidOffsetNumber)
 			break;
 
@@ -1196,9 +1265,60 @@ updateItemIndexes(Page page, OffsetNumber attnum, RumState *rumstate)
 	}
 	/* Update freespace of page */
 	RumPageGetOpaque(page)->freespace = RumDataPageFreeSpacePre(page, ptr);
-	/* Adjust pd_lower */
+	/* Adjust pd_lower and pd_upper */
 	((PageHeader) page)->pd_lower = ptr - page;
+	((PageHeader) page)->pd_upper = ((char*)RumPageGetIndexes(page)) - page;
+
 	return iptr;
+}
+
+void
+checkLeafDataPage(RumState *rumstate, AttrNumber attnum, Page page)
+{
+	Offset					maxoff, i;
+	char					*ptr;
+	ItemPointerData			iptr;
+	RumDataLeafItemIndex	*index, *previndex = NULL;
+
+	if (!(RumPageGetOpaque(page)->flags & RUM_DATA))
+		return;
+
+	maxoff = RumPageGetOpaque(page)->maxoff;
+	ptr = RumDataPageGetData(page);
+	iptr.ip_blkid.bi_lo = 0;
+	iptr.ip_blkid.bi_hi = 0;
+	iptr.ip_posid = 0;
+
+	Assert(RumPageGetOpaque(page)->flags & RUM_LEAF);
+
+	for(i = FirstOffsetNumber; i <= maxoff; i++)
+		ptr = rumDataPageLeafRead(ptr, attnum, &iptr, NULL, NULL, rumstate);
+
+	Assert((char*)RumPageGetIndexes(page) == page + ((PageHeader)page)->pd_upper);
+
+	for(i = 0; i <RumDataLeafIndexCount; i++)
+	{
+		index = RumPageGetIndexes(page) + i;
+
+		if (index->offsetNumer == InvalidOffsetNumber)
+			break;
+
+		Assert(index->pageOffset < ((PageHeader)page)->pd_lower);
+
+		if (previndex)
+		{
+			Assert(previndex->offsetNumer < index->offsetNumer);
+			Assert(previndex->pageOffset < index->pageOffset);
+			Assert(rumCompareItemPointers(&index->iptr, &previndex->iptr) > 0);
+		}
+
+		if (i != RumDataLeafIndexCount - 1)
+		{
+			iptr = index->iptr;
+			rumDataPageLeafRead(RumDataPageGetData(page) + index->pageOffset,
+								attnum, &iptr, NULL, NULL, rumstate);
+		}
+	}
 }
 
 /*

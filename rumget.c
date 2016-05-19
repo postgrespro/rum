@@ -16,6 +16,7 @@
 
 #include "access/relscan.h"
 #include "miscadmin.h"
+#include "utils/builtins.h"
 #include "utils/datum.h"
 #include "utils/memutils.h"
 
@@ -46,6 +47,7 @@ static void entryGetItem(RumState *rumstate, RumScanEntry entry);
 static bool
 callConsistentFn(RumState *rumstate, RumScanKey key)
 {
+	bool res;
 	/*
 	 * If we're dealing with a dummy EVERYTHING key, we don't want to call the
 	 * consistentFn; just claim it matches.
@@ -62,7 +64,7 @@ callConsistentFn(RumState *rumstate, RumScanKey key)
 	 */
 	key->recheckCurItem = true;
 
-	return DatumGetBool(FunctionCall10Coll(&rumstate->consistentFn[key->attnum - 1],
+	res = DatumGetBool(FunctionCall10Coll(&rumstate->consistentFn[key->attnum - 1],
 								 rumstate->supportCollation[key->attnum - 1],
 										  PointerGetDatum(key->entryRes),
 										  UInt16GetDatum(key->strategy),
@@ -75,6 +77,33 @@ callConsistentFn(RumState *rumstate, RumScanKey key)
 										  PointerGetDatum(key->addInfo),
 										  PointerGetDatum(key->addInfoIsNull)
 		));
+
+	if (res && key->attnum == rumstate->attrnAddToColumn)
+	{
+		int i;
+
+		/* remember some addinfo value for later ordering by addinfo
+		   from another column */
+
+		key->outerAddInfoIsNull = true;
+
+		for(i=0; i<key->nuserentries; i++)
+		{
+			if (key->entryRes[i] && key->addInfoIsNull[0] == false)
+			{
+				key->outerAddInfoIsNull = false;
+				/*
+				 * XXX FIXME only pass-by-value!!!
+				 * Value should be copied to long-lived memory context and,
+				 * somehow, freeed. Seems, the last is real problem
+				 */
+				key->outerAddInfo = key->addInfo[0];
+				break;
+			}
+		}
+	}
+
+	return res;
 }
 
 /*
@@ -371,6 +400,7 @@ collectMatchBitmap(RumBtreeData *btree, RumBtreeStack *stack,
 			tbm_add_tuples(scanEntry->matchBitmap,
 						   ipd, RumGetNPosting(itup), false);
 			scanEntry->predictNumberResult += RumGetNPosting(itup);
+			pfree(ipd);
 		}
 
 		/*
@@ -398,6 +428,8 @@ restartScanEntry:
 	entry->curAddInfoIsNull = true;
 	entry->offset = InvalidOffsetNumber;
 	entry->list = NULL;
+	entry->addInfo = NULL;
+	entry->addInfoIsNull = NULL;
 	entry->gdi = NULL;
 	entry->nlist = 0;
 	entry->matchBitmap = NULL;
@@ -574,15 +606,18 @@ scan_entry_cmp(const void *p1, const void *p2)
 static void
 startScan(IndexScanDesc scan)
 {
+	MemoryContext oldCtx = CurrentMemoryContext;
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	RumState   *rumstate = &so->rumstate;
 	uint32		i;
 	bool		useFastScan = false;
 
+	MemoryContextSwitchTo(so->keyCtx);
 	for (i = 0; i < so->totalentries; i++)
 	{
 		startScanEntry(rumstate, so->entries[i]);
 	}
+	MemoryContextSwitchTo(oldCtx);
 
 	if (RumFuzzySearchLimit > 0)
 	{
@@ -2126,6 +2161,22 @@ keyGetOrdering(RumState *rumstate, MemoryContext tempCtx, RumScanKey key,
 	RumScanEntry entry;
 	int i;
 
+	if (key->useAddToColumn)
+	{
+		Assert(key->nentries == 0);
+		Assert(key->nuserentries == 0);
+
+		if (key->outerAddInfoIsNull)
+			return get_float8_infinity();
+
+		return DatumGetFloat8(FunctionCall3(
+				&rumstate->outerOrderingFn[rumstate->attrnOrderByColumn - 1],
+				key->outerAddInfo,
+				key->queryValues[0],
+				UInt16GetDatum(key->strategy)
+		));
+	}
+
 	for (i = 0; i < key->nentries; i++)
 	{
 		entry = key->scanEntry[i];
@@ -2163,15 +2214,54 @@ static void
 insertScanItem(RumScanOpaque so, bool recheck)
 {
 	RumSortItem *item;
-	int i, j = 0;
+	int i, j;
 
-	item = (RumSortItem *)palloc(RumSortItemSize(so->norderbys));
+	item = (RumSortItem *)
+		MemoryContextAlloc(rum_tuplesort_get_memorycontext(so->sortstate),
+						   RumSortItemSize(so->norderbys));
 	item->iptr = so->iptr;
 	item->recheck = recheck;
+
+	if (AttributeNumberIsValid(so->rumstate.attrnAddToColumn))
+	{
+		int	nOrderByAnother = 0, count = 0;
+
+		for (i = 0; i < so->nkeys; i++)
+		{
+			if (so->keys[i].useAddToColumn) {
+				so->keys[i].outerAddInfoIsNull = true;
+				nOrderByAnother++;
+			}
+		}
+
+		for (i = 0; count < nOrderByAnother && i < so->nkeys; i++)
+		{
+			if (so->keys[i].attnum == so->rumstate.attrnAddToColumn &&
+				so->keys[i].outerAddInfoIsNull == false)
+			{
+				Assert(!so->keys[i].orderBy);
+				Assert(!so->keys[i].useAddToColumn);
+
+				for(j = i; j < so->nkeys; j++)
+				{
+					if (so->keys[j].useAddToColumn &&
+						so->keys[j].outerAddInfoIsNull == true)
+					{
+						so->keys[j].outerAddInfoIsNull = false;
+						so->keys[j].outerAddInfo = so->keys[i].outerAddInfo;
+						count++;
+					}
+				}
+			}
+		}
+	}
+
+	j = 0;
 	for (i = 0; i < so->nkeys; i++)
 	{
 		if (!so->keys[i].orderBy)
 			continue;
+
 		item->data[j] = keyGetOrdering(&so->rumstate, so->tempCtx, &so->keys[i], &so->iptr);
 		j++;
 	}
