@@ -492,7 +492,9 @@ rumEntryInsert(RumState *rumstate,
 static void
 rumHeapTupleBulkInsert(RumBuildState *buildstate, OffsetNumber attnum,
 					   Datum value, bool isNull,
-					   ItemPointer heapptr)
+					   ItemPointer heapptr,
+					   Datum	outerAddInfo,
+					   bool		outerAddInfoIsNull)
 {
 	Datum	   *entries;
 	RumNullCategory *categories;
@@ -508,6 +510,19 @@ rumHeapTupleBulkInsert(RumBuildState *buildstate, OffsetNumber attnum,
 								value, isNull,
 								&nentries, &categories,
 								&addInfo, &addInfoIsNull);
+
+	if (attnum == buildstate->rumstate.attrnAddToColumn)
+	{
+		addInfo = palloc(sizeof(*addInfo) * nentries);
+		addInfoIsNull = palloc(sizeof(*addInfoIsNull) * nentries);
+
+		for(i=0; i<nentries; i++)
+		{
+			addInfo[i] = outerAddInfo;
+			addInfoIsNull[i] = outerAddInfoIsNull;
+		}
+	}
+
 	MemoryContextSwitchTo(oldCtx);
 	for (i = 0; i < nentries; i++)
 	{
@@ -532,13 +547,22 @@ rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 	RumBuildState *buildstate = (RumBuildState *) state;
 	MemoryContext oldCtx;
 	int			i;
+	Datum		outerAddInfo = (Datum)0;
+	bool		outerAddInfoIsNull = true;
+
+	if (AttributeNumberIsValid(buildstate->rumstate.attrnOrderByColumn))
+	{
+		outerAddInfo = values[buildstate->rumstate.attrnOrderByColumn - 1];
+		outerAddInfoIsNull = isnull[buildstate->rumstate.attrnOrderByColumn - 1];
+	}
 
 	oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
 
 	for (i = 0; i < buildstate->rumstate.origTupdesc->natts; i++)
 		rumHeapTupleBulkInsert(buildstate, (OffsetNumber) (i + 1),
 							   values[i], isnull[i],
-							   &htup->t_self);
+							   &htup->t_self,
+							   outerAddInfo, outerAddInfoIsNull);
 
 	/* If we've maxed out our available memory, dump everything to the index */
 	if (buildstate->accum.allocatedMemory >= maintenance_work_mem * 1024L)
@@ -553,9 +577,9 @@ rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 		while ((list = rumGetBAEntry(&buildstate->accum,
 								  &attnum, &key, &category, &nlist)) != NULL)
 		{
-			ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(ItemPointerData) *nlist);
-			Datum *addInfo = (Datum *)palloc(sizeof(Datum) * nlist);
-			bool *addInfoIsNull = (bool *)palloc(sizeof(bool) * nlist);
+			ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(*iptrs) *nlist);
+			Datum *addInfo = (Datum *)palloc(sizeof(*addInfo) * nlist);
+			bool *addInfoIsNull = (bool *)palloc(sizeof(*addInfoIsNull) * nlist);
 			int i;
 
 			for (i = 0; i < nlist; i++)
@@ -570,6 +594,10 @@ rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 			CHECK_FOR_INTERRUPTS();
 			rumEntryInsert(&buildstate->rumstate, attnum, key, category,
 						   iptrs, addInfo, addInfoIsNull, nlist, &buildstate->buildStats);
+
+			pfree(addInfoIsNull);
+			pfree(addInfo);
+			pfree(iptrs);
 		}
 
 		MemoryContextReset(buildstate->tmpCtx);
@@ -732,7 +760,9 @@ rumbuildempty(Relation index)
 static void
 rumHeapTupleInsert(RumState *rumstate, OffsetNumber attnum,
 				   Datum value, bool isNull,
-				   ItemPointer item)
+				   ItemPointer item,
+				   Datum	outerAddInfo,
+				   bool		outerAddInfoIsNull)
 {
 	Datum	   *entries;
 	RumNullCategory *categories;
@@ -743,6 +773,18 @@ rumHeapTupleInsert(RumState *rumstate, OffsetNumber attnum,
 
 	entries = rumExtractEntries(rumstate, attnum, value, isNull,
 								&nentries, &categories, &addInfo, &addInfoIsNull);
+
+	if (attnum == rumstate->attrnAddToColumn)
+	{
+		addInfo = palloc(sizeof(*addInfo) * nentries);
+		addInfoIsNull = palloc(sizeof(*addInfoIsNull) * nentries);
+
+		for(i=0; i<nentries; i++)
+		{
+			addInfo[i] = outerAddInfo;
+			addInfoIsNull[i] = outerAddInfoIsNull;
+		}
+	}
 
 	for (i = 0; i < nentries; i++)
 		rumEntryInsert(rumstate, attnum, entries[i], categories[i],
@@ -758,6 +800,8 @@ ruminsert(Relation index, Datum *values, bool *isnull,
 	MemoryContext oldCtx;
 	MemoryContext insertCtx;
 	int			i;
+	Datum		outerAddInfo = (Datum)0;
+	bool		outerAddInfoIsNull = true;
 
 	insertCtx = AllocSetContextCreate(CurrentMemoryContext,
 									  "Rum insert temporary context",
@@ -769,6 +813,13 @@ ruminsert(Relation index, Datum *values, bool *isnull,
 
 	initRumState(&rumstate, index);
 
+	if (AttributeNumberIsValid(rumstate.attrnOrderByColumn))
+	{
+		outerAddInfo = values[rumstate.attrnOrderByColumn - 1];
+		outerAddInfoIsNull = isnull[rumstate.attrnOrderByColumn - 1];
+	}
+
+#ifdef NOT_USED
 	if (RumGetUseFastUpdate(index))
 	{
 		RumTupleCollector collector;
@@ -784,11 +835,13 @@ ruminsert(Relation index, Datum *values, bool *isnull,
 		rumHeapTupleFastInsert(&rumstate, &collector);
 	}
 	else
+#endif
 	{
 		for (i = 0; i < rumstate.origTupdesc->natts; i++)
 			rumHeapTupleInsert(&rumstate, (OffsetNumber) (i + 1),
 							   values[i], isnull[i],
-							   ht_ctid);
+							   ht_ctid,
+							   outerAddInfo, outerAddInfoIsNull);
 	}
 
 	MemoryContextSwitchTo(oldCtx);

@@ -67,6 +67,7 @@ typedef struct
 
 #define RumSortItemSize(nKeys) (offsetof(RumSortItem,data)+(nKeys)*sizeof(float8))
 
+extern MemoryContext rum_tuplesort_get_memorycontext(Tuplesortstate *state);
 extern Tuplesortstate *rum_tuplesort_begin_heap(TupleDesc tupDesc,
 					 int nkeys, AttrNumber *attNums,
 					 Oid *sortOperators, Oid *sortCollations,

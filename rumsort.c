@@ -911,6 +911,12 @@ rum_tuplesort_begin_common(int workMem, bool randomAccess)
 	return state;
 }
 
+MemoryContext
+rum_tuplesort_get_memorycontext(Tuplesortstate *state)
+{
+	return state->sortcontext;
+}
+
 Tuplesortstate *
 rum_tuplesort_begin_heap(TupleDesc tupDesc,
 					 int nkeys, AttrNumber *attNums,

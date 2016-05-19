@@ -26,6 +26,7 @@ PG_FUNCTION_INFO_V1(rum_extract_tsquery);
 PG_FUNCTION_INFO_V1(rum_tsvector_config);
 PG_FUNCTION_INFO_V1(rum_tsquery_pre_consistent);
 PG_FUNCTION_INFO_V1(rum_tsquery_consistent);
+PG_FUNCTION_INFO_V1(rum_tsquery_timestamp_consistent);
 PG_FUNCTION_INFO_V1(rum_tsquery_distance);
 PG_FUNCTION_INFO_V1(rum_ts_distance);
 
@@ -45,6 +46,7 @@ typedef struct
 	bool	   *need_recheck;
 	Datum	   *addInfo;
 	bool	   *addInfoIsNull;
+	bool		notPhrase;
 } RumChkVal;
 
 static bool
@@ -115,13 +117,21 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 	if (!gcv->check[j])
 		return false;
 
+	/*
+	 * Fill position list for phrase operator if it's needed
+	 * end it exists
+	 */
 	if (data && gcv->addInfo && gcv->addInfoIsNull[j] == false)
 	{
-		bytea	*positions = DatumGetByteaP(gcv->addInfo[j]);
+		bytea	*positions;
 		int32	i;
 		char	*ptrt;
 		WordEntryPos post;
 
+		if (gcv->notPhrase)
+			elog(ERROR, "phrase search isn't supported yet");
+
+		positions = DatumGetByteaP(gcv->addInfo[j]);
 		data->npos = count_pos(VARDATA_ANY(positions),
 							   VARSIZE_ANY_EXHDR(positions));
 		data->pos = palloc(sizeof(*data->pos) * data->npos);
@@ -172,6 +182,7 @@ rum_tsquery_consistent(PG_FUNCTION_ARGS)
 		gcv.need_recheck = recheck;
 		gcv.addInfo = addInfo;
 		gcv.addInfoIsNull = addInfoIsNull;
+		gcv.notPhrase = false;
 
 		res = TS_execute(GETQUERY(query), &gcv, true, checkcondition_rum);
 	}
@@ -179,7 +190,45 @@ rum_tsquery_consistent(PG_FUNCTION_ARGS)
 	PG_RETURN_BOOL(res);
 }
 
+Datum
+rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
+{
+	bool		*check = (bool *) PG_GETARG_POINTER(0);
+	/* StrategyNumber strategy = PG_GETARG_UINT16(1); */
+	TSQuery		query = PG_GETARG_TSQUERY(2);
+	/* int32	nkeys = PG_GETARG_INT32(3); */
+	Pointer		*extra_data = (Pointer *) PG_GETARG_POINTER(4);
+	bool		*recheck = (bool *) PG_GETARG_POINTER(5);
+	Datum		*addInfo = (Datum *) PG_GETARG_POINTER(8);
+	bool		*addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
+	bool		res = FALSE;
 
+	/* The query requires recheck only if it involves
+	 * weights */
+	*recheck = false;
+
+	if (query->size > 0)
+	{
+		QueryItem  *item;
+		RumChkVal   gcv;
+
+		/*
+		 * check-parameter array has one entry for each value
+		 * (operand) in the query.
+		 */
+		gcv.first_item = item = GETQUERY(query);
+		gcv.check = check;
+		gcv.map_item_operand = (int *) (extra_data[0]);
+		gcv.need_recheck = recheck;
+		gcv.addInfo = addInfo;
+		gcv.addInfoIsNull = addInfoIsNull;
+		gcv.notPhrase = true;
+
+		res = TS_execute(GETQUERY(query), &gcv, true, checkcondition_rum);
+	}
+
+	PG_RETURN_BOOL(res);
+}
 
 static float weights[] = {0.1f, 0.2f, 0.4f, 1.0f};
 
@@ -648,7 +697,7 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 	TSQuery		query = PG_GETARG_TSQUERY(2);
 
 	int32	nkeys = PG_GETARG_INT32(3);
-	/* Pointer    *extra_data = (Pointer *) PG_GETARG_POINTER(4); */
+	/* Pointer	*extra_data = (Pointer *) PG_GETARG_POINTER(4); */
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
 	float8 res;

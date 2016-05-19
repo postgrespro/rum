@@ -60,6 +60,11 @@ typedef RumPageOpaqueData *RumPageOpaque;
 typedef struct RumMetaPageData
 {
 	/*
+	 * RUM version number
+	 */
+	uint32		rumVersion;
+
+	/*
 	 * Pointers to head and tail of pending list, which consists of RUM_LIST
 	 * pages.  These store fast-inserted entries that haven't yet been moved
 	 * into the regular RUM structure.
@@ -86,21 +91,9 @@ typedef struct RumMetaPageData
 	BlockNumber nEntryPages;
 	BlockNumber nDataPages;
 	int64		nEntries;
-
-	/*
-	 * RUM version number (ideally this should have been at the front, but too
-	 * late now.  Don't move it!)
-	 *
-	 * Currently 1 (for indexes initialized in 9.1 or later)
-	 *
-	 * Version 0 (indexes initialized in 9.0 or before) is compatible but may
-	 * be missing null entries, including both null keys and placeholders.
-	 * Reject full-index-scan attempts on such indexes.
-	 */
-	int32		rumVersion;
 } RumMetaPageData;
 
-#define RUM_CURRENT_VERSION		1
+#define RUM_CURRENT_VERSION		(0xC0DE0001)
 
 #define RumPageGetMeta(p) \
 	((RumMetaPageData *) PageGetContents(p))
@@ -294,6 +287,9 @@ typedef struct RumOptions
 {
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	bool		useFastUpdate;	/* use fast updates? */
+	bool		useAlternativeOrder;
+	int			orderByColumn;
+	int			addToColumn;
 } RumOptions;
 
 #define RUM_DEFAULT_USE_FASTUPDATE	false
@@ -307,6 +303,11 @@ typedef struct RumOptions
 #define RUM_SHARE	BUFFER_LOCK_SHARE
 #define RUM_EXCLUSIVE  BUFFER_LOCK_EXCLUSIVE
 
+typedef struct RumKey {
+	ItemPointerData		ipd;
+	bool				isNull;
+	Datum				addToCompare;
+} RumKey;
 
 /*
  * RumState: working data structure describing the index being worked on
@@ -315,6 +316,9 @@ typedef struct RumState
 {
 	Relation	index;
 	bool		oneCol;			/* true if single-column index */
+	bool		useAlternativeOrder;
+	AttrNumber	attrnOrderByColumn;
+	AttrNumber	attrnAddToColumn;
 
 	/*
 	 * origTupDesc is the nominal tuple descriptor of the index, ie, the i'th
@@ -343,12 +347,14 @@ typedef struct RumState
 	FmgrInfo	configFn[INDEX_MAX_KEYS];			/* optional method */
 	FmgrInfo	preConsistentFn[INDEX_MAX_KEYS];			/* optional method */
 	FmgrInfo	orderingFn[INDEX_MAX_KEYS];			/* optional method */
+	FmgrInfo	outerOrderingFn[INDEX_MAX_KEYS];			/* optional method */
 	/* canPartialMatch[i] is true if comparePartialFn[i] is valid */
 	bool		canPartialMatch[INDEX_MAX_KEYS];
 	/* canPreConsistent[i] is true if preConsistentFn[i] is valid */
 	bool		canPreConsistent[INDEX_MAX_KEYS];
 	/* canOrdering[i] is true if orderingFn[i] is valid */
 	bool		canOrdering[INDEX_MAX_KEYS];
+	bool		canOuterOrdering[INDEX_MAX_KEYS];
 	/* Collations to pass to the support functions */
 	Oid			supportCollation[INDEX_MAX_KEYS];
 } RumState;
@@ -483,9 +489,11 @@ extern IndexTuple rumPageGetLinkItup(Buffer buf, Page page);
 extern void rumReadTuple(RumState *rumstate, OffsetNumber attnum,
 	IndexTuple itup, ItemPointerData *ipd, Datum *addInfo, bool *addInfoIsNull);
 extern ItemPointerData updateItemIndexes(Page page, OffsetNumber attnum, RumState *rumstate);
+extern void checkLeafDataPage(RumState *rumstate, AttrNumber attrnum, Page page);
 
 /* rumdatapage.c */
 extern int rumCompareItemPointers(ItemPointer a, ItemPointer b);
+extern int compareRumKey(RumState *state, RumKey *a, RumKey *b);
 extern char *rumDataPageLeafWriteItemPointer(char *ptr, ItemPointer iptr, ItemPointer prev, bool addInfoIsNull);
 extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
 	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
@@ -555,13 +563,16 @@ typedef struct RumScanKeyData
 	bool	   *entryRes;
 	Datum	   *addInfo;
 	bool	   *addInfoIsNull;
+	bool		useAddToColumn;
+	Datum		outerAddInfo;
+	bool		outerAddInfoIsNull;
 
 	/* other data needed for calling consistentFn */
 	Datum		query;
 	/* NB: these three arrays have only nuserentries elements! */
 	Datum	   *queryValues;
 	RumNullCategory *queryCategories;
-	Pointer    *extra_data;
+	Pointer		*extra_data;
 	StrategyNumber strategy;
 	int32		searchMode;
 	OffsetNumber attnum;
@@ -629,6 +640,7 @@ typedef struct
 typedef struct RumScanOpaqueData
 {
 	MemoryContext tempCtx;
+	MemoryContext keyCtx;		/* used to hold key and entry data */
 	RumState	rumstate;
 
 	RumScanKey	keys;			/* one per scan qualifier expr */
@@ -674,8 +686,8 @@ extern IndexBulkDeleteResult *rumvacuumcleanup(IndexVacuumInfo *info,
 typedef struct
 {
 	ItemPointerData	iptr;
-	Datum			addInfo;
 	bool			addInfoIsNull;
+	Datum			addInfo;
 } RumEntryAccumulatorItem;
 
 /* rumvalidate.c */
@@ -733,9 +745,10 @@ extern void rumInsertCleanup(RumState *rumstate,
 				 bool vac_delay, IndexBulkDeleteResult *stats);
 
 /* rum_ts_utils.c */
-#define RUM_CONFIG_PROC				7
-#define RUM_PRE_CONSISTENT_PROC		8
-#define RUM_ORDERING_PROC			9
+#define RUM_CONFIG_PROC				6
+#define RUM_PRE_CONSISTENT_PROC		7
+#define RUM_ORDERING_PROC			8
+#define RUM_OUTER_ORDERING_PROC		9
 #define RUMNProcs					9
 
 extern Datum rum_extract_tsvector(PG_FUNCTION_ARGS);
@@ -839,9 +852,47 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
 	if (!isNull)
 	{
 		attr = rumstate->addAttrs[attnum - 1];
-		ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen, ptr);
-		if (addInfo)
-			*addInfo = fetch_att(ptr,  attr->attbyval,  attr->attlen);
+
+		if (attr->attbyval)
+		{
+			/* do not use aligment for pass-by-value types */
+			if (addInfo)
+			{
+				union {
+					int16	i16;
+					int32	i32;
+				} u;
+
+				switch(attr->attlen)
+				{
+					case sizeof(char):
+						*addInfo = Int8GetDatum(*ptr);
+						break;
+					case sizeof(int16):
+						memcpy(&u.i16, ptr, sizeof(int16));
+						*addInfo = Int16GetDatum(u.i16);
+						break;
+					case sizeof(int32):
+						memcpy(&u.i32, ptr, sizeof(int32));
+						*addInfo = Int32GetDatum(u.i32);
+						break;
+#if SIZEOF_DATUM == 8
+					case sizeof(Datum):
+						memcpy(addInfo, ptr, sizeof(Datum));
+						break;
+#endif
+					default:
+						elog(ERROR, "unsupported byval length: %d", (int) (attr->attlen));
+				}
+			}
+		}
+		else
+		{
+			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen, ptr);
+			if (addInfo)
+				*addInfo = fetch_att(ptr,  attr->attbyval,  attr->attlen);
+		}
+
 		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);
 	}
 	return ptr;
