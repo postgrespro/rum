@@ -490,7 +490,6 @@ extern void checkLeafDataPage(RumState *rumstate, AttrNumber attrnum, Page page)
 /* rumdatapage.c */
 extern int rumCompareItemPointers(const ItemPointerData * a, const ItemPointerData * b);
 extern int compareRumKey(RumState *state, const RumKey *a, const RumKey *b);
-extern char *rumDataPageLeafWriteItemPointer(char *ptr, ItemPointer iptr, ItemPointer prev, bool addInfoIsNull);
 extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
 	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
 	RumState *rumstate);
@@ -881,7 +880,8 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
 						break;
 #endif
 					default:
-						elog(ERROR, "unsupported byval length: %d", (int) (attr->attlen));
+						elog(ERROR, "unsupported byval length: %d",
+							 (int) (attr->attlen));
 				}
 			}
 		}

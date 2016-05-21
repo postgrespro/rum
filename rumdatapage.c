@@ -160,7 +160,7 @@ rumDatumWrite(Pointer ptr, Datum datum, bool typbyval, char typalign,
  * BlockNumber is stored in incremental manner we also need a previous item
  * pointer. Also store addInfoIsNull flag using one bit of OffsetNumber.
  */
-char *
+static char *
 rumDataPageLeafWriteItemPointer(char *ptr, ItemPointer iptr, ItemPointer prev,
 															bool addInfoIsNull)
 {
@@ -1284,6 +1284,11 @@ updateItemIndexes(Page page, OffsetNumber attnum, RumState *rumstate)
 	/* Adjust pd_lower and pd_upper */
 	((PageHeader) page)->pd_lower = ptr - page;
 	((PageHeader) page)->pd_upper = ((char*)RumPageGetIndexes(page)) - page;
+
+	Assert(ptr <= (char*)RumPageGetIndexes(page));
+	Assert(((PageHeader) page)->pd_upper >= ((PageHeader) page)->pd_lower);
+	Assert(((PageHeader) page)->pd_upper - ((PageHeader) page)->pd_lower ==
+		   RumPageGetOpaque(page)->freespace);
 
 	return iptr;
 }
