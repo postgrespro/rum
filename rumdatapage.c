@@ -281,7 +281,7 @@ rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
 }
 
 int
-rumCompareItemPointers(ItemPointer a, ItemPointer b)
+rumCompareItemPointers(const ItemPointerData *a, const ItemPointerData *b)
 {
 	BlockNumber ba = RumItemPointerGetBlockNumber(a);
 	BlockNumber bb = RumItemPointerGetBlockNumber(b);
@@ -300,39 +300,36 @@ rumCompareItemPointers(ItemPointer a, ItemPointer b)
 }
 
 int
-compareRumKey(RumState *state, RumKey *a, RumKey *b)
+compareRumKey(RumState *state, const RumKey *a, const RumKey *b)
 {
 
 	/* assume NULL is greate than any real value */
-	if (state->useAlternativeOrder)
+	if (a->addInfoIsNull == false && b->addInfoIsNull == false)
 	{
-		if (a->isNull == false && b->isNull == false)
-		{
-			int res;
-			AttrNumber	attnum = state->attrnOrderByColumn;
+		int res;
+		AttrNumber	attnum = state->attrnOrderByColumn;
 
-			res = DatumGetInt32(FunctionCall2Coll(
-									&state->compareFn[attnum - 1],
-									state->supportCollation[attnum - 1],
-									a->addToCompare, b->addToCompare));
-			if (res != 0)
-				return res;
-			/* fallback to ItemPointerCompare */
-		}
-		else if (a->isNull == true)
-		{
-			if (b->isNull == false)
-				return 1; 
-			/* fallback to ItemPointerCompare */
-		}
-		else
-		{
-			Assert(b->isNull == true);
-			return -1;
-		}
+		res = DatumGetInt32(FunctionCall2Coll(
+								&state->compareFn[attnum - 1],
+								state->supportCollation[attnum - 1],
+								a->addInfo, b->addInfo));
+		if (res != 0)
+			return res;
+		/* fallback to ItemPointerCompare */
+	}
+	else if (a->addInfoIsNull == true)
+	{
+		if (b->addInfoIsNull == false)
+			return 1;
+		/* fallback to ItemPointerCompare */
+	}
+	else
+	{
+		Assert(b->addInfoIsNull == true);
+		return -1;
 	}
 
-	return rumCompareItemPointers(&a->ipd, &b->ipd);
+	return rumCompareItemPointers(&a->iptr, &b->iptr);
 }
 
 /*
@@ -341,7 +338,8 @@ compareRumKey(RumState *state, RumKey *a, RumKey *b)
  * Caller is responsible that there is enough space at *dst.
  */
 uint32
-rumMergeItemPointers(ItemPointerData *dst, Datum *dstAddInfo, bool *dstAddInfoIsNull,
+rumMergeItemPointers(RumState *rumstate,
+					 ItemPointerData *dst, Datum *dstAddInfo, bool *dstAddInfoIsNull,
 					 ItemPointerData *a, Datum *aAddInfo, bool *aAddInfoIsNull, uint32 na,
 					 ItemPointerData *b, Datum *bAddInfo, bool *bAddInfoIsNull, uint32 nb)
 {
@@ -351,7 +349,25 @@ rumMergeItemPointers(ItemPointerData *dst, Datum *dstAddInfo, bool *dstAddInfoIs
 
 	while (aptr - a < na && bptr - b < nb)
 	{
-		int			cmp = rumCompareItemPointers(aptr, bptr);
+		int			cmp;
+
+		if (rumstate->useAlternativeOrder)
+		{
+			RumKey	a, b;
+
+			a.iptr = *aptr;
+			a.addInfoIsNull = *aAddInfoIsNull;
+			a.addInfo = *aAddInfo;
+			b.iptr = *bptr;
+			b.addInfoIsNull = *bAddInfoIsNull;
+			b.addInfo = *bAddInfo;
+
+			cmp = compareRumKey(rumstate, &a, &b);
+		}
+		else
+		{
+			cmp = rumCompareItemPointers(aptr, bptr);
+		}
 
 		if (cmp > 0)
 		{

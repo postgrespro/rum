@@ -42,11 +42,17 @@ rumCombineData(RBNode *existing, const RBNode *newdata, void *arg)
 		accum->allocatedMemory += GetMemoryChunkSpace(eo->list);
 	}
 
-	/* If item pointers are not ordered, they will need to be sorted later */
+	/*
+	 * If item pointers are not ordered, they will need to be sorted later
+	 * Note: if useAlternativeOrder == true then shouldSort should be true
+	 * because anyway list isn't right ordered and code below could not check it
+	 * correctly
+	 */
 	if (eo->shouldSort == FALSE)
 	{
 		int			res;
 
+		/* FIXME RumKey */
 		res = rumCompareItemPointers(&eo->list[eo->count - 1].iptr,
 															&en->list->iptr);
 		Assert(res != 0);
@@ -172,7 +178,13 @@ rumInsertBAEntry(BuildAccumulator *accum,
 			ea->key = getDatumCopy(accum, attnum, key);
 		ea->maxcount = DEF_NPTR;
 		ea->count = 1;
-		ea->shouldSort = FALSE;
+
+		/*
+		 * if useAlternativeOrder = true then anyway we need to sort list,
+		 * but by setting shouldSort we prevent incorrect comparison in
+		 * rumCombineData()
+		 */
+		ea->shouldSort = accum->rumstate->useAlternativeOrder;
 		ea->list =
 			(RumEntryAccumulatorItem *) palloc(sizeof(RumEntryAccumulatorItem) * DEF_NPTR);
 		ea->list[0].iptr = *heapptr;
@@ -250,6 +262,12 @@ qsortCompareItemPointers(const void *a, const void *b)
 	return res;
 }
 
+static int
+qsortCompareRumKey(const void *a, const void *b, void *arg)
+{
+	return compareRumKey(arg, a, b);
+}
+
 /* Prepare to read out the rbtree contents using rumGetBAEntry */
 void
 rumBeginBAScan(BuildAccumulator *accum)
@@ -283,9 +301,15 @@ rumGetBAEntry(BuildAccumulator *accum,
 
 	Assert(list != NULL && entry->count > 0);
 
-	if (entry->shouldSort && entry->count > 1)
-		qsort(list, entry->count, sizeof(RumEntryAccumulatorItem),
-			  qsortCompareItemPointers);
+	if (entry->count > 1)
+	{
+		if (accum->rumstate->useAlternativeOrder)
+			qsort_arg(list, entry->count, sizeof(RumEntryAccumulatorItem),
+				  qsortCompareRumKey, accum->rumstate);
+		else if (entry->shouldSort)
+			qsort(list, entry->count, sizeof(RumEntryAccumulatorItem),
+				  qsortCompareItemPointers);
+	}
 
 	return list;
 }

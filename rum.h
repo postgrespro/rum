@@ -303,11 +303,7 @@ typedef struct RumOptions
 #define RUM_SHARE	BUFFER_LOCK_SHARE
 #define RUM_EXCLUSIVE  BUFFER_LOCK_EXCLUSIVE
 
-typedef struct RumKey {
-	ItemPointerData		ipd;
-	bool				isNull;
-	Datum				addToCompare;
-} RumKey;
+typedef struct RumEntryAccumulatorItem RumKey;
 
 /*
  * RumState: working data structure describing the index being worked on
@@ -492,8 +488,8 @@ extern ItemPointerData updateItemIndexes(Page page, OffsetNumber attnum, RumStat
 extern void checkLeafDataPage(RumState *rumstate, AttrNumber attrnum, Page page);
 
 /* rumdatapage.c */
-extern int rumCompareItemPointers(ItemPointer a, ItemPointer b);
-extern int compareRumKey(RumState *state, RumKey *a, RumKey *b);
+extern int rumCompareItemPointers(const ItemPointerData * a, const ItemPointerData * b);
+extern int compareRumKey(RumState *state, const RumKey *a, const RumKey *b);
 extern char *rumDataPageLeafWriteItemPointer(char *ptr, ItemPointer iptr, ItemPointer prev, bool addInfoIsNull);
 extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
 	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
@@ -501,9 +497,10 @@ extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
 extern Size rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
 	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
 	RumState *rumstate, Size size);
-extern uint32 rumMergeItemPointers(ItemPointerData *dst, Datum *dst2, bool *dst3,
-					 ItemPointerData *a, Datum *a2, bool *a3, uint32 na,
-					 ItemPointerData *b, Datum * b2, bool *b3, uint32 nb);
+extern uint32 rumMergeItemPointers(RumState *rumstate,
+					ItemPointerData *dst, Datum *dst2, bool *dst3,
+					ItemPointerData *a, Datum *a2, bool *a3, uint32 na,
+					ItemPointerData *b, Datum * b2, bool *b3, uint32 nb);
 extern void RumDataPageAddItem(Page page, void *data, OffsetNumber offset);
 extern void RumPageDeletePostingItem(Page page, OffsetNumber offset);
 
@@ -683,7 +680,7 @@ extern IndexBulkDeleteResult *rumbulkdelete(IndexVacuumInfo *info,
 extern IndexBulkDeleteResult *rumvacuumcleanup(IndexVacuumInfo *info,
 											   IndexBulkDeleteResult *stats);
 
-typedef struct
+typedef struct RumEntryAccumulatorItem
 {
 	ItemPointerData	iptr;
 	bool			addInfoIsNull;
@@ -713,6 +710,8 @@ typedef struct
 	RumEntryAccumulator *entryallocator;
 	uint32		eas_used;
 	RBTree	   *tree;
+	RumKey	   *sortSpace;
+	uint32		sortSpaceN;
 } BuildAccumulator;
 
 extern void rumInitBA(BuildAccumulator *accum);
