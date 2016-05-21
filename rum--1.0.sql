@@ -12,11 +12,10 @@ RETURNS float4
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE OPERATOR >< (
+CREATE OPERATOR <-> (
         LEFTARG = tsvector,
         RIGHTARG = tsquery,
-        PROCEDURE = rum_ts_distance,
-        COMMUTATOR = '><'
+        PROCEDURE = rum_ts_distance
 );
 
 CREATE FUNCTION rum_extract_tsvector(tsvector,internal,internal,internal,internal)
@@ -53,7 +52,7 @@ CREATE OPERATOR CLASS rum_tsvector_ops
 FOR TYPE tsvector USING rum
 AS
         OPERATOR        1       @@ (tsvector, tsquery),
-        OPERATOR        2       >< (tsvector, tsquery) FOR ORDER BY pg_catalog.float_ops,
+        OPERATOR        2       <-> (tsvector, tsquery) FOR ORDER BY pg_catalog.float_ops,
         FUNCTION        1       gin_cmp_tslexeme(text, text),
         FUNCTION        2       rum_extract_tsvector(tsvector,internal,internal,internal,internal),
         FUNCTION        3       rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal),
