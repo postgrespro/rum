@@ -803,7 +803,7 @@ rumInsertCleanup(RumState *rumstate,
 			(RumPageHasFullRow(page) &&
 			 (accum.allocatedMemory >= maintenance_work_mem * 1024L)))
 		{
-			RumEntryAccumulatorItem *list;
+			RumKey	   *items;
 			uint32		nlist;
 			Datum		key;
 			RumNullCategory category;
@@ -824,22 +824,11 @@ rumInsertCleanup(RumState *rumstate,
 			 * list.
 			 */
 			rumBeginBAScan(&accum);
-			while ((list = rumGetBAEntry(&accum,
+			while ((items = rumGetBAEntry(&accum,
 								  &attnum, &key, &category, &nlist)) != NULL)
 			{
-				ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(ItemPointerData) *nlist);
-				Datum *addInfo = (Datum *)palloc(sizeof(Datum) * nlist);
-				bool *addInfoIsNull = (bool *)palloc(sizeof(bool) * nlist);
-				int i;
-
-				for (i = 0; i < nlist; i++)
-				{
-					iptrs[i] = list[i].iptr;
-					addInfo[i] = list[i].addInfo;
-					addInfoIsNull[i] = list[i].addInfoIsNull;
-				}
 				rumEntryInsert(rumstate, attnum, key, category,
-							   iptrs, addInfo, addInfoIsNull, nlist, NULL);
+							   items, nlist, NULL);
 				vacuum_delay_point();
 			}
 
@@ -871,23 +860,11 @@ rumInsertCleanup(RumState *rumstate,
 				processPendingPage(&accum, &datums, page, maxoff + 1);
 
 				rumBeginBAScan(&accum);
-				while ((list = rumGetBAEntry(&accum,
+				while ((items = rumGetBAEntry(&accum,
 								  &attnum, &key, &category, &nlist)) != NULL)
 				{
-					ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(ItemPointerData) *nlist);
-					Datum *addInfo = (Datum *)palloc(sizeof(Datum) * nlist);
-					bool *addInfoIsNull = (bool *)palloc(sizeof(bool) * nlist);
-					int i;
-
-					for (i = 0; i < nlist; i++)
-					{
-						iptrs[i] = list[i].iptr;
-						addInfo[i] = list[i].addInfo;
-						addInfoIsNull[i] = list[i].addInfoIsNull;
-					}
-
 					rumEntryInsert(rumstate, attnum, key, category,
-								   iptrs, addInfo, addInfoIsNull, nlist, NULL);
+								   items, nlist, NULL);
 				}
 			}
 

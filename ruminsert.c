@@ -39,8 +39,7 @@ typedef struct
  */
 static BlockNumber
 createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
-				  ItemPointerData *items,
-				  Datum *addInfo, bool *addInfoIsNull, uint32 nitems)
+				  RumKey *items, uint32 nitems)
 {
 	BlockNumber blkno;
 	Buffer		buffer = RumNewBuffer(index);
@@ -63,9 +62,10 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 	for (i = 0; i < nitems; i++)
 	{
 		if (i > 0)
-			prev_iptr = items[i - 1];
-		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[i], addInfo[i],
-									 addInfoIsNull[i], &prev_iptr, rumstate);
+			prev_iptr = items[i - 1].iptr;
+		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[i].iptr,
+									 items[i].addInfo, items[i].addInfoIsNull,
+									 &prev_iptr, rumstate);
 	}
 	freespace = RumDataPageFreeSpacePre(page, ptr);
 	Assert(freespace >= 0);
@@ -96,11 +96,7 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 static IndexTuple
 RumFormTuple(RumState *rumstate,
 			 OffsetNumber attnum, Datum key, RumNullCategory category,
-			 ItemPointerData *ipd,
-			 Datum *addInfo,
-			 bool *addInfoIsNull,
-			 uint32 nipd,
-			 bool errorTooBig)
+			 RumKey *items, uint32 nipd, bool errorTooBig)
 {
 	Datum		datums[3];
 	bool		isnull[3];
@@ -150,14 +146,17 @@ RumFormTuple(RumState *rumstate,
 
 	if (nipd > 0)
 	{
-		newsize = rumCheckPlaceToDataPageLeaf(attnum, &ipd[0], addInfo[0],
-											  addInfoIsNull[0],
+		newsize = rumCheckPlaceToDataPageLeaf(attnum, &items[0].iptr,
+											  items[0].addInfo,
+											  items[0].addInfoIsNull,
 											  &nullItemPointer,
 											  rumstate, newsize);
 		for (i = 1; i < nipd; i++)
 		{
-			newsize = rumCheckPlaceToDataPageLeaf(attnum, &ipd[i], addInfo[i],
-												  addInfoIsNull[i], &ipd[i - 1],
+			newsize = rumCheckPlaceToDataPageLeaf(attnum, &items[i].iptr,
+												  items[i].addInfo,
+												  items[i].addInfoIsNull,
+												  &items[i - 1].iptr,
 												  rumstate, newsize);
 		}
 	}
@@ -202,14 +201,15 @@ RumFormTuple(RumState *rumstate,
 	if (nipd > 0)
 	{
 		char *ptr = RumGetPosting(itup);
-		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &ipd[0], addInfo[0],
-									 addInfoIsNull[0], &nullItemPointer,
-									 rumstate);
+		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[0].iptr,
+									 items[0].addInfo, items[0].addInfoIsNull,
+									 &nullItemPointer, rumstate);
 		for (i = 1; i < nipd; i++)
 		{
-			ptr = rumPlaceToDataPageLeaf(ptr, attnum, &ipd[i], addInfo[i],
-										 addInfoIsNull[i], &ipd[i-1],
-										 rumstate);
+			ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[i].iptr,
+										 items[i].addInfo,
+										 items[i].addInfoIsNull,
+										 &items[i - 1].iptr, rumstate);
 		}
 
 		Assert(MAXALIGN((ptr - ((char*)itup)) +
@@ -238,18 +238,14 @@ RumFormTuple(RumState *rumstate,
  */
 static IndexTuple
 addItemPointersToLeafTuple(RumState *rumstate,
-						   IndexTuple old,
-						   ItemPointerData *items, Datum *addInfo,
-						   bool *addInfoIsNull, uint32 nitem,
+						   IndexTuple old, RumKey *items, uint32 nitem,
 						   GinStatsData *buildStats)
 {
 	OffsetNumber attnum;
 	Datum		key;
 	RumNullCategory category;
 	IndexTuple	res;
-	Datum		*oldAddInfo, *newAddInfo;
-	bool		*oldAddInfoIsNull, *newAddInfoIsNull;
-	ItemPointerData *newItems, *oldItems;
+	RumKey	   *newItems, *oldItems;
 	int			oldNPosting, newNPosting;
 
 	Assert(!RumIsPostingTree(old));
@@ -258,29 +254,20 @@ addItemPointersToLeafTuple(RumState *rumstate,
 	key = rumtuple_get_key(rumstate, old, &category);
 
 	oldNPosting = RumGetNPosting(old);
-
-	oldItems = (ItemPointerData *)palloc(sizeof(ItemPointerData) * oldNPosting);
-	oldAddInfo = (Datum *)palloc(sizeof(Datum) * oldNPosting);
-	oldAddInfoIsNull = (bool *)palloc(sizeof(bool) * oldNPosting);
+	oldItems = (RumKey *)palloc(sizeof(RumKey) * oldNPosting);
 
 	newNPosting = oldNPosting + nitem;
+	newItems = (RumKey *)palloc(sizeof(RumKey) * newNPosting);
 
-	newItems = (ItemPointerData *)palloc(sizeof(ItemPointerData) * newNPosting);
-	newAddInfo = (Datum *)palloc(sizeof(Datum) * newNPosting);
-	newAddInfoIsNull = (bool *)palloc(sizeof(bool) * newNPosting);
+	rumReadTuple(rumstate, attnum, old, oldItems);
 
-	rumReadTuple(rumstate, attnum, old, oldItems, oldAddInfo, oldAddInfoIsNull);
-
-	newNPosting = rumMergeItemPointers(rumstate,
-						newItems, newAddInfo, newAddInfoIsNull,
-						items, addInfo, addInfoIsNull, nitem,
-						oldItems, oldAddInfo, oldAddInfoIsNull, oldNPosting);
+	newNPosting = rumMergeItemPointers(rumstate, newItems,
+									   items, nitem, oldItems, oldNPosting);
 
 
 	/* try to build tuple with room for all the items */
 	res = RumFormTuple(rumstate, attnum, key, category,
-					   newItems, newAddInfo, newAddInfoIsNull, newNPosting,
-					   false);
+					   newItems, newNPosting, false);
 
 	if (!res)
 	{
@@ -297,8 +284,6 @@ addItemPointersToLeafTuple(RumState *rumstate,
 										attnum,
 										rumstate->index,
 										oldItems,
-										oldAddInfo,
-										oldAddInfoIsNull,
 										oldNPosting);
 
 		/* During index build, count the newly-added data page */
@@ -309,12 +294,12 @@ addItemPointersToLeafTuple(RumState *rumstate,
 		gdi = rumPrepareScanPostingTree(rumstate->index, postingRoot, FALSE, attnum, rumstate);
 		gdi->btree.isBuild = (buildStats != NULL);
 
-		rumInsertItemPointers(rumstate, attnum, gdi, items, addInfo, addInfoIsNull, nitem, buildStats);
+		rumInsertItemPointers(rumstate, attnum, gdi, items, nitem, buildStats);
 
 		pfree(gdi);
 
 		/* And build a new posting-tree-only result tuple */
-		res = RumFormTuple(rumstate, attnum, key, category, NULL, NULL, NULL, 0, true);
+		res = RumFormTuple(rumstate, attnum, key, category, NULL, 0, true);
 		RumSetPostingTree(res, postingRoot);
 	}
 
@@ -332,15 +317,12 @@ addItemPointersToLeafTuple(RumState *rumstate,
 static IndexTuple
 buildFreshLeafTuple(RumState *rumstate,
 					OffsetNumber attnum, Datum key, RumNullCategory category,
-					ItemPointerData *items, Datum *addInfo,
-					bool *addInfoIsNull, uint32 nitem,
-					GinStatsData *buildStats)
+					RumKey *items, uint32 nitem, GinStatsData *buildStats)
 {
 	IndexTuple	res;
 
 	/* try to build tuple with room for all the items */
-	res = RumFormTuple(rumstate, attnum, key, category,
-					   items, addInfo, addInfoIsNull, nitem, false);
+	res = RumFormTuple(rumstate, attnum, key, category, items, nitem, false);
 
 	if (!res)
 	{
@@ -352,11 +334,11 @@ buildFreshLeafTuple(RumState *rumstate,
 
 		do
 		{
-			size = rumCheckPlaceToDataPageLeaf(attnum, &items[itemsCount],
-											   addInfo[itemsCount],
-											   addInfoIsNull[itemsCount],
+			size = rumCheckPlaceToDataPageLeaf(attnum, &items[itemsCount].iptr,
+											   items[itemsCount].addInfo,
+											   items[itemsCount].addInfoIsNull,
 											   &prevIptr, rumstate, size);
-			prevIptr = items[itemsCount];
+			prevIptr = items[itemsCount].iptr;
 			itemsCount++;
 		}
 		while (itemsCount < nitem && size < RumDataPageSize);
@@ -369,8 +351,7 @@ buildFreshLeafTuple(RumState *rumstate,
 		 * Build posting-tree-only result tuple.  We do this first so as to
 		 * fail quickly if the key is too big.
 		 */
-		res = RumFormTuple(rumstate, attnum, key, category,
-						   NULL, NULL, NULL, 0, true);
+		res = RumFormTuple(rumstate, attnum, key, category, NULL, 0, true);
 
 		/*
 		 * Initialize posting tree with as many TIDs as will fit on the first
@@ -380,8 +361,6 @@ buildFreshLeafTuple(RumState *rumstate,
 										attnum,
 										rumstate->index,
 										items,
-										addInfo,
-										addInfoIsNull,
 										itemsCount);
 
 		/* During index build, count the newly-added data page */
@@ -401,8 +380,6 @@ buildFreshLeafTuple(RumState *rumstate,
 								  attnum,
 								  gdi,
 								  items + itemsCount,
-								  addInfo + itemsCount,
-								  addInfoIsNull + itemsCount,
 								  nitem - itemsCount,
 								  buildStats);
 
@@ -426,28 +403,13 @@ buildFreshLeafTuple(RumState *rumstate,
 void
 rumEntryInsert(RumState *rumstate,
 			   OffsetNumber attnum, Datum key, RumNullCategory category,
-			   ItemPointerData *items,
-			   Datum *addInfo,
-			   bool *addInfoIsNull,
-			   uint32 nitem,
+			   RumKey *items, uint32 nitem,
 			   GinStatsData *buildStats)
 {
 	RumBtreeData btree;
 	RumBtreeStack *stack;
 	IndexTuple	itup;
 	Page		page;
-	int i;
-
-	if (!addInfoIsNull || !addInfo)
-	{
-		addInfoIsNull = (bool *)palloc(sizeof(bool) * nitem);
-		addInfo = (Datum *)palloc(sizeof(Datum) * nitem);
-		for (i = 0; i < nitem; i++)
-		{
-			addInfoIsNull[i] = true;
-			addInfo[i] = (Datum) 0;
-		}
-	}
 
 	/* During index build, count the to-be-inserted entry */
 	if (buildStats)
@@ -477,8 +439,8 @@ rumEntryInsert(RumState *rumstate,
 			gdi = rumPrepareScanPostingTree(rumstate->index, rootPostingTree,
 											FALSE, attnum, rumstate);
 			gdi->btree.isBuild = (buildStats != NULL);
-			rumInsertItemPointers(rumstate, attnum, gdi, items, addInfo,
-								  addInfoIsNull, nitem, buildStats);
+			rumInsertItemPointers(rumstate, attnum, gdi, items,
+								  nitem, buildStats);
 			pfree(gdi);
 
 			return;
@@ -486,8 +448,7 @@ rumEntryInsert(RumState *rumstate,
 
 		/* modify an existing leaf entry */
 		itup = addItemPointersToLeafTuple(rumstate, itup,
-										  items, addInfo, addInfoIsNull, nitem,
-										  buildStats);
+										  items, nitem, buildStats);
 
 		btree.isDelete = TRUE;
 	}
@@ -495,8 +456,7 @@ rumEntryInsert(RumState *rumstate,
 	{
 		/* no match, so construct a new leaf entry */
 		itup = buildFreshLeafTuple(rumstate, attnum, key, category,
-								   items, addInfo, addInfoIsNull, nitem,
-								   buildStats);
+								   items, nitem, buildStats);
 	}
 
 	/* Insert the new or modified leaf tuple */
@@ -589,37 +549,20 @@ rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 	/* If we've maxed out our available memory, dump everything to the index */
 	if (buildstate->accum.allocatedMemory >= maintenance_work_mem * 1024L)
 	{
-		RumEntryAccumulatorItem *list;
+		RumKey	   *items;
 		Datum		key;
 		RumNullCategory category;
 		uint32		nlist;
 		OffsetNumber attnum;
 
 		rumBeginBAScan(&buildstate->accum);
-		while ((list = rumGetBAEntry(&buildstate->accum,
+		while ((items = rumGetBAEntry(&buildstate->accum,
 								  &attnum, &key, &category, &nlist)) != NULL)
 		{
-			ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(*iptrs) *nlist);
-			Datum *addInfo = (Datum *)palloc(sizeof(*addInfo) * nlist);
-			bool *addInfoIsNull = (bool *)palloc(sizeof(*addInfoIsNull) * nlist);
-			int i;
-
-			for (i = 0; i < nlist; i++)
-			{
-				iptrs[i] = list[i].iptr;
-				addInfo[i] = list[i].addInfo;
-				addInfoIsNull[i] = list[i].addInfoIsNull;
-			}
-
-
 			/* there could be many entries, so be willing to abort here */
 			CHECK_FOR_INTERRUPTS();
 			rumEntryInsert(&buildstate->rumstate, attnum, key, category,
-						   iptrs, addInfo, addInfoIsNull, nlist, &buildstate->buildStats);
-
-			pfree(addInfoIsNull);
-			pfree(addInfo);
-			pfree(iptrs);
+						   items, nlist, &buildstate->buildStats);
 		}
 
 		MemoryContextReset(buildstate->tmpCtx);
@@ -637,7 +580,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	RumBuildState	buildstate;
 	Buffer			RootBuffer,
 					MetaBuffer;
-	RumEntryAccumulatorItem *list;
+	RumKey		   *items;
 	Datum			key;
 	RumNullCategory	category;
 	uint32			nlist;
@@ -700,25 +643,13 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	/* dump remaining entries to the index */
 	oldCtx = MemoryContextSwitchTo(buildstate.tmpCtx);
 	rumBeginBAScan(&buildstate.accum);
-	while ((list = rumGetBAEntry(&buildstate.accum,
+	while ((items = rumGetBAEntry(&buildstate.accum,
 								 &attnum, &key, &category, &nlist)) != NULL)
 	{
-		ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(ItemPointerData) *nlist);
-		Datum *addInfo = (Datum *)palloc(sizeof(Datum) * nlist);
-		bool *addInfoIsNull = (bool *)palloc(sizeof(bool) * nlist);
-		int i;
-
-		for (i = 0; i < nlist; i++)
-		{
-			iptrs[i] = list[i].iptr;
-			addInfo[i] = list[i].addInfo;
-			addInfoIsNull[i] = list[i].addInfoIsNull;
-		}
-
 		/* there could be many entries, so be willing to abort here */
 		CHECK_FOR_INTERRUPTS();
 		rumEntryInsert(&buildstate.rumstate, attnum, key, category,
-					   iptrs, addInfo, addInfoIsNull, nlist, &buildstate.buildStats);
+					   items, nlist, &buildstate.buildStats);
 	}
 	MemoryContextSwitchTo(oldCtx);
 
@@ -809,8 +740,16 @@ rumHeapTupleInsert(RumState *rumstate, OffsetNumber attnum,
 	}
 
 	for (i = 0; i < nentries; i++)
+	{
+		RumKey	insert_item;
+
+		insert_item.iptr = *item;
+		insert_item.addInfo = addInfo[i];
+		insert_item.addInfoIsNull = addInfoIsNull[i];
+
 		rumEntryInsert(rumstate, attnum, entries[i], categories[i],
-					   item, &addInfo[i], &addInfoIsNull[i], 1, NULL);
+					   &insert_item, 1, NULL);
+	}
 }
 
 bool

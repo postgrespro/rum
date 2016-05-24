@@ -21,30 +21,45 @@
  */
 void
 rumReadTuple(RumState *rumstate, OffsetNumber attnum,
-	IndexTuple itup, ItemPointerData *ipd, Datum *addInfo, bool *addInfoIsNull)
+			 IndexTuple itup, RumKey *items)
 {
-	Pointer ptr;
-	int nipd = RumGetNPosting(itup), i;
-	ItemPointerData ip = {{0,0},0};
+	Pointer ptr = RumGetPosting(itup);
+	int		nipd = RumGetNPosting(itup),
+			i;
 
-	ptr = RumGetPosting(itup);
-
-	if (addInfo && addInfoIsNull)
+	for (i = 0; i < nipd; i++)
 	{
-		for (i = 0; i < nipd; i++)
+		if (i == 0)
 		{
-			ptr = rumDataPageLeafRead(ptr, attnum, &ip, &addInfo[i],
-												&addInfoIsNull[i], rumstate);
-			ipd[i] = ip;
+			items[0].iptr.ip_blkid.bi_lo = 0;
+			items[0].iptr.ip_blkid.bi_hi = 0;
+			items[0].iptr.ip_posid = 0;
 		}
+		ptr = rumDataPageLeafRead(ptr, attnum, &items[i], rumstate, true);
 	}
-	else
+}
+
+/*
+ * Read only item pointers from leaf data page.
+ * Information is stored in the same manner as in leaf data pages.
+ */
+void
+rumReadTuplePointers(RumState *rumstate, OffsetNumber attnum,
+					 IndexTuple itup, ItemPointerData *ipd)
+{
+	Pointer ptr = RumGetPosting(itup);
+	int		nipd = RumGetNPosting(itup),
+			i;
+	RumKey	item;
+
+	item.iptr.ip_blkid.bi_lo = 0;
+	item.iptr.ip_blkid.bi_hi = 0;
+	item.iptr.ip_posid = 0;
+
+	for (i = 0; i < nipd; i++)
 	{
-		for (i = 0; i < nipd; i++)
-		{
-			ptr = rumDataPageLeafRead(ptr, attnum, &ip, NULL, NULL, rumstate);
-			ipd[i] = ip;
-		}
+		ptr = rumDataPageLeafRead(ptr, attnum, &item, rumstate, false);
+		ipd[i] = item.iptr;
 	}
 }
 

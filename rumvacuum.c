@@ -45,22 +45,23 @@ rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src,
 {
 	uint32		i,
 				j = 0;
-	ItemPointerData iptr = {{0,0},0}, prevIptr;
-	Datum		addInfo = 0;
-	bool		addInfoIsNull;
+	RumKey		item;
+	ItemPointerData prevIptr;
 	Pointer		dst = NULL, prev, ptr = src;
 
+	item.iptr.ip_blkid.bi_lo = 0;
+	item.iptr.ip_blkid.bi_hi = 0;
+	item.iptr.ip_posid = 0;
 	/*
 	 * just scan over ItemPointer array
 	 */
 
-	prevIptr = iptr;
+	prevIptr = item.iptr;
 	for (i = 0; i < nitem; i++)
 	{
 		prev = ptr;
-		ptr = rumDataPageLeafRead(ptr, attnum, &iptr, &addInfo, &addInfoIsNull,
-								  &gvs->rumstate);
-		if (gvs->callback(&iptr, gvs->callback_state))
+		ptr = rumDataPageLeafRead(ptr, attnum, &item, &gvs->rumstate, true);
+		if (gvs->callback(&item.iptr, gvs->callback_state))
 		{
 			gvs->result->tuples_removed += 1;
 			if (!dst)
@@ -78,12 +79,12 @@ rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src,
 		{
 			gvs->result->num_index_tuples += 1;
 			if (i != j)
-				dst = rumPlaceToDataPageLeaf(dst, attnum, &iptr,
-											 addInfo,
-											 addInfoIsNull,
+				dst = rumPlaceToDataPageLeaf(dst, attnum, &item.iptr,
+											 item.addInfo,
+											 item.addInfoIsNull,
 											 &prevIptr, &gvs->rumstate);
 			j++;
-			prevIptr = iptr;
+			prevIptr = item.iptr;
 		}
 	}
 

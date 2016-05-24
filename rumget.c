@@ -116,7 +116,11 @@ findItemInPostingPage(Page page, ItemPointer item, OffsetNumber *off,
 	OffsetNumber maxoff = RumPageGetOpaque(page)->maxoff;
 	int			res;
 	Pointer		ptr;
-	ItemPointerData iptr = {{0, 0}, 0};
+	RumKey		iter_item;
+
+	iter_item.iptr.ip_blkid.bi_lo = 0;
+	iter_item.iptr.ip_blkid.bi_hi = 0;
+	iter_item.iptr.ip_posid = 0;
 
 	if (RumPageGetOpaque(page)->flags & RUM_DELETED)
 		/* page was deleted by concurrent vacuum */
@@ -128,9 +132,9 @@ findItemInPostingPage(Page page, ItemPointer item, OffsetNumber *off,
 	 */
 	for (*off = FirstOffsetNumber; *off <= maxoff; (*off)++)
 	{
-		ptr = rumDataPageLeafRead(ptr, attnum, &iptr, NULL, NULL, rumstate);
+		ptr = rumDataPageLeafRead(ptr, attnum, &iter_item, rumstate, false);
 
-		res = rumCompareItemPointers(item, &iptr);
+		res = rumCompareItemPointers(item, &iter_item.iptr);
 		if (res <= 0)
 			return true;
 	}
@@ -196,15 +200,18 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 		if ((RumPageGetOpaque(page)->flags & RUM_DELETED) == 0 &&
 			maxoff >= FirstOffsetNumber)
 		{
-			ItemPointerData iptr = {{0, 0}, 0};
+			RumKey	item;
 			Pointer ptr;
+
+			item.iptr.ip_blkid.bi_lo = 0;
+			item.iptr.ip_blkid.bi_hi = 0;
+			item.iptr.ip_posid = 0;
 
 			ptr = RumDataPageGetData(page);
 			for (i = FirstOffsetNumber; i <= maxoff; i++)
 			{
-				ptr = rumDataPageLeafRead(ptr, attnum, &iptr, NULL, NULL,
-																	rumstate);
-				tbm_add_tuples(scanEntry->matchBitmap, &iptr, 1, false);
+				ptr = rumDataPageLeafRead(ptr, attnum, &item, rumstate, false);
+				tbm_add_tuples(scanEntry->matchBitmap, &item.iptr, 1, false);
 			}
 
 			scanEntry->predictNumberResult += maxoff;
@@ -394,8 +401,7 @@ collectMatchBitmap(RumBtreeData *btree, RumBtreeStack *stack,
 		{
 			ItemPointerData *ipd = (ItemPointerData *)palloc(
 								sizeof(ItemPointerData) * RumGetNPosting(itup));
-			rumReadTuple(btree->rumstate, scanEntry->attnum,
-				itup, ipd, NULL, NULL);
+			rumReadTuplePointers(btree->rumstate, scanEntry->attnum, itup, ipd);
 
 			tbm_add_tuples(scanEntry->matchBitmap,
 						   ipd, RumGetNPosting(itup), false);
@@ -499,7 +505,11 @@ restartScanEntry:
 			Page		page;
 			OffsetNumber maxoff, i;
 			Pointer ptr;
-			ItemPointerData iptr = {{0,0},0};
+			RumKey		item;
+
+			item.iptr.ip_blkid.bi_lo = 0;
+			item.iptr.ip_blkid.bi_hi = 0;
+			item.iptr.ip_posid = 0;
 
 			/*
 			 * We should unlock entry page before touching posting tree to
@@ -541,10 +551,11 @@ restartScanEntry:
 
 			for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 			{
-				ptr = rumDataPageLeafRead(ptr, entry->attnum, &iptr,
-					&entry->addInfo[i - FirstOffsetNumber],
-					&entry->addInfoIsNull[i - FirstOffsetNumber], rumstate);
-				entry->list[i - FirstOffsetNumber] = iptr;
+				ptr = rumDataPageLeafRead(ptr, entry->attnum, &item, rumstate,
+										  true);
+				entry->list[i - FirstOffsetNumber] = item.iptr;
+				entry->addInfo[i - FirstOffsetNumber] = item.addInfo;
+				entry->addInfoIsNull[i - FirstOffsetNumber] = item.addInfoIsNull;
 			}
 
 			LockBuffer(entry->buffer, RUM_UNLOCK);
@@ -552,16 +563,28 @@ restartScanEntry:
 		}
 		else if (RumGetNPosting(itup) > 0)
 		{
+			RumKey *items;
+			int		i;
+
 			entry->nlist = RumGetNPosting(itup);
 			entry->predictNumberResult = entry->nlist;
 			entry->list = (ItemPointerData *) palloc(sizeof(ItemPointerData) * entry->nlist);
 			entry->addInfo = (Datum *) palloc(sizeof(Datum) * entry->nlist);
 			entry->addInfoIsNull = (bool *) palloc(sizeof(bool) * entry->nlist);
 
-			rumReadTuple(rumstate, entry->attnum, itup,
-				entry->list, entry->addInfo, entry->addInfoIsNull);
+			items = (RumKey *) palloc(sizeof(RumKey) * entry->nlist);
 
+			rumReadTuple(rumstate, entry->attnum, itup, items);
+
+			for (i = 0; i < entry->nlist; i++)
+			{
+				entry->list[i] = items[i].iptr;
+				entry->addInfo[i] = items[i].addInfo;
+				entry->addInfoIsNull[i] = items[i].addInfoIsNull;
+			}
 			entry->isFinished = FALSE;
+
+			pfree(items);
 		}
 	}
 
@@ -757,7 +780,11 @@ entryGetNextItem(RumState *rumstate, RumScanEntry entry)
 			{
 				OffsetNumber maxoff, i;
 				Pointer ptr;
-				ItemPointerData iptr = {{0,0},0};
+				RumKey	item;
+
+				item.iptr.ip_blkid.bi_lo = 0;
+				item.iptr.ip_blkid.bi_hi = 0;
+				item.iptr.ip_posid = 0;
 
 				/*
 				 * Found position equal to or greater than stored
@@ -769,9 +796,11 @@ entryGetNextItem(RumState *rumstate, RumScanEntry entry)
 
 				for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 				{
-					ptr = rumDataPageLeafRead(ptr, entry->attnum, &iptr,
-						&entry->addInfo[i - FirstOffsetNumber], &entry->addInfoIsNull[i - FirstOffsetNumber], rumstate);
-					entry->list[i - FirstOffsetNumber] = iptr;
+					ptr = rumDataPageLeafRead(ptr, entry->attnum, &item,
+											  rumstate, true);
+					entry->list[i - FirstOffsetNumber] = item.iptr;
+					entry->addInfo[i - FirstOffsetNumber] = item.addInfo;
+					entry->addInfoIsNull[i - FirstOffsetNumber] = item.addInfoIsNull;
 				}
 
 				LockBuffer(entry->buffer, RUM_UNLOCK);
@@ -1253,11 +1282,15 @@ static bool
 scanPage(RumState *rumstate, RumScanEntry entry, ItemPointer item, Page page, bool equalOk)
 {
 	int j;
-	ItemPointerData iptr = {{0,0},0};
+	RumKey	iter_item;
 	Pointer ptr;
 	OffsetNumber first = FirstOffsetNumber, i, maxoff;
 	bool found;
 	int cmp;
+
+	iter_item.iptr.ip_blkid.bi_lo = 0;
+	iter_item.iptr.ip_blkid.bi_hi = 0;
+	iter_item.iptr.ip_posid = 0;
 
 	if (!RumPageRightMost(page))
 	{
@@ -1279,7 +1312,7 @@ scanPage(RumState *rumstate, RumScanEntry entry, ItemPointer item, Page page, bo
 		{
 			ptr = RumDataPageGetData(page) + index->pageOffset;
 			first = index->offsetNumer;
-			iptr = index->iptr;
+			iter_item.iptr = index->iptr;
 		}
 		else
 		{
@@ -1293,12 +1326,12 @@ scanPage(RumState *rumstate, RumScanEntry entry, ItemPointer item, Page page, bo
 	found = false;
 	for (i = first; i <= maxoff; i++)
 	{
-		ptr = rumDataPageLeafRead(ptr, entry->attnum, &iptr,
-			&entry->addInfo[i - first],
-			&entry->addInfoIsNull[i - first],
-			rumstate);
-		entry->list[i - first] = iptr;
-		cmp = rumCompareItemPointers(item, &iptr);
+		ptr = rumDataPageLeafRead(ptr, entry->attnum, &iter_item, rumstate, true);
+		entry->list[i - first] = iter_item.iptr;
+		entry->addInfo[i - first] = iter_item.addInfo;
+		entry->addInfoIsNull[i - first] = iter_item.addInfoIsNull;
+
+		cmp = rumCompareItemPointers(item, &iter_item.iptr);
 		if ((cmp < 0 || (cmp <= 0 && equalOk))&& entry->offset == InvalidOffsetNumber)
 		{
 			found = true;

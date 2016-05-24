@@ -405,9 +405,7 @@ extern bool ruminsert(Relation index, Datum *values, bool *isnull,
 					  IndexUniqueCheck checkUnique);
 extern void rumEntryInsert(RumState *rumstate,
 			   OffsetNumber attnum, Datum key, RumNullCategory category,
-			   ItemPointerData *items, Datum *addInfo,
-			   bool *addInfoIsNull, uint32 nitem,
-			   GinStatsData *buildStats);
+			   RumKey *items, uint32 nitem, GinStatsData *buildStats);
 
 /* rumbtree.c */
 
@@ -483,7 +481,9 @@ extern void rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rb
 							 Page page, Page lpage, Page rpage);
 extern IndexTuple rumPageGetLinkItup(Buffer buf, Page page);
 extern void rumReadTuple(RumState *rumstate, OffsetNumber attnum,
-	IndexTuple itup, ItemPointerData *ipd, Datum *addInfo, bool *addInfoIsNull);
+						 IndexTuple itup, RumKey *items);
+extern void rumReadTuplePointers(RumState *rumstate, OffsetNumber attnum,
+								 IndexTuple itup, ItemPointerData *ipd);
 extern ItemPointerData updateItemIndexes(Page page, OffsetNumber attnum, RumState *rumstate);
 extern void checkLeafDataPage(RumState *rumstate, AttrNumber attrnum, Page page);
 
@@ -496,10 +496,8 @@ extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
 extern Size rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
 	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
 	RumState *rumstate, Size size);
-extern uint32 rumMergeItemPointers(RumState *rumstate,
-					ItemPointerData *dst, Datum *dst2, bool *dst3,
-					ItemPointerData *a, Datum *a2, bool *a3, uint32 na,
-					ItemPointerData *b, Datum * b2, bool *b3, uint32 nb);
+extern uint32 rumMergeItemPointers(RumState *rumstate, RumKey *dst,
+								   RumKey *a, uint32 na, RumKey *b, uint32 nb);
 extern void RumDataPageAddItem(Page page, void *data, OffsetNumber offset);
 extern void RumPageDeletePostingItem(Page page, OffsetNumber offset);
 
@@ -514,10 +512,7 @@ extern RumPostingTreeScan *rumPrepareScanPostingTree(Relation index,
 extern void rumInsertItemPointers(RumState *rumstate,
 					  OffsetNumber attnum,
 					  RumPostingTreeScan *gdi,
-					  ItemPointerData *items,
-					  Datum *addInfo,
-					  bool *addInfoIsNull,
-					  uint32 nitem,
+					  RumKey *items, uint32 nitem,
 					  GinStatsData *buildStats);
 extern Buffer rumScanBeginPostingTree(RumPostingTreeScan *gdi);
 extern void rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
@@ -834,18 +829,18 @@ rumDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
  * passed in order to read the first item pointer.
  */
 static inline Pointer
-rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
-	Datum *addInfo, bool *addInfoIsNull, RumState *rumstate)
+rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumKey *item,
+					RumState *rumstate, bool readAddInfo)
 {
 	Form_pg_attribute attr;
 	bool isNull;
 
-	ptr = rumDataPageLeafReadItemPointer(ptr, iptr, &isNull);
+	ptr = rumDataPageLeafReadItemPointer(ptr, &item->iptr, &isNull);
 
-	Assert(iptr->ip_posid != InvalidOffsetNumber);
+	Assert(item->iptr.ip_posid != InvalidOffsetNumber);
 
-	if (addInfoIsNull)
-		*addInfoIsNull = isNull;
+	if (readAddInfo)
+		item->addInfoIsNull = isNull;
 
 	if (!isNull)
 	{
@@ -854,7 +849,7 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
 		if (attr->attbyval)
 		{
 			/* do not use aligment for pass-by-value types */
-			if (addInfo)
+			if (readAddInfo)
 			{
 				union {
 					int16	i16;
@@ -864,19 +859,19 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
 				switch(attr->attlen)
 				{
 					case sizeof(char):
-						*addInfo = Int8GetDatum(*ptr);
+						item->addInfo = Int8GetDatum(*ptr);
 						break;
 					case sizeof(int16):
 						memcpy(&u.i16, ptr, sizeof(int16));
-						*addInfo = Int16GetDatum(u.i16);
+						item->addInfo = Int16GetDatum(u.i16);
 						break;
 					case sizeof(int32):
 						memcpy(&u.i32, ptr, sizeof(int32));
-						*addInfo = Int32GetDatum(u.i32);
+						item->addInfo = Int32GetDatum(u.i32);
 						break;
 #if SIZEOF_DATUM == 8
 					case sizeof(Datum):
-						memcpy(addInfo, ptr, sizeof(Datum));
+						memcpy(&item->addInfo, ptr, sizeof(Datum));
 						break;
 #endif
 					default:
@@ -888,8 +883,8 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
 		else
 		{
 			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen, ptr);
-			if (addInfo)
-				*addInfo = fetch_att(ptr,  attr->attbyval,  attr->attlen);
+			if (readAddInfo)
+				item->addInfo = fetch_att(ptr,  attr->attbyval,  attr->attlen);
 		}
 
 		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);
