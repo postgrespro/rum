@@ -24,18 +24,18 @@ rumReadTuple(RumState *rumstate, OffsetNumber attnum,
 			 IndexTuple itup, RumKey *items)
 {
 	Pointer ptr = RumGetPosting(itup);
+	RumKey	item;
 	int		nipd = RumGetNPosting(itup),
 			i;
 
+	item.iptr.ip_blkid.bi_lo = 0;
+	item.iptr.ip_blkid.bi_hi = 0;
+	item.iptr.ip_posid = 0;
+
 	for (i = 0; i < nipd; i++)
 	{
-		if (i == 0)
-		{
-			items[0].iptr.ip_blkid.bi_lo = 0;
-			items[0].iptr.ip_blkid.bi_hi = 0;
-			items[0].iptr.ip_posid = 0;
-		}
-		ptr = rumDataPageLeafRead(ptr, attnum, &items[i], rumstate, true);
+		ptr = rumDataPageLeafRead(ptr, attnum, &item, rumstate, true);
+		items[i] = item;
 	}
 }
 

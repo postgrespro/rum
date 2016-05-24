@@ -111,7 +111,7 @@ rumvalidate(Oid opclassoid)
 			case GIN_EXTRACTVALUE_PROC:
 				/* Some opclasses omit nullFlags */
 				ok = check_amproc_signature(procform->amproc, INTERNALOID, false,
-											3, 3, opcintype, INTERNALOID,
+											5, 5, opcintype, INTERNALOID,
 											INTERNALOID, INTERNALOID,
 											INTERNALOID);
 				break;

@@ -1400,8 +1400,8 @@ rumInsertItemPointers(RumState *rumstate,
 
 	BlockNumber rootBlkno = gdi->stack->blkno;
 
-	/* TODO: Fix this */
-	gdi->btree.items = (ItemPointer) palloc(sizeof(ItemPointerData) * nitem);
+	/* TODO: Fix this terrible code. */
+	gdi->btree.items = (ItemPointerData *) palloc(sizeof(ItemPointerData) * nitem);
 	gdi->btree.addInfo = (Datum *) palloc(sizeof(Datum) * nitem);
 	gdi->btree.addInfoIsNull = (bool *) palloc(sizeof(bool) * nitem);
 	for (i = 0; i < nitem; i++)
