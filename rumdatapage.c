@@ -208,17 +208,17 @@ rumDataPageLeafWriteItemPointer(char *ptr, ItemPointer iptr, ItemPointer prev,
  */
 Pointer
 rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
-	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
-	RumState *rumstate)
+	RumKey *item, ItemPointer prev, RumState *rumstate)
 {
 	Form_pg_attribute attr;
 
-	ptr = rumDataPageLeafWriteItemPointer(ptr, iptr, prev, addInfoIsNull);
+	ptr = rumDataPageLeafWriteItemPointer(ptr, &item->iptr, prev,
+										  item->addInfoIsNull);
 
-	if (!addInfoIsNull)
+	if (!item->addInfoIsNull)
 	{
 		attr = rumstate->addAttrs[attnum - 1];
-		ptr = rumDatumWrite(ptr, addInfo, attr->attbyval, attr->attalign,
+		ptr = rumDatumWrite(ptr, item->addInfo, attr->attbyval, attr->attalign,
 			attr->attlen, attr->attstorage);
 	}
 	return ptr;
@@ -836,9 +836,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				break;
 
 			ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
-				&btree->items[j].iptr, btree->items[j].addInfo,
-				btree->items[j].addInfoIsNull,
-				&iptr, btree->rumstate);
+				&btree->items[j], &iptr, btree->rumstate);
 			freespace = RumDataPageFreeSpacePre(page,ptr);
 			Assert(freespace >= 0);
 
@@ -855,9 +853,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				copy_ptr = rumDataPageLeafRead(copy_ptr, btree->entryAttnum,
 											   &copy_item, btree->rumstate,
 											   true);
-				ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum, &copy_item.iptr,
-											 copy_item.addInfo,
-											 copy_item.addInfoIsNull,
+				ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum, &copy_item,
 											 &iptr, btree->rumstate);
 
 				freespace = RumDataPageFreeSpacePre(page,ptr);
@@ -1041,9 +1037,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 			while (btree->curitem < maxItemIndex)
 			{
 				ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
-					&btree->items[btree->curitem].iptr,
-					btree->items[btree->curitem].addInfo,
-					btree->items[btree->curitem].addInfoIsNull,
+					&btree->items[btree->curitem],
 					&prevIptr, btree->rumstate);
 				freespace = RumDataPageFreeSpacePre(page, ptr);
 				Assert(freespace >= 0);
@@ -1058,8 +1052,8 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		copyPtr = rumDataPageLeafRead(copyPtr, btree->entryAttnum, &item,
 									  btree->rumstate, true);
 
-		ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum, &item.iptr,
-			item.addInfo, item.addInfoIsNull, &prevIptr, btree->rumstate);
+		ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum, &item,
+									 &prevIptr, btree->rumstate);
 		freespace = RumDataPageFreeSpacePre(page, ptr);
 		Assert(freespace >= 0);
 
@@ -1073,10 +1067,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		while (btree->curitem < maxItemIndex)
 		{
 			ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
-				&btree->items[btree->curitem].iptr,
-				btree->items[btree->curitem].addInfo,
-				btree->items[btree->curitem].addInfoIsNull,
-				&prevIptr, btree->rumstate);
+				&btree->items[btree->curitem], &prevIptr, btree->rumstate);
 			freespace = RumDataPageFreeSpacePre(page, ptr);
 			Assert(freespace >= 0);
 

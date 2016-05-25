@@ -79,9 +79,7 @@ rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src,
 		{
 			gvs->result->num_index_tuples += 1;
 			if (i != j)
-				dst = rumPlaceToDataPageLeaf(dst, attnum, &item.iptr,
-											 item.addInfo,
-											 item.addInfoIsNull,
+				dst = rumPlaceToDataPageLeaf(dst, attnum, &item,
 											 &prevIptr, &gvs->rumstate);
 			j++;
 			prevIptr = item.iptr;

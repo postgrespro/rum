@@ -501,8 +501,7 @@ extern void checkLeafDataPage(RumState *rumstate, AttrNumber attrnum, Page page)
 extern int rumCompareItemPointers(const ItemPointerData * a, const ItemPointerData * b);
 extern int compareRumKey(RumState *state, const RumKey *a, const RumKey *b);
 extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
-	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
-	RumState *rumstate);
+	RumKey *item, ItemPointer prev, RumState *rumstate);
 extern Size rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
 	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
 	RumState *rumstate, Size size);

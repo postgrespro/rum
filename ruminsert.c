@@ -63,8 +63,7 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 	{
 		if (i > 0)
 			prev_iptr = items[i - 1].iptr;
-		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[i].iptr,
-									 items[i].addInfo, items[i].addInfoIsNull,
+		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[i],
 									 &prev_iptr, rumstate);
 	}
 	freespace = RumDataPageFreeSpacePre(page, ptr);
@@ -201,14 +200,11 @@ RumFormTuple(RumState *rumstate,
 	if (nipd > 0)
 	{
 		char *ptr = RumGetPosting(itup);
-		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[0].iptr,
-									 items[0].addInfo, items[0].addInfoIsNull,
+		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[0],
 									 &nullItemPointer, rumstate);
 		for (i = 1; i < nipd; i++)
 		{
-			ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[i].iptr,
-										 items[i].addInfo,
-										 items[i].addInfoIsNull,
+			ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[i],
 										 &items[i - 1].iptr, rumstate);
 		}
 
