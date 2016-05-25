@@ -454,9 +454,7 @@ typedef struct RumBtreeData
 	bool		isDelete;
 
 	/* Data (posting tree) options */
-	ItemPointerData *items;
-	Datum		*addInfo;
-	bool		*addInfoIsNull;
+	RumKey	   *items;
 
 	uint32		nitem;
 	uint32		curitem;

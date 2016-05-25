@@ -92,7 +92,7 @@ rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack)
 
 		if (rumCompareItemPointers(
 				&(((PostingItem *)RumDataPageGetItem(page, maxoff - 1))->key),
-				btree->items + btree->curitem) >= 0)
+				&btree->items[btree->curitem].iptr) >= 0)
 		{
 			break;
 		}
