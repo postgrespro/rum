@@ -118,9 +118,7 @@ findItemInPostingPage(Page page, ItemPointer item, OffsetNumber *off,
 	Pointer		ptr;
 	RumKey		iter_item;
 
-	iter_item.iptr.ip_blkid.bi_lo = 0;
-	iter_item.iptr.ip_blkid.bi_hi = 0;
-	iter_item.iptr.ip_posid = 0;
+	ItemPointerSetMin(&iter_item.iptr);
 
 	if (RumPageGetOpaque(page)->flags & RUM_DELETED)
 		/* page was deleted by concurrent vacuum */
@@ -203,9 +201,7 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 			RumKey	item;
 			Pointer ptr;
 
-			item.iptr.ip_blkid.bi_lo = 0;
-			item.iptr.ip_blkid.bi_hi = 0;
-			item.iptr.ip_posid = 0;
+			ItemPointerSetMin(&item.iptr);
 
 			ptr = RumDataPageGetData(page);
 			for (i = FirstOffsetNumber; i <= maxoff; i++)

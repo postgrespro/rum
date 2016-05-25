@@ -49,9 +49,8 @@ rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src,
 	ItemPointerData prevIptr;
 	Pointer		dst = NULL, prev, ptr = src;
 
-	item.iptr.ip_blkid.bi_lo = 0;
-	item.iptr.ip_blkid.bi_hi = 0;
-	item.iptr.ip_posid = 0;
+	ItemPointerSetMin(&item.iptr);
+
 	/*
 	 * just scan over ItemPointer array
 	 */

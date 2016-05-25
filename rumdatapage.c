@@ -484,9 +484,7 @@ findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
 	RumKey		item;
 	int cmp;
 
-	item.iptr.ip_blkid.bi_lo = 0;
-	item.iptr.ip_blkid.bi_hi = 0;
-	item.iptr.ip_posid = 0;
+	ItemPointerSetMin(&item.iptr);
 	maxoff = RumPageGetOpaque(page)->maxoff;
 
 	/*
@@ -880,9 +878,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 			totalsize / 2 && page == newlPage)      \
 		{                                           \
 			maxLeftIptr = item.iptr;                \
-			prevIptr.ip_blkid.bi_hi = 0;            \
-			prevIptr.ip_blkid.bi_lo = 0;            \
-			prevIptr.ip_posid = 0;                  \
+			ItemPointerSetMin(&prevIptr);           \
 			RumPageGetOpaque(newlPage)->maxoff = j; \
 			page = rPage;                           \
 			ptr = RumDataPageGetData(rPage);        \
@@ -937,9 +933,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	/* Calculate the whole size we're going to place */
 	copyPtr = RumDataPageGetData(lpageCopy);
-	item.iptr.ip_blkid.bi_lo = 0;
-	item.iptr.ip_blkid.bi_hi = 0;
-	item.iptr.ip_posid = 0;
+	ItemPointerSetMin(&item.iptr);
 	for (i = FirstOffsetNumber; i <= maxoff; i++)
 	{
 		if (i == off)
@@ -1015,9 +1009,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	page = newlPage;
 	j = FirstOffsetNumber;
 
-	item.iptr.ip_blkid.bi_lo = 0;
-	item.iptr.ip_blkid.bi_hi = 0;
-	item.iptr.ip_posid = 0;
+	ItemPointerSetMin(&item.iptr);
 	prevIptr = item.iptr;
 	copyPtr = RumDataPageGetData(lpageCopy);
 	for (i = FirstOffsetNumber; i <= maxoff; i++)
@@ -1223,9 +1215,7 @@ updateItemIndexes(Page page, OffsetNumber attnum, RumState *rumstate)
 
 	maxoff = RumPageGetOpaque(page)->maxoff;
 	ptr = RumDataPageGetData(page);
-	item.iptr.ip_blkid.bi_lo = 0;
-	item.iptr.ip_blkid.bi_hi = 0;
-	item.iptr.ip_posid = 0;
+	ItemPointerSetMin(&item.iptr);
 
 	for (i = FirstOffsetNumber; i <= maxoff; i++)
 	{
@@ -1271,9 +1261,7 @@ checkLeafDataPage(RumState *rumstate, AttrNumber attnum, Page page)
 
 	maxoff = RumPageGetOpaque(page)->maxoff;
 	ptr = RumDataPageGetData(page);
-	item.iptr.ip_blkid.bi_lo = 0;
-	item.iptr.ip_blkid.bi_hi = 0;
-	item.iptr.ip_posid = 0;
+	ItemPointerSetMin(&item.iptr);
 
 	Assert(RumPageGetOpaque(page)->flags & RUM_LEAF);
 

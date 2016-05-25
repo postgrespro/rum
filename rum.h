@@ -306,8 +306,8 @@ typedef struct RumOptions
 typedef struct RumKey
 {
 	ItemPointerData	iptr;
-	bool			addInfoIsNull;
 	Datum			addInfo;
+	bool			addInfoIsNull;
 } RumKey;
 
 #define RumItemSetMin(item)  \

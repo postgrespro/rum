@@ -49,10 +49,7 @@ rumReadTuplePointers(RumState *rumstate, OffsetNumber attnum,
 			i;
 	RumKey	item;
 
-	item.iptr.ip_blkid.bi_lo = 0;
-	item.iptr.ip_blkid.bi_hi = 0;
-	item.iptr.ip_posid = 0;
-
+	ItemPointerSetMin(&item.iptr);
 	for (i = 0; i < nipd; i++)
 	{
 		ptr = rumDataPageLeafRead(ptr, attnum, &item, rumstate, false);
