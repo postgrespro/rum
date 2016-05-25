@@ -303,14 +303,12 @@ typedef struct RumOptions
 #define RUM_SHARE	BUFFER_LOCK_SHARE
 #define RUM_EXCLUSIVE  BUFFER_LOCK_EXCLUSIVE
 
-typedef struct RumEntryAccumulatorItem
+typedef struct RumKey
 {
 	ItemPointerData	iptr;
 	bool			addInfoIsNull;
 	Datum			addInfo;
-} RumEntryAccumulatorItem;
-
-typedef struct RumEntryAccumulatorItem RumKey;
+} RumKey;
 
 #define RumItemSetMin(item)  \
 do { \
@@ -693,7 +691,7 @@ typedef struct RumEntryAccumulator
 	RumNullCategory category;
 	OffsetNumber attnum;
 	bool		shouldSort;
-	RumEntryAccumulatorItem *list;
+	RumKey	   *list;
 	uint32		maxcount;		/* allocated size of list[] */
 	uint32		count;			/* current number of list[] entries */
 } RumEntryAccumulator;
@@ -715,7 +713,7 @@ extern void rumInsertBAEntries(BuildAccumulator *accum,
 				   Datum *entries, Datum *addInfo, bool *addInfoIsNull,
 				   RumNullCategory *categories, int32 nentries);
 extern void rumBeginBAScan(BuildAccumulator *accum);
-extern RumEntryAccumulatorItem *rumGetBAEntry(BuildAccumulator *accum,
+extern RumKey *rumGetBAEntry(BuildAccumulator *accum,
 			  OffsetNumber *attnum, Datum *key, RumNullCategory *category,
 			  uint32 *n);
 

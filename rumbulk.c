@@ -37,8 +37,7 @@ rumCombineData(RBNode *existing, const RBNode *newdata, void *arg)
 	{
 		accum->allocatedMemory -= GetMemoryChunkSpace(eo->list);
 		eo->maxcount *= 2;
-		eo->list = (RumEntryAccumulatorItem *)
-			repalloc(eo->list, sizeof(RumEntryAccumulatorItem) * eo->maxcount);
+		eo->list = (RumKey *) repalloc(eo->list, sizeof(RumKey) * eo->maxcount);
 		accum->allocatedMemory += GetMemoryChunkSpace(eo->list);
 	}
 
@@ -150,7 +149,7 @@ rumInsertBAEntry(BuildAccumulator *accum,
 	RumEntryAccumulator eatmp;
 	RumEntryAccumulator *ea;
 	bool		isNew;
-	RumEntryAccumulatorItem item;
+	RumKey		item;
 
 	/*
 	 * For the moment, fill only the fields of eatmp that will be looked at by
@@ -185,8 +184,7 @@ rumInsertBAEntry(BuildAccumulator *accum,
 		 * rumCombineData()
 		 */
 		ea->shouldSort = accum->rumstate->useAlternativeOrder;
-		ea->list =
-			(RumEntryAccumulatorItem *) palloc(sizeof(RumEntryAccumulatorItem) * DEF_NPTR);
+		ea->list = (RumKey *) palloc(sizeof(RumKey) * DEF_NPTR);
 		ea->list[0].iptr = *heapptr;
 		ea->list[0].addInfo = addInfo;
 		ea->list[0].addInfoIsNull = addInfoIsNull;
@@ -280,13 +278,13 @@ rumBeginBAScan(BuildAccumulator *accum)
  * This consists of a single key datum and a list (array) of one or more
  * heap TIDs in which that key is found.  The list is guaranteed sorted.
  */
-RumEntryAccumulatorItem *
+RumKey *
 rumGetBAEntry(BuildAccumulator *accum,
 			  OffsetNumber *attnum, Datum *key, RumNullCategory *category,
 			  uint32 *n)
 {
 	RumEntryAccumulator *entry;
-	RumEntryAccumulatorItem *list;
+	RumKey	   *list;
 
 	entry = (RumEntryAccumulator *) rb_iterate(accum->tree);
 
@@ -304,11 +302,10 @@ rumGetBAEntry(BuildAccumulator *accum,
 	if (entry->count > 1)
 	{
 		if (accum->rumstate->useAlternativeOrder)
-			qsort_arg(list, entry->count, sizeof(RumEntryAccumulatorItem),
+			qsort_arg(list, entry->count, sizeof(RumKey),
 				  qsortCompareRumKey, accum->rumstate);
 		else if (entry->shouldSort)
-			qsort(list, entry->count, sizeof(RumEntryAccumulatorItem),
-				  qsortCompareItemPointers);
+			qsort(list, entry->count, sizeof(RumKey), qsortCompareItemPointers);
 	}
 
 	return list;
