@@ -130,7 +130,7 @@ findItemInPostingPage(Page page, ItemPointer item, OffsetNumber *off,
 	 */
 	for (*off = FirstOffsetNumber; *off <= maxoff; (*off)++)
 	{
-		ptr = rumDataPageLeafRead(ptr, attnum, &iter_item, rumstate, false);
+		ptr = rumDataPageLeafReadPointer(ptr, attnum, &iter_item, rumstate);
 
 		res = rumCompareItemPointers(item, &iter_item.iptr);
 		if (res <= 0)
@@ -206,7 +206,7 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 			ptr = RumDataPageGetData(page);
 			for (i = FirstOffsetNumber; i <= maxoff; i++)
 			{
-				ptr = rumDataPageLeafRead(ptr, attnum, &item, rumstate, false);
+				ptr = rumDataPageLeafReadPointer(ptr, attnum, &item, rumstate);
 				tbm_add_tuples(scanEntry->matchBitmap, &item.iptr, 1, false);
 			}
 
@@ -539,8 +539,7 @@ restartScanEntry:
 
 			for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 			{
-				ptr = rumDataPageLeafRead(ptr, entry->attnum, &item, rumstate,
-										  true);
+				ptr = rumDataPageLeafRead(ptr, entry->attnum, &item, rumstate);
 				entry->list[i - FirstOffsetNumber] = item;
 			}
 
@@ -763,7 +762,7 @@ entryGetNextItem(RumState *rumstate, RumScanEntry entry)
 				for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 				{
 					ptr = rumDataPageLeafRead(ptr, entry->attnum, &item,
-											  rumstate, true);
+											  rumstate);
 					entry->list[i - FirstOffsetNumber] = item;
 				}
 
@@ -1284,7 +1283,7 @@ scanPage(RumState *rumstate, RumScanEntry entry, ItemPointer item, Page page, bo
 	found = false;
 	for (i = first; i <= maxoff; i++)
 	{
-		ptr = rumDataPageLeafRead(ptr, entry->attnum, &iter_item, rumstate, true);
+		ptr = rumDataPageLeafRead(ptr, entry->attnum, &iter_item, rumstate);
 		entry->list[i - first] = iter_item;
 
 		cmp = rumCompareItemPointers(item, &iter_item.iptr);

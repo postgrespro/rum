@@ -59,7 +59,7 @@ rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src,
 	for (i = 0; i < nitem; i++)
 	{
 		prev = ptr;
-		ptr = rumDataPageLeafRead(ptr, attnum, &item, &gvs->rumstate, true);
+		ptr = rumDataPageLeafRead(ptr, attnum, &item, &gvs->rumstate);
 		if (gvs->callback(&item.iptr, gvs->callback_state))
 		{
 			gvs->result->tuples_removed += 1;

@@ -827,7 +827,7 @@ rumDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
  */
 static inline Pointer
 rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumKey *item,
-					RumState *rumstate, bool readAddInfo)
+					RumState *rumstate)
 {
 	Form_pg_attribute attr;
 	bool isNull;
@@ -836,8 +836,7 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumKey *item,
 
 	Assert(item->iptr.ip_posid != InvalidOffsetNumber);
 
-	if (readAddInfo)
-		item->addInfoIsNull = isNull;
+	item->addInfoIsNull = isNull;
 
 	if (!isNull)
 	{
@@ -846,43 +845,68 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumKey *item,
 		if (attr->attbyval)
 		{
 			/* do not use aligment for pass-by-value types */
-			if (readAddInfo)
-			{
-				union {
-					int16	i16;
-					int32	i32;
-				} u;
+			union {
+				int16	i16;
+				int32	i32;
+			} u;
 
-				switch(attr->attlen)
-				{
-					case sizeof(char):
-						item->addInfo = Int8GetDatum(*ptr);
-						break;
-					case sizeof(int16):
-						memcpy(&u.i16, ptr, sizeof(int16));
-						item->addInfo = Int16GetDatum(u.i16);
-						break;
-					case sizeof(int32):
-						memcpy(&u.i32, ptr, sizeof(int32));
-						item->addInfo = Int32GetDatum(u.i32);
-						break;
+			switch(attr->attlen)
+			{
+				case sizeof(char):
+					item->addInfo = Int8GetDatum(*ptr);
+					break;
+				case sizeof(int16):
+					memcpy(&u.i16, ptr, sizeof(int16));
+					item->addInfo = Int16GetDatum(u.i16);
+					break;
+				case sizeof(int32):
+					memcpy(&u.i32, ptr, sizeof(int32));
+					item->addInfo = Int32GetDatum(u.i32);
+					break;
 #if SIZEOF_DATUM == 8
-					case sizeof(Datum):
-						memcpy(&item->addInfo, ptr, sizeof(Datum));
-						break;
+				case sizeof(Datum):
+					memcpy(&item->addInfo, ptr, sizeof(Datum));
+					break;
 #endif
-					default:
-						elog(ERROR, "unsupported byval length: %d",
-							 (int) (attr->attlen));
-				}
+				default:
+					elog(ERROR, "unsupported byval length: %d",
+							(int) (attr->attlen));
 			}
 		}
 		else
 		{
 			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen, ptr);
-			if (readAddInfo)
-				item->addInfo = fetch_att(ptr,  attr->attbyval,  attr->attlen);
+			item->addInfo = fetch_att(ptr,  attr->attbyval,  attr->attlen);
 		}
+
+		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);
+	}
+	return ptr;
+}
+
+/*
+ * Reads next item pointer from leaf data page.
+ * Replaces current item pointer with the next one. Zero item pointer should be
+ * passed in order to read the first item pointer.
+ */
+static inline Pointer
+rumDataPageLeafReadPointer(Pointer ptr, OffsetNumber attnum, RumKey *item,
+						   RumState *rumstate)
+{
+	Form_pg_attribute attr;
+	bool isNull;
+
+	ptr = rumDataPageLeafReadItemPointer(ptr, &item->iptr, &isNull);
+
+	Assert(item->iptr.ip_posid != InvalidOffsetNumber);
+
+	if (!isNull)
+	{
+		attr = rumstate->addAttrs[attnum - 1];
+
+		if (!attr->attbyval)
+			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen,
+											  ptr);
 
 		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);
 	}
