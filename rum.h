@@ -303,7 +303,21 @@ typedef struct RumOptions
 #define RUM_SHARE	BUFFER_LOCK_SHARE
 #define RUM_EXCLUSIVE  BUFFER_LOCK_EXCLUSIVE
 
+typedef struct RumEntryAccumulatorItem
+{
+	ItemPointerData	iptr;
+	bool			addInfoIsNull;
+	Datum			addInfo;
+} RumEntryAccumulatorItem;
+
 typedef struct RumEntryAccumulatorItem RumKey;
+
+#define RumItemSetMin(item)  \
+do { \
+	ItemPointerSetMin(&((item)->iptr)); \
+	(item)->addInfo = (Datum) 0; \
+	(item)->addInfoIsNull = true; \
+} while (0)
 
 /*
  * RumState: working data structure describing the index being worked on
@@ -595,9 +609,7 @@ typedef struct RumScanEntryData
 	Buffer		buffer;
 
 	/* current ItemPointer to heap */
-	ItemPointerData curItem;
-	Datum		curAddInfo;
-	bool		curAddInfoIsNull;
+	RumKey		curItem;
 
 	/* for a partial-match or full-scan query, we accumulate all TIDs here */
 	TIDBitmap  *matchBitmap;
@@ -605,9 +617,7 @@ typedef struct RumScanEntryData
 	TBMIterateResult *matchResult;
 
 	/* used for Posting list and one page in Posting tree */
-	ItemPointerData *list;
-	Datum		*addInfo;
-	bool		*addInfoIsNull;
+	RumKey	   *list;
 	MemoryContext context;
 	uint32		nlist;
 	OffsetNumber offset;
@@ -671,13 +681,6 @@ extern IndexBulkDeleteResult *rumbulkdelete(IndexVacuumInfo *info,
 			 void *callback_state);
 extern IndexBulkDeleteResult *rumvacuumcleanup(IndexVacuumInfo *info,
 											   IndexBulkDeleteResult *stats);
-
-typedef struct RumEntryAccumulatorItem
-{
-	ItemPointerData	iptr;
-	bool			addInfoIsNull;
-	Datum			addInfo;
-} RumEntryAccumulatorItem;
 
 /* rumvalidate.c */
 extern bool rumvalidate(Oid opclassoid);

@@ -107,7 +107,7 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->attnum = attnum;
 
 	scanEntry->buffer = InvalidBuffer;
-	ItemPointerSetMin(&scanEntry->curItem);
+	RumItemSetMin(&scanEntry->curItem);
 	scanEntry->matchBitmap = NULL;
 	scanEntry->matchIterator = NULL;
 	scanEntry->matchResult = NULL;
@@ -273,10 +273,6 @@ freeScanKeys(RumScanOpaque so)
 		}
 		if (entry->list)
 			pfree(entry->list);
-		if (entry->addInfo)
-			pfree(entry->addInfo);
-		if (entry->addInfoIsNull)
-			pfree(entry->addInfoIsNull);
 		if (entry->matchIterator)
 			tbm_end_iterate(entry->matchIterator);
 		if (entry->matchBitmap)
