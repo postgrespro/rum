@@ -145,16 +145,12 @@ RumFormTuple(RumState *rumstate,
 
 	if (nipd > 0)
 	{
-		newsize = rumCheckPlaceToDataPageLeaf(attnum, &items[0].iptr,
-											  items[0].addInfo,
-											  items[0].addInfoIsNull,
+		newsize = rumCheckPlaceToDataPageLeaf(attnum, &items[0],
 											  &nullItemPointer,
 											  rumstate, newsize);
 		for (i = 1; i < nipd; i++)
 		{
-			newsize = rumCheckPlaceToDataPageLeaf(attnum, &items[i].iptr,
-												  items[i].addInfo,
-												  items[i].addInfoIsNull,
+			newsize = rumCheckPlaceToDataPageLeaf(attnum, &items[i],
 												  &items[i - 1].iptr,
 												  rumstate, newsize);
 		}
@@ -330,9 +326,7 @@ buildFreshLeafTuple(RumState *rumstate,
 
 		do
 		{
-			size = rumCheckPlaceToDataPageLeaf(attnum, &items[itemsCount].iptr,
-											   items[itemsCount].addInfo,
-											   items[itemsCount].addInfoIsNull,
+			size = rumCheckPlaceToDataPageLeaf(attnum, &items[itemsCount],
 											   &prevIptr, rumstate, size);
 			prevIptr = items[itemsCount].iptr;
 			itemsCount++;

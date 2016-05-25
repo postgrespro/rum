@@ -503,8 +503,7 @@ extern int compareRumKey(RumState *state, const RumKey *a, const RumKey *b);
 extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
 	RumKey *item, ItemPointer prev, RumState *rumstate);
 extern Size rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
-	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
-	RumState *rumstate, Size size);
+	RumKey *item, ItemPointer prev, RumState *rumstate, Size size);
 extern uint32 rumMergeItemPointers(RumState *rumstate, RumKey *dst,
 								   RumKey *a, uint32 na, RumKey *b, uint32 nb);
 extern void RumDataPageAddItem(Page page, void *data, OffsetNumber offset);

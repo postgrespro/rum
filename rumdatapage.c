@@ -263,17 +263,16 @@ rumDataPageLeafGetItemPointerSize(ItemPointer iptr, ItemPointer prev)
  */
 Size
 rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
-	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
-	RumState *rumstate, Size size)
+	RumKey *item, ItemPointer prev, RumState *rumstate, Size size)
 {
 	Form_pg_attribute attr;
 
-	size += rumDataPageLeafGetItemPointerSize(iptr, prev);
+	size += rumDataPageLeafGetItemPointerSize(&item->iptr, prev);
 
-	if (!addInfoIsNull)
+	if (!item->addInfoIsNull)
 	{
 		attr = rumstate->addAttrs[attnum - 1];
-		size = rumComputeDatumSize(size, addInfo, attr->attbyval,
+		size = rumComputeDatumSize(size, item->addInfo, attr->attbyval,
 			attr->attalign, attr->attlen, attr->attstorage);
 	}
 
@@ -722,8 +721,7 @@ dataIsEnoughSpace(RumBtree btree, Buffer buf, OffsetNumber off)
 			for (j = btree->curitem; j < btree->nitem; j++)
 			{
 				size = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
-					&btree->items[j].iptr, btree->items[j].addInfo,
-					btree->items[j].addInfoIsNull,
+					&btree->items[j],
 					(j == btree->curitem) ? (&iptr) : &btree->items[j - 1].iptr,
 					btree->rumstate, size);
 			}
@@ -732,8 +730,7 @@ dataIsEnoughSpace(RumBtree btree, Buffer buf, OffsetNumber off)
 		{
 			j = btree->curitem;
 			size = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
-				&btree->items[j].iptr, btree->items[j].addInfo,
-				btree->items[j].addInfoIsNull, &iptr, btree->rumstate, size);
+				&btree->items[j], &iptr, btree->rumstate, size);
 		}
 		size += MAXIMUM_ALIGNOF;
 
@@ -827,9 +824,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 			Pointer ptr2;
 
 			ptr2 = page + rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
-				&btree->items[j].iptr, btree->items[j].addInfo,
-				btree->items[j].addInfoIsNull,
-				&iptr, btree->rumstate, ptr - page);
+				&btree->items[j], &iptr, btree->rumstate, ptr - page);
 
 			freespace = RumDataPageFreeSpacePre(page, ptr2);
 			if (freespace < 0)
@@ -954,8 +949,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 			prevTotalsize = totalsize;
 			totalsize = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
-				&item.iptr, item.addInfo, item.addInfoIsNull,
-				&prevIptr, btree->rumstate, totalsize);
+				&item, &prevIptr, btree->rumstate, totalsize);
 
 			maxItemIndex++;
 			totalCount++;
@@ -968,8 +962,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 		prevTotalsize = totalsize;
 		totalsize = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
-			&item.iptr, item.addInfo, item.addInfoIsNull,
-			&prevIptr, btree->rumstate, totalsize);
+			&item, &prevIptr, btree->rumstate, totalsize);
 
 		totalCount++;
 		maxItemSize = Max(maxItemSize, totalsize - prevTotalsize);
@@ -989,10 +982,8 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 			 */
 			while (maxItemIndex < btree->nitem &&
 				(newTotalsize = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
-					&item.iptr, item.addInfo, item.addInfoIsNull,
-					&prevIptr, btree->rumstate, totalsize)) <
-					2 * RumDataPageSize - 2 * maxItemSize - 2 * MAXIMUM_ALIGNOF
-			)
+					&item, &prevIptr, btree->rumstate, totalsize)) <
+					2 * RumDataPageSize - 2 * maxItemSize - 2 * MAXIMUM_ALIGNOF)
 			{
 				maxItemIndex++;
 				totalCount++;
@@ -1008,8 +999,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		{
 			prevTotalsize = totalsize;
 			totalsize = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
-				&item.iptr, item.addInfo, item.addInfoIsNull,
-				&prevIptr, btree->rumstate, totalsize);
+				&item, &prevIptr, btree->rumstate, totalsize);
 			maxItemIndex++;
 
 			totalCount++;
