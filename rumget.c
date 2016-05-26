@@ -1530,7 +1530,7 @@ scanGetItemFast(IndexScanDesc scan, ItemPointer advancePast,
 {
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	int		i, j, k;
-	bool	preConsistentFalse, consistentFalse;
+	bool	preConsistentResult, consistentResult;
 
 	if (so->entriesIncrIndex >= 0)
 	{
@@ -1544,7 +1544,7 @@ scanGetItemFast(IndexScanDesc scan, ItemPointer advancePast,
 		 * Our entries is ordered by descending of item pointers.
 		 * The first goal is to find border where preConsistent becomes false.
 		 */
-		preConsistentFalse = false;
+		preConsistentResult = true;
 		j = 0;
 		k = 0;
 		for (i = 0; i < so->totalentries; i++)
@@ -1557,11 +1557,8 @@ scanGetItemFast(IndexScanDesc scan, ItemPointer advancePast,
 				for (; j < i; j++)
 					so->sortedEntries[j]->preValue = false;
 
-				if (!preConsistentCheck(so))
-				{
-					preConsistentFalse = true;
+				if ((preConsistentResult = preConsistentCheck(so)) == false)
 					break;
-				}
 			}
 		}
 
@@ -1572,14 +1569,14 @@ scanGetItemFast(IndexScanDesc scan, ItemPointer advancePast,
 		if (so->sortedEntries[i - 1]->isFinished == TRUE)
 			return false;
 
-		if (preConsistentFalse)
+		if (preConsistentResult == false)
 		{
 			entryShift(i, so, true);
 			continue;
 		}
 
 		/* Call consistent method */
-		consistentFalse = false;
+		consistentResult = true;
 		for (i = 0; i < so->nkeys; i++)
 		{
 			RumScanKey	key = so->keys + i;
@@ -1607,13 +1604,13 @@ scanGetItemFast(IndexScanDesc scan, ItemPointer advancePast,
 			}
 			if (!callConsistentFn(&so->rumstate, key))
 			{
-				consistentFalse = true;
+				consistentResult = false;
 				entryShift(k, so, false);
 				continue;
 			}
 		}
 
-		if (consistentFalse)
+		if (consistentResult == false)
 			continue;
 
 		/* Calculate recheck from each key */
