@@ -646,6 +646,10 @@ startScan(IndexScanDesc scan)
 	for (i = 0; i < so->nkeys; i++)
 		startScanKey(rumstate, so->keys + i);
 
+	/*
+	 * Check if we can use a fast scan: should exists at least one
+	 * preConsistent method.
+	 */
 	for (i = 0; i < so->nkeys; i++)
 	{
 		RumScanKey key = &so->keys[i];
@@ -1315,7 +1319,7 @@ scanPage(RumState *rumstate, RumScanEntry entry, ItemPointer item, Page page,
 }
 
 /*
- * Find item pointer of entry with is greater or equal to given item pointer.
+ * Find item of scan entry wich is greater or equal to the given item.
  */
 static void
 entryFindItem(RumState *rumstate, RumScanEntry entry, RumKey *item)
