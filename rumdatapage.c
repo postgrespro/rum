@@ -876,7 +876,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 		if (ptr - RumDataPageGetData(page) >        \
 			totalsize / 2 && page == newlPage)      \
 		{                                           \
-			maxLeftIptr = item.iptr;                \
+			maxLeftIptr = curIptr;                  \
 			ItemPointerSetMin(&prevIptr);           \
 			RumPageGetOpaque(newlPage)->maxoff = j; \
 			page = rPage;                           \
@@ -909,7 +909,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	Page		newlPage = PageGetTempPageCopy(lPage);
 	Size		pageSize = PageGetPageSize(newlPage);
 	Size		maxItemSize = 0;
-	ItemPointerData prevIptr, maxLeftIptr;
+	ItemPointerData prevIptr, maxLeftIptr, curIptr;
 	RumKey		item;
 	int			totalCount = 0;
 	int			maxItemIndex = btree->curitem;
@@ -1017,6 +1017,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		{
 			while (btree->curitem < maxItemIndex)
 			{
+				curIptr = btree->items[btree->curitem].iptr;
 				ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
 					&btree->items[btree->curitem],
 					&prevIptr, btree->rumstate);
@@ -1033,6 +1034,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		copyPtr = rumDataPageLeafRead(copyPtr, btree->entryAttnum, &item,
 									  btree->rumstate);
 
+		curIptr = item.iptr;
 		ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum, &item,
 									 &prevIptr, btree->rumstate);
 		freespace = RumDataPageFreeSpacePre(page, ptr);
@@ -1047,6 +1049,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	{
 		while (btree->curitem < maxItemIndex)
 		{
+			curIptr = btree->items[btree->curitem].iptr;
 			ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
 				&btree->items[btree->curitem], &prevIptr, btree->rumstate);
 			freespace = RumDataPageFreeSpacePre(page, ptr);
