@@ -259,9 +259,9 @@ typedef signed char RumNullCategory;
 
 typedef struct
 {
-	ItemPointerData iptr;
-	OffsetNumber offsetNumer;
-	uint16 pageOffset;
+	ItemPointerData	iptr;
+	OffsetNumber	offsetNumer;
+	uint16			pageOffset;
 } RumDataLeafItemIndex;
 
 #define RumDataLeafIndexCount 32

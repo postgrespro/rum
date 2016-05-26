@@ -72,6 +72,10 @@ rumPrepareFindLeafPage(RumBtree btree, BlockNumber blkno)
 RumBtreeStack *
 rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack)
 {
+	/*
+	 * Traverse the tree upwards until we sure that requested leaf page is
+	 * in this subtree. Or we can stop at root page.
+	 */
 	while (stack->parent)
 	{
 		RumBtreeStack *ptr;
@@ -90,6 +94,11 @@ rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack)
 		page = BufferGetPage(stack->buffer);
 		maxoff = RumPageGetOpaque(page)->maxoff;
 
+		/*
+		 * We don't know right bound of rightmost pointer. So, we can be sure
+		 * that requested leaf page is in this subtree only when requested item
+		 * pointer is less than item pointer previous to rightmost.
+		 */
 		if (rumCompareItemPointers(
 				&(((PostingItem *)RumDataPageGetItem(page, maxoff - 1))->key),
 				&btree->items[btree->curitem].iptr) >= 0)
@@ -98,6 +107,7 @@ rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack)
 		}
 	}
 
+	/* Traverse tree downwards. */
 	stack = rumFindLeafPage(btree, stack);
 	return stack;
 }

@@ -80,14 +80,14 @@ callConsistentFn(RumState *rumstate, RumScanKey key)
 
 	if (res && key->attnum == rumstate->attrnAddToColumn)
 	{
-		int i;
+		uint32	i;
 
 		/* remember some addinfo value for later ordering by addinfo
 		   from another column */
 
 		key->outerAddInfoIsNull = true;
 
-		for(i=0; i<key->nuserentries; i++)
+		for(i = 0; i < key->nuserentries; i++)
 		{
 			if (key->entryRes[i] && key->addInfoIsNull[0] == false)
 			{
@@ -571,6 +571,10 @@ startScanKey(RumState *rumstate, RumScanKey key)
 	key->isFinished = false;
 }
 
+/*
+ * Compare entries position. At first consider isFinished flag, then compare
+ * item pointers.
+ */
 static int
 cmpEntries(RumScanEntry e1, RumScanEntry e2)
 {
@@ -670,6 +674,10 @@ startScan(IndexScanDesc scan)
 
 	if (useFastScan)
 	{
+		/*
+		 * We are going to use fast scan. Do some preliminaries. Start scan
+		 * of each entry and sort entries by descending item pointers.
+		 */
 		so->sortedEntries = (RumScanEntry *)palloc(sizeof(RumScanEntry) *
 															so->totalentries);
 		memcpy(so->sortedEntries, so->entries, sizeof(RumScanEntry) *
@@ -1237,15 +1245,21 @@ scanGetItemRegular(IndexScanDesc scan, ItemPointer advancePast,
 	return TRUE;
 }
 
+/*
+ * Finds part of page containing requested item using small index at the end
+ * of page.
+ */
 static bool
-scanPage(RumState *rumstate, RumScanEntry entry, ItemPointer item, Page page, bool equalOk)
+scanPage(RumState *rumstate, RumScanEntry entry, ItemPointer item, Page page,
+		 bool equalOk)
 {
-	int j;
+	int		j;
 	RumKey	iter_item;
-	Pointer ptr;
-	OffsetNumber first = FirstOffsetNumber, i, maxoff;
-	bool found;
-	int cmp;
+	Pointer	ptr;
+	OffsetNumber first = FirstOffsetNumber,
+			i, maxoff;
+	bool	found;
+	int		cmp;
 
 	ItemPointerSetMin(&iter_item.iptr);
 
@@ -1300,6 +1314,9 @@ scanPage(RumState *rumstate, RumScanEntry entry, ItemPointer item, Page page, bo
 	return true;
 }
 
+/*
+ * Find item pointer of entry with is greater or equal to given item pointer.
+ */
 static void
 entryFindItem(RumState *rumstate, RumScanEntry entry, RumKey *item)
 {
@@ -1311,6 +1328,7 @@ entryFindItem(RumState *rumstate, RumScanEntry entry, RumKey *item)
 		return;
 	}
 
+	/* Try to find in loaded part of page */
 	if (rumCompareItemPointers(&entry->list[entry->nlist - 1].iptr,
 							   &item->iptr) >= 0)
 	{
@@ -1329,13 +1347,13 @@ entryFindItem(RumState *rumstate, RumScanEntry entry, RumKey *item)
 		}
 	}
 
-
 	if (!BufferIsValid(entry->buffer))
 	{
 		entry->isFinished = TRUE;
 		return;
 	}
 
+	/* Check rest of page */
 	LockBuffer(entry->buffer, RUM_SHARE);
 
 	if (scanPage(rumstate, entry, &item->iptr,
@@ -1346,6 +1364,7 @@ entryFindItem(RumState *rumstate, RumScanEntry entry, RumKey *item)
 		return;
 	}
 
+	/* Try to traverse to another leaf page */
 	entry->gdi->btree.items = item;
 	entry->gdi->btree.curitem = 0;
 
@@ -1363,6 +1382,7 @@ entryFindItem(RumState *rumstate, RumScanEntry entry, RumKey *item)
 		return;
 	}
 
+	/* At last try to traverse by right links */
 	for (;;)
 	{
 		/*
@@ -1402,17 +1422,20 @@ entryFindItem(RumState *rumstate, RumScanEntry entry, RumKey *item)
 	}
 }
 
+/*
+ * Do preConsistent check for all the key where applicable.
+ */
 static bool
 preConsistentCheck(RumScanOpaque so)
 {
-	RumState *rumstate = &so->rumstate;
-	int i, j;
-	bool recheck;
+	RumState   *rumstate = &so->rumstate;
+	uint32		i, j;
+	bool		recheck;
 
 	for (j = 0; j < so->nkeys; j++)
 	{
-		RumScanKey key = &so->keys[j];
-		bool hasFalse = false;
+		RumScanKey	key = &so->keys[j];
+		bool		hasFalse = false;
 
 		if (key->orderBy)
 			continue;
@@ -1448,29 +1471,43 @@ preConsistentCheck(RumScanOpaque so)
 	return true;
 }
 
+/*
+ * Shift value of some entry which index in so->sortedEntries is equal or greater
+ * to i.
+ */
 static void
 entryShift(int i, RumScanOpaque so, bool find)
 {
-	int minIndex = -1, j;
-	uint32 minPredictNumberResult = 0;
+	int		minIndex = -1,
+			j;
+	uint32	minPredictNumberResult = 0;
 	RumState *rumstate = &so->rumstate;
 
+	/*
+	 * It's more efficient to move entry with smallest posting list/tree. So
+	 * find one.
+	 */
 	for (j = i; j < so->totalentries; j++)
 	{
-		if (minIndex < 0 || so->sortedEntries[j]->predictNumberResult < minPredictNumberResult)
+		if (minIndex < 0 ||
+			so->sortedEntries[j]->predictNumberResult < minPredictNumberResult)
 		{
 			minIndex = j;
 			minPredictNumberResult = so->sortedEntries[j]->predictNumberResult;
 		}
 	}
 
+	/* Do shift of required type */
 	if (find)
-		entryFindItem(rumstate, so->sortedEntries[minIndex], &so->sortedEntries[i - 1]->curItem);
+		entryFindItem(rumstate, so->sortedEntries[minIndex],
+					  &so->sortedEntries[i - 1]->curItem);
 	else if (!so->sortedEntries[minIndex]->isFinished)
 		entryGetItem(rumstate, so->sortedEntries[minIndex]);
 
+	/* Restore order of so->sortedEntries */
 	while (minIndex > 0 &&
-		cmpEntries(so->sortedEntries[minIndex], so->sortedEntries[minIndex - 1]) > 0)
+		cmpEntries(so->sortedEntries[minIndex],
+				   so->sortedEntries[minIndex - 1]) > 0)
 	{
 		RumScanEntry tmp;
 		tmp = so->sortedEntries[minIndex];
@@ -1480,13 +1517,16 @@ entryShift(int i, RumScanOpaque so, bool find)
 	}
 }
 
+/*
+ * Get next item pointer using fast scan.
+ */
 static bool
 scanGetItemFast(IndexScanDesc scan, ItemPointer advancePast,
-			ItemPointerData *item, bool *recheck)
+				ItemPointerData *item, bool *recheck)
 {
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
-	int i, j, k;
-	bool preConsistentFalse, consistentFalse;
+	int		i, j, k;
+	bool	preConsistentFalse, consistentFalse;
 
 	if (so->entriesIncrIndex >= 0)
 	{
@@ -1496,6 +1536,10 @@ scanGetItemFast(IndexScanDesc scan, ItemPointer advancePast,
 
 	for (;;)
 	{
+		/*
+		 * Our entries is ordered by descending of item pointers.
+		 * The first goal is to find border where preConsistent becomes false.
+		 */
 		preConsistentFalse = false;
 		j = 0;
 		k = 0;
@@ -1517,6 +1561,10 @@ scanGetItemFast(IndexScanDesc scan, ItemPointer advancePast,
 			}
 		}
 
+		/*
+		 * If we found false in preConsistent then we can safely move entries
+		 * which was true in preConsistent argument.
+		 */
 		if (so->sortedEntries[i - 1]->isFinished == TRUE)
 			return false;
 
@@ -1526,6 +1574,7 @@ scanGetItemFast(IndexScanDesc scan, ItemPointer advancePast,
 			continue;
 		}
 
+		/* Call consistent method */
 		consistentFalse = false;
 		for (i = 0; i < so->nkeys; i++)
 		{
@@ -1563,6 +1612,7 @@ scanGetItemFast(IndexScanDesc scan, ItemPointer advancePast,
 		if (consistentFalse)
 			continue;
 
+		/* Calculate recheck from each key */
 		*recheck = false;
 		for (i = 0; i < so->nkeys; i++)
 		{
@@ -1586,6 +1636,9 @@ scanGetItemFast(IndexScanDesc scan, ItemPointer advancePast,
 	return false;
 }
 
+/*
+ * Get next item whether using regular or fast scan.
+ */
 static bool
 scanGetItem(IndexScanDesc scan, ItemPointer advancePast,
 			ItemPointerData *item, bool *recheck)
@@ -1776,7 +1829,7 @@ collectMatchesForHeapRow(IndexScanDesc scan, pendingPosition *pos)
 	OffsetNumber attrnum;
 	Page		page;
 	IndexTuple	itup;
-	int			i,
+	uint32		i,
 				j;
 
 	/*
@@ -1997,7 +2050,7 @@ scanPendingInsert(IndexScanDesc scan)
 	MemoryContext oldCtx;
 	bool		recheck,
 				match;
-	int			i;
+	uint32		i;
 	pendingPosition pos;
 	Buffer		metabuffer = ReadBuffer(scan->indexRelation, RUM_METAPAGE_BLKNO);
 	BlockNumber blkno;
@@ -2145,7 +2198,7 @@ keyGetOrdering(RumState *rumstate, MemoryContext tempCtx, RumScanKey key,
 			   ItemPointer iptr)
 {
 	RumScanEntry entry;
-	int i;
+	uint32		i;
 
 	if (key->useAddToColumn)
 	{
@@ -2200,7 +2253,7 @@ static void
 insertScanItem(RumScanOpaque so, bool recheck)
 {
 	RumSortItem *item;
-	int i, j;
+	uint32		i, j;
 
 	item = (RumSortItem *)
 		MemoryContextAlloc(rum_tuplesort_get_memorycontext(so->sortstate),
@@ -2297,7 +2350,7 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 	item = rum_tuplesort_getrum(so->sortstate, true, &should_free);
 	if (item)
 	{
-		int i, j = 0;
+		uint32	i, j = 0;
 
 		scan->xs_ctup.t_self = item->iptr;
 		scan->xs_recheck = item->recheck;
