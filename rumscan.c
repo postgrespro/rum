@@ -324,10 +324,10 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 											PointerGetDatum(&searchMode)));
 
 	/*
-		* If bogus searchMode is returned, treat as RUM_SEARCH_MODE_ALL; note
-		* in particular we don't allow extractQueryFn to select
-		* RUM_SEARCH_MODE_EVERYTHING.
-		*/
+	 * If bogus searchMode is returned, treat as RUM_SEARCH_MODE_ALL; note
+	 * in particular we don't allow extractQueryFn to select
+	 * RUM_SEARCH_MODE_EVERYTHING.
+	 */
 	if (searchMode < GIN_SEARCH_MODE_DEFAULT ||
 		searchMode > GIN_SEARCH_MODE_ALL)
 		searchMode = GIN_SEARCH_MODE_ALL;
@@ -337,8 +337,8 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 		*hasNullQuery = true;
 
 	/*
-		* In default mode, no keys means an unsatisfiable query.
-		*/
+	 * In default mode, no keys means an unsatisfiable query.
+	 */
 	if (queryValues == NULL || nQueryValues <= 0)
 	{
 		if (searchMode == GIN_SEARCH_MODE_DEFAULT)
@@ -350,12 +350,12 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 	}
 
 	/*
-		* If the extractQueryFn didn't create a nullFlags array, create one,
-		* assuming that everything's non-null.  Otherwise, run through the
-		* array and make sure each value is exactly 0 or 1; this ensures
-		* binary compatibility with the RumNullCategory representation. While
-		* at it, detect whether any null keys are present.
-		*/
+	 * If the extractQueryFn didn't create a nullFlags array, create one,
+	 * assuming that everything's non-null.  Otherwise, run through the
+	 * array and make sure each value is exactly 0 or 1; this ensures
+	 * binary compatibility with the RumNullCategory representation. While
+	 * at it, detect whether any null keys are present.
+	 */
 	if (nullFlags == NULL)
 		nullFlags = (bool *) palloc0(nQueryValues * sizeof(bool));
 	else
@@ -463,12 +463,11 @@ rumrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 	freeScanKeys(so);
 
 	if (scankey && scan->numberOfKeys > 0)
-	{
 		memmove(scan->keyData, scankey,
 				scan->numberOfKeys * sizeof(ScanKeyData));
+	if (orderbys && scan->numberOfOrderBys > 0)
 		memmove(scan->orderByData, orderbys,
 				scan->numberOfOrderBys * sizeof(ScanKeyData));
-	}
 
 	if (so->sortstate)
 	{
