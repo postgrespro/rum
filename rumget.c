@@ -64,7 +64,10 @@ callConsistentFn(RumState *rumstate, RumScanKey key)
 	 */
 	key->recheckCurItem = true;
 
-	res = DatumGetBool(FunctionCall10Coll(&rumstate->consistentFn[key->attnum - 1],
+	if (key->searchMode == GIN_SEARCH_MODE_INCLUDE_EMPTY)
+		res = true;
+	else
+		res = DatumGetBool(FunctionCall10Coll(&rumstate->consistentFn[key->attnum - 1],
 								 rumstate->supportCollation[key->attnum - 1],
 										  PointerGetDatum(key->entryRes),
 										  UInt16GetDatum(key->strategy),
@@ -87,7 +90,7 @@ callConsistentFn(RumState *rumstate, RumScanKey key)
 
 		key->outerAddInfoIsNull = true;
 
-		for(i = 0; i < key->nuserentries; i++)
+		for(i = 0; i < key->nentries/*nuserentries*/; i++)
 		{
 			if (key->entryRes[i] && key->addInfoIsNull[0] == false)
 			{

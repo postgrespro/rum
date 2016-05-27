@@ -41,7 +41,7 @@ rumbeginscan(Relation rel, int nkeys, int norderbys)
 										ALLOCSET_DEFAULT_INITSIZE,
 										ALLOCSET_DEFAULT_MAXSIZE);
 	so->keyCtx = AllocSetContextCreate(CurrentMemoryContext,
-									   "Gin scan key context",
+									   "Rum scan key context",
 									   ALLOCSET_DEFAULT_MINSIZE,
 									   ALLOCSET_DEFAULT_INITSIZE,
 									   ALLOCSET_DEFAULT_MAXSIZE);
@@ -386,6 +386,8 @@ rumNewScanKey(IndexScanDesc scan)
 {
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	int			i;
+	uint32		nkeys,
+				norderbys;
 	bool		hasNullQuery = false;
 	MemoryContext oldCtx;
 
@@ -417,6 +419,7 @@ rumNewScanKey(IndexScanDesc scan)
 		if (so->isVoidRes)
 			break;
 	}
+	nkeys = so->nkeys;
 
 	for (i = 0; i < scan->numberOfOrderBys; i++)
 	{
@@ -424,6 +427,7 @@ rumNewScanKey(IndexScanDesc scan)
 		if (so->isVoidRes)
 			break;
 	}
+	norderbys = so->nkeys - nkeys;
 
 	if (scan->numberOfOrderBys > 0)
 	{
@@ -437,11 +441,13 @@ rumNewScanKey(IndexScanDesc scan)
 	 * If there are no regular scan keys, generate an EVERYTHING scankey to
 	 * drive a full-index scan.
 	 */
-	if (so->nkeys == 0 && !so->isVoidRes)
+	if (nkeys == 0 && !so->isVoidRes)
 	{
 		hasNullQuery = true;
 		rumFillScanKey(so, FirstOffsetNumber,
-					   InvalidStrategy, GIN_SEARCH_MODE_EVERYTHING,
+					   InvalidStrategy,
+					   (norderbys > 0) ? GIN_SEARCH_MODE_INCLUDE_EMPTY :
+										 GIN_SEARCH_MODE_EVERYTHING,
 					   (Datum) 0, 0,
 					   NULL, NULL, NULL, NULL, false);
 	}
