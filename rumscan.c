@@ -113,6 +113,7 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->matchResult = NULL;
 	scanEntry->list = NULL;
 	scanEntry->nlist = 0;
+	scanEntry->nalloc = 0;
 	scanEntry->offset = InvalidOffsetNumber;
 	scanEntry->isFinished = false;
 	scanEntry->reduceResult = false;
@@ -386,8 +387,6 @@ rumNewScanKey(IndexScanDesc scan)
 {
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	int			i;
-	uint32		nkeys,
-				norderbys;
 	bool		hasNullQuery = false;
 	MemoryContext oldCtx;
 
@@ -400,7 +399,7 @@ rumNewScanKey(IndexScanDesc scan)
 
 	/* if no scan keys provided, allocate extra EVERYTHING RumScanKey */
 	so->keys = (RumScanKey)
-		palloc(Max(scan->numberOfKeys + scan->numberOfOrderBys, 1) *
+		palloc((Max(scan->numberOfKeys, 1) + scan->numberOfOrderBys) *
 														sizeof(RumScanKeyData));
 	so->nkeys = 0;
 
@@ -419,7 +418,19 @@ rumNewScanKey(IndexScanDesc scan)
 		if (so->isVoidRes)
 			break;
 	}
-	nkeys = so->nkeys;
+	/*
+	 * If there are no regular scan keys, generate an EMPTY scankey to
+	 * drive a full-index scan.
+	 */
+	if (so->nkeys == 0 && scan->numberOfOrderBys > 0 && !so->isVoidRes)
+	{
+		hasNullQuery = true;
+		rumFillScanKey(so, FirstOffsetNumber,
+					   InvalidStrategy,
+					   GIN_SEARCH_MODE_EVERYTHING,
+					   (Datum) 0, 0,
+					   NULL, NULL, NULL, NULL, false);
+	}
 
 	for (i = 0; i < scan->numberOfOrderBys; i++)
 	{
@@ -427,7 +438,6 @@ rumNewScanKey(IndexScanDesc scan)
 		if (so->isVoidRes)
 			break;
 	}
-	norderbys = so->nkeys - nkeys;
 
 	if (scan->numberOfOrderBys > 0)
 	{
@@ -441,13 +451,12 @@ rumNewScanKey(IndexScanDesc scan)
 	 * If there are no regular scan keys, generate an EVERYTHING scankey to
 	 * drive a full-index scan.
 	 */
-	if (nkeys == 0 && !so->isVoidRes)
+	if (so->nkeys == 0 && !so->isVoidRes)
 	{
 		hasNullQuery = true;
 		rumFillScanKey(so, FirstOffsetNumber,
 					   InvalidStrategy,
-					   (norderbys > 0) ? GIN_SEARCH_MODE_INCLUDE_EMPTY :
-										 GIN_SEARCH_MODE_EVERYTHING,
+					   GIN_SEARCH_MODE_EVERYTHING,
 					   (Datum) 0, 0,
 					   NULL, NULL, NULL, NULL, false);
 	}

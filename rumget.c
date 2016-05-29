@@ -55,18 +55,16 @@ callConsistentFn(RumState *rumstate, RumScanKey key)
 	if (key->searchMode == GIN_SEARCH_MODE_EVERYTHING)
 	{
 		key->recheckCurItem = false;
-		return true;
-	}
-
-	/*
-	 * Initialize recheckCurItem in case the consistentFn doesn't know it
-	 * should set it.  The safe assumption in that case is to force recheck.
-	 */
-	key->recheckCurItem = true;
-
-	if (key->searchMode == GIN_SEARCH_MODE_INCLUDE_EMPTY)
 		res = true;
+	}
 	else
+	{
+		/*
+		 * Initialize recheckCurItem in case the consistentFn doesn't know it
+		 * should set it.  The safe assumption in that case is to force recheck.
+		 */
+		key->recheckCurItem = true;
+
 		res = DatumGetBool(FunctionCall10Coll(&rumstate->consistentFn[key->attnum - 1],
 								 rumstate->supportCollation[key->attnum - 1],
 										  PointerGetDatum(key->entryRes),
@@ -80,6 +78,7 @@ callConsistentFn(RumState *rumstate, RumScanKey key)
 										  PointerGetDatum(key->addInfo),
 										  PointerGetDatum(key->addInfoIsNull)
 		));
+	}
 
 	if (res && key->attnum == rumstate->attrnAddToColumn)
 	{
@@ -415,6 +414,208 @@ collectMatchBitmap(RumBtreeData *btree, RumBtreeStack *stack,
 	}
 }
 
+static void
+collectMatchRumKey(RumBtreeData *btree, RumBtreeStack *stack,
+				   RumScanEntry entry)
+{
+	OffsetNumber attnum;
+
+	/* Null query cannot partial-match anything */
+	if (entry->isPartialMatch &&
+		entry->queryCategory != RUM_CAT_NORM_KEY)
+		return;
+
+	/* Locate tupdesc entry for key column (for attbyval/attlen data) */
+	attnum = entry->attnum;
+
+	for (;;)
+	{
+		Page		page;
+		IndexTuple	itup;
+		Datum		idatum;
+		RumNullCategory icategory;
+
+		/*
+		 * stack->off points to the interested entry, buffer is already locked
+		 */
+		if (moveRightIfItNeeded(btree, stack) == false)
+			return;
+
+		page = BufferGetPage(stack->buffer);
+		itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, stack->off));
+
+		/*
+		 * If tuple stores another attribute then stop scan
+		 */
+		if (rumtuple_get_attrnum(btree->rumstate, itup) != attnum)
+			return;
+
+		/* Safe to fetch attribute value */
+		idatum = rumtuple_get_key(btree->rumstate, itup, &icategory);
+
+		/*
+		 * Check for appropriate scan stop conditions
+		 */
+		if (entry->isPartialMatch)
+		{
+			int32		cmp;
+
+			/*
+			 * In partial match, stop scan at any null (including
+			 * placeholders); partial matches never match nulls
+			 */
+			if (icategory != RUM_CAT_NORM_KEY)
+				return;
+
+			/*----------
+			 * Check of partial match.
+			 * case cmp == 0 => match
+			 * case cmp > 0 => not match and finish scan
+			 * case cmp < 0 => not match and continue scan
+			 *----------
+			 */
+			cmp = DatumGetInt32(FunctionCall4Coll(&btree->rumstate->comparePartialFn[attnum - 1],
+							   btree->rumstate->supportCollation[attnum - 1],
+												  entry->queryKey,
+												  idatum,
+										 UInt16GetDatum(entry->strategy),
+									PointerGetDatum(entry->extra_data)));
+
+			if (cmp > 0)
+				return;
+			else if (cmp < 0)
+			{
+				stack->off++;
+				continue;
+			}
+		}
+		else if (entry->searchMode == GIN_SEARCH_MODE_ALL)
+		{
+			/*
+			 * In ALL mode, we are not interested in null items, so we can
+			 * stop if we get to a null-item placeholder (which will be the
+			 * last entry for a given attnum).  We do want to include NULL_KEY
+			 * and EMPTY_ITEM entries, though.
+			 */
+			if (icategory == RUM_CAT_NULL_ITEM)
+				return;
+		}
+
+		if (RumIsPostingTree(itup))
+		{
+			BlockNumber rootPostingTree = RumGetPostingTree(itup);
+			RumPostingTreeScan *gdi;
+			Page		page;
+			OffsetNumber maxoff, i, j;
+			Pointer ptr;
+			RumKey		item;
+
+			ItemPointerSetMin(&item.iptr);
+
+			/*
+			 * We should unlock entry page before touching posting tree to
+			 * prevent deadlocks with vacuum processes. Because entry is never
+			 * deleted from page and posting tree is never reduced to the
+			 * posting list, we can unlock page after getting BlockNumber of
+			 * root of posting tree.
+			 */
+			LockBuffer(stack->buffer, RUM_UNLOCK);
+			gdi = rumPrepareScanPostingTree(btree->rumstate->index,
+											rootPostingTree, TRUE,
+											entry->attnum, btree->rumstate);
+
+			/*
+			 * We lock again the entry page and while it was unlocked insert
+			 * might have occurred, so we need to re-find our position.
+			 */
+			LockBuffer(stack->buffer, RUM_SHARE);
+			page = BufferGetPage(stack->buffer);
+			if (!RumPageIsLeaf(page))
+			{
+				/*
+				 * Root page becomes non-leaf while we unlock it. We will
+				 * start again, this situation doesn't occur often - root can
+				 * became a non-leaf only once per life of index.
+				 */
+				return;
+			}
+
+			entry->buffer = rumScanBeginPostingTree(gdi);
+			entry->gdi = gdi;
+			entry->context = AllocSetContextCreate(CurrentMemoryContext,
+								 "GiST temporary context",
+								 ALLOCSET_DEFAULT_MINSIZE,
+								 ALLOCSET_DEFAULT_INITSIZE,
+								 ALLOCSET_DEFAULT_MAXSIZE);
+
+			/*
+			 * We keep buffer pinned because we need to prevent deletion of
+			 * page during scan. See RUM's vacuum implementation. RefCount is
+			 * increased to keep buffer pinned after freeRumBtreeStack() call.
+			 */
+			page = BufferGetPage(entry->buffer);
+			entry->predictNumberResult = gdi->stack->predictNumber * RumPageGetOpaque(page)->maxoff;
+
+			/*
+			 * Keep page content in memory to prevent durable page locking
+			 */
+			maxoff = RumPageGetOpaque(page)->maxoff;
+			j = entry->nlist;
+			entry->nlist += maxoff;
+			if (entry->nalloc == 0)
+			{
+				entry->nalloc = Max(maxoff, 32);
+				entry->list = (RumKey *) palloc(entry->nalloc * sizeof(RumKey));
+			}
+			else if (entry->nlist > entry->nalloc)
+			{
+				entry->nalloc *= 2;
+				entry->list = (RumKey *)
+					repalloc(entry->list, entry->nalloc * sizeof(RumKey));
+			}
+
+			ptr = RumDataPageGetData(page);
+
+			for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
+			{
+				ptr = rumDataPageLeafRead(ptr, entry->attnum, &item,
+										  btree->rumstate);
+				entry->list[i - FirstOffsetNumber + j] = item;
+			}
+
+			LockBuffer(entry->buffer, RUM_UNLOCK);
+			entry->isFinished = FALSE;
+		}
+		else if (RumGetNPosting(itup) > 0)
+		{
+			uint32		j;
+
+			j = entry->nlist;
+			entry->nlist += RumGetNPosting(itup);
+			entry->predictNumberResult += RumGetNPosting(itup);
+			if (entry->nalloc == 0)
+			{
+				entry->nalloc = Max(RumGetNPosting(itup), 32);
+				entry->list = (RumKey *) palloc(entry->nalloc * sizeof(RumKey));
+			}
+			else if (entry->nlist > entry->nalloc)
+			{
+				entry->nalloc *= 2;
+				entry->list = (RumKey *)
+					repalloc(entry->list, entry->nalloc * sizeof(RumKey));
+			}
+
+			rumReadTuple(btree->rumstate, entry->attnum, itup, entry->list + j);
+			entry->isFinished = FALSE;
+		}
+
+		/*
+		 * Done with this entry, go to the next
+		 */
+		stack->off++;
+	}
+}
+
 /*
  * Start* functions setup beginning state of searches: finds correct buffer and pins it.
  */
@@ -453,7 +654,8 @@ restartScanEntry:
 	entry->isFinished = TRUE;
 
 	if (entry->isPartialMatch ||
-		entry->queryCategory == RUM_CAT_EMPTY_QUERY)
+		(entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
+		 entry->searchMode != GIN_SEARCH_MODE_EVERYTHING))
 	{
 		/*
 		 * btreeEntry.findItem locates the first item >= given search key.
@@ -488,6 +690,11 @@ restartScanEntry:
 			entry->matchIterator = tbm_begin_iterate(entry->matchBitmap);
 			entry->isFinished = FALSE;
 		}
+	}
+	else if (entry->searchMode == GIN_SEARCH_MODE_EVERYTHING)
+	{
+		btreeEntry.findItem(&btreeEntry, stackEntry);
+		collectMatchRumKey(&btreeEntry, stackEntry, entry);
 	}
 	else if (btreeEntry.findItem(&btreeEntry, stackEntry))
 	{

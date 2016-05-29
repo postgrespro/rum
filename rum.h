@@ -616,6 +616,7 @@ typedef struct RumScanEntryData
 	RumKey	   *list;
 	MemoryContext context;
 	uint32		nlist;
+	uint32		nalloc;
 	OffsetNumber offset;
 
 	bool		isFinished;
