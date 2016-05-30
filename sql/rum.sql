@@ -39,7 +39,10 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)');
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')), *
+SELECT
+	a <-> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
+	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	*
 	FROM test_rum
 	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 3;
 
