@@ -20,13 +20,13 @@
  * Information is stored in the same manner as in leaf data pages.
  */
 void
-rumReadTuple(RumState *rumstate, OffsetNumber attnum,
-			 IndexTuple itup, RumKey *items)
+rumReadTuple(RumState * rumstate, OffsetNumber attnum,
+			 IndexTuple itup, RumKey * items)
 {
-	Pointer ptr = RumGetPosting(itup);
-	RumKey	item;
-	int		nipd = RumGetNPosting(itup),
-			i;
+	Pointer		ptr = RumGetPosting(itup);
+	RumKey		item;
+	int			nipd = RumGetNPosting(itup),
+				i;
 
 	ItemPointerSetMin(&item.iptr);
 	for (i = 0; i < nipd; i++)
@@ -41,13 +41,13 @@ rumReadTuple(RumState *rumstate, OffsetNumber attnum,
  * Information is stored in the same manner as in leaf data pages.
  */
 void
-rumReadTuplePointers(RumState *rumstate, OffsetNumber attnum,
+rumReadTuplePointers(RumState * rumstate, OffsetNumber attnum,
 					 IndexTuple itup, ItemPointerData *ipd)
 {
-	Pointer ptr = RumGetPosting(itup);
-	int		nipd = RumGetNPosting(itup),
-			i;
-	RumKey	item;
+	Pointer		ptr = RumGetPosting(itup);
+	int			nipd = RumGetNPosting(itup),
+				i;
+	RumKey		item;
 
 	ItemPointerSetMin(&item.iptr);
 	for (i = 0; i < nipd; i++)
@@ -134,7 +134,7 @@ entryIsMoveRight(RumBtree btree, Page page)
  * page correctly chosen and searching value SHOULD be on page
  */
 static BlockNumber
-entryLocateEntry(RumBtree btree, RumBtreeStack *stack)
+entryLocateEntry(RumBtree btree, RumBtreeStack * stack)
 {
 	OffsetNumber low,
 				high,
@@ -210,7 +210,7 @@ entryLocateEntry(RumBtree btree, RumBtreeStack *stack)
  * Returns true if value found on page.
  */
 static bool
-entryLocateLeafEntry(RumBtree btree, RumBtreeStack *stack)
+entryLocateLeafEntry(RumBtree btree, RumBtreeStack * stack)
 {
 	Page		page = BufferGetPage(stack->buffer);
 	OffsetNumber low,
@@ -532,7 +532,7 @@ rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
 void
 rumPrepareEntryScan(RumBtree btree, OffsetNumber attnum,
 					Datum key, RumNullCategory category,
-					RumState *rumstate)
+					RumState * rumstate)
 {
 	memset(btree, 0, sizeof(RumBtreeData));
 

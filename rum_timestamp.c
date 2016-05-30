@@ -12,8 +12,8 @@
 
 typedef struct QueryInfo
 {
-	StrategyNumber	strategy;
-	Datum			datum;
+	StrategyNumber strategy;
+	Datum		datum;
 } QueryInfo;
 
 
@@ -21,9 +21,9 @@ PG_FUNCTION_INFO_V1(rum_timestamp_extract_value);
 Datum
 rum_timestamp_extract_value(PG_FUNCTION_ARGS)
 {
-	Datum	datum = PG_GETARG_DATUM(0);
-	int32	*nentries = (int32 *) PG_GETARG_POINTER(1);
-	Datum	*entries = (Datum *) palloc(sizeof(Datum));
+	Datum		datum = PG_GETARG_DATUM(0);
+	int32	   *nentries = (int32 *) PG_GETARG_POINTER(1);
+	Datum	   *entries = (Datum *) palloc(sizeof(Datum));
 
 	entries[0] = datum;
 	*nentries = 1;
@@ -35,12 +35,12 @@ PG_FUNCTION_INFO_V1(rum_timestamp_extract_query);
 Datum
 rum_timestamp_extract_query(PG_FUNCTION_ARGS)
 {
-	Datum	   datum = PG_GETARG_DATUM(0);
-	int32	  *nentries = (int32 *) PG_GETARG_POINTER(1);
+	Datum		datum = PG_GETARG_DATUM(0);
+	int32	   *nentries = (int32 *) PG_GETARG_POINTER(1);
 	StrategyNumber strategy = PG_GETARG_UINT16(2);
 	bool	  **partialmatch = (bool **) PG_GETARG_POINTER(3);
 	Pointer   **extra_data = (Pointer **) PG_GETARG_POINTER(4);
-	Datum	  *entries = (Datum *) palloc(sizeof(Datum));
+	Datum	   *entries = (Datum *) palloc(sizeof(Datum));
 	QueryInfo  *data = (QueryInfo *) palloc(sizeof(QueryInfo));
 	bool	   *ptr_partialmatch;
 
@@ -52,7 +52,7 @@ rum_timestamp_extract_query(PG_FUNCTION_ARGS)
 	*extra_data = (Pointer *) palloc(sizeof(Pointer));
 	**extra_data = (Pointer) data;
 
-	switch(strategy)
+	switch (strategy)
 	{
 		case BTLessStrategyNumber:
 		case BTLessEqualStrategyNumber:
@@ -79,16 +79,17 @@ PG_FUNCTION_INFO_V1(rum_timestamp_compare_prefix);
 Datum
 rum_timestamp_compare_prefix(PG_FUNCTION_ARGS)
 {
-	Datum	   a = PG_GETARG_DATUM(0);
-	Datum	   b = PG_GETARG_DATUM(1);
+	Datum		a = PG_GETARG_DATUM(0);
+	Datum		b = PG_GETARG_DATUM(1);
 	QueryInfo  *data = (QueryInfo *) PG_GETARG_POINTER(3);
-	int32	   res, cmp;
+	int32		res,
+				cmp;
 
 	cmp = DatumGetInt32(DirectFunctionCall2Coll(timestamp_cmp,
 												PG_GET_COLLATION(),
-								(data->strategy == BTLessStrategyNumber ||
+								   (data->strategy == BTLessStrategyNumber ||
 								 data->strategy == BTLessEqualStrategyNumber)
-										?  data->datum : a, b));
+												? data->datum : a, b));
 
 	switch (data->strategy)
 	{
@@ -141,7 +142,7 @@ PG_FUNCTION_INFO_V1(rum_timestamp_consistent);
 Datum
 rum_timestamp_consistent(PG_FUNCTION_ARGS)
 {
-	bool	*recheck = (bool *) PG_GETARG_POINTER(5);
+	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
 
 	*recheck = false;
 	PG_RETURN_BOOL(true);
@@ -226,10 +227,10 @@ PG_FUNCTION_INFO_V1(rum_timestamp_outer_distance);
 Datum
 rum_timestamp_outer_distance(PG_FUNCTION_ARGS)
 {
-	StrategyNumber	strategy = PG_GETARG_UINT16(2);
+	StrategyNumber strategy = PG_GETARG_UINT16(2);
 	Datum		diff;
 
-	switch(strategy)
+	switch (strategy)
 	{
 		case RUM_TMST_DISTANCE:
 			diff = DirectFunctionCall2(timestamp_distance,
@@ -253,4 +254,3 @@ rum_timestamp_outer_distance(PG_FUNCTION_ARGS)
 
 	PG_RETURN_DATUM(diff);
 }
-

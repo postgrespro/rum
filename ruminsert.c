@@ -29,7 +29,7 @@ typedef struct
 	MemoryContext tmpCtx;
 	MemoryContext funcCtx;
 	BuildAccumulator accum;
-} RumBuildState;
+}	RumBuildState;
 
 /*
  * Creates new posting tree with one page, containing the given TIDs.
@@ -38,8 +38,8 @@ typedef struct
  * items[] must be in sorted order with no duplicates.
  */
 static BlockNumber
-createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
-				  RumKey *items, uint32 nitems)
+createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
+				  RumKey * items, uint32 nitems)
 {
 	BlockNumber blkno;
 	Buffer		buffer = RumNewBuffer(index);
@@ -47,7 +47,7 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
 	int			i,
 				freespace;
 	Pointer		ptr;
-	ItemPointerData prev_iptr = {{0,0},0};
+	ItemPointerData prev_iptr = {{0, 0}, 0};
 	GenericXLogState *state;
 
 	state = GenericXLogStart(index);
@@ -93,16 +93,16 @@ createPostingTree(RumState *rumstate, OffsetNumber attnum, Relation index,
  * for filling the posting list afterwards, if ipd = NULL and nipd > 0.
  */
 static IndexTuple
-RumFormTuple(RumState *rumstate,
+RumFormTuple(RumState * rumstate,
 			 OffsetNumber attnum, Datum key, RumNullCategory category,
-			 RumKey *items, uint32 nipd, bool errorTooBig)
+			 RumKey * items, uint32 nipd, bool errorTooBig)
 {
 	Datum		datums[3];
 	bool		isnull[3];
 	IndexTuple	itup;
 	uint32		newsize;
 	int			i;
-	ItemPointerData nullItemPointer = {{0,0},0};
+	ItemPointerData nullItemPointer = {{0, 0}, 0};
 
 	/* Build the basic tuple: optional column number, plus key datum */
 	if (rumstate->oneCol)
@@ -195,7 +195,8 @@ RumFormTuple(RumState *rumstate,
 	 */
 	if (nipd > 0)
 	{
-		char *ptr = RumGetPosting(itup);
+		char	   *ptr = RumGetPosting(itup);
+
 		ptr = rumPlaceToDataPageLeaf(ptr, attnum, &items[0],
 									 &nullItemPointer, rumstate);
 		for (i = 1; i < nipd; i++)
@@ -204,8 +205,8 @@ RumFormTuple(RumState *rumstate,
 										 &items[i - 1].iptr, rumstate);
 		}
 
-		Assert(MAXALIGN((ptr - ((char*)itup)) +
-			   ((category == RUM_CAT_NORM_KEY) ? 0 : sizeof(RumNullCategory)))
+		Assert(MAXALIGN((ptr - ((char *) itup)) +
+			  ((category == RUM_CAT_NORM_KEY) ? 0 : sizeof(RumNullCategory)))
 			   == newsize);
 	}
 
@@ -229,16 +230,18 @@ RumFormTuple(RumState *rumstate,
  * items[] must be in sorted order with no duplicates.
  */
 static IndexTuple
-addItemPointersToLeafTuple(RumState *rumstate,
-						   IndexTuple old, RumKey *items, uint32 nitem,
+addItemPointersToLeafTuple(RumState * rumstate,
+						   IndexTuple old, RumKey * items, uint32 nitem,
 						   GinStatsData *buildStats)
 {
 	OffsetNumber attnum;
 	Datum		key;
 	RumNullCategory category;
 	IndexTuple	res;
-	RumKey	   *newItems, *oldItems;
-	int			oldNPosting, newNPosting;
+	RumKey	   *newItems,
+			   *oldItems;
+	int			oldNPosting,
+				newNPosting;
 
 	Assert(!RumIsPostingTree(old));
 
@@ -246,10 +249,10 @@ addItemPointersToLeafTuple(RumState *rumstate,
 	key = rumtuple_get_key(rumstate, old, &category);
 
 	oldNPosting = RumGetNPosting(old);
-	oldItems = (RumKey *)palloc(sizeof(RumKey) * oldNPosting);
+	oldItems = (RumKey *) palloc(sizeof(RumKey) * oldNPosting);
 
 	newNPosting = oldNPosting + nitem;
-	newItems = (RumKey *)palloc(sizeof(RumKey) * newNPosting);
+	newItems = (RumKey *) palloc(sizeof(RumKey) * newNPosting);
 
 	rumReadTuple(rumstate, attnum, old, oldItems);
 
@@ -307,9 +310,9 @@ addItemPointersToLeafTuple(RumState *rumstate,
  * but working from slightly different input.
  */
 static IndexTuple
-buildFreshLeafTuple(RumState *rumstate,
+buildFreshLeafTuple(RumState * rumstate,
 					OffsetNumber attnum, Datum key, RumNullCategory category,
-					RumKey *items, uint32 nitem, GinStatsData *buildStats)
+					RumKey * items, uint32 nitem, GinStatsData *buildStats)
 {
 	IndexTuple	res;
 
@@ -320,9 +323,9 @@ buildFreshLeafTuple(RumState *rumstate,
 	{
 		/* posting list would be too big, build posting tree */
 		BlockNumber postingRoot;
-		ItemPointerData prevIptr = {{0,0},0};
-		Size size = 0;
-		int itemsCount = 0;
+		ItemPointerData prevIptr = {{0, 0}, 0};
+		Size		size = 0;
+		int			itemsCount = 0;
 
 		do
 		{
@@ -391,9 +394,9 @@ buildFreshLeafTuple(RumState *rumstate,
  * it contains should be incremented as needed.
  */
 void
-rumEntryInsert(RumState *rumstate,
+rumEntryInsert(RumState * rumstate,
 			   OffsetNumber attnum, Datum key, RumNullCategory category,
-			   RumKey *items, uint32 nitem,
+			   RumKey * items, uint32 nitem,
 			   GinStatsData *buildStats)
 {
 	RumBtreeData btree;
@@ -462,11 +465,11 @@ rumEntryInsert(RumState *rumstate,
  * This function is used only during initial index creation.
  */
 static void
-rumHeapTupleBulkInsert(RumBuildState *buildstate, OffsetNumber attnum,
+rumHeapTupleBulkInsert(RumBuildState * buildstate, OffsetNumber attnum,
 					   Datum value, bool isNull,
 					   ItemPointer heapptr,
-					   Datum	outerAddInfo,
-					   bool		outerAddInfoIsNull)
+					   Datum outerAddInfo,
+					   bool outerAddInfoIsNull)
 {
 	Datum	   *entries;
 	RumNullCategory *categories;
@@ -488,7 +491,7 @@ rumHeapTupleBulkInsert(RumBuildState *buildstate, OffsetNumber attnum,
 		addInfo = palloc(sizeof(*addInfo) * nentries);
 		addInfoIsNull = palloc(sizeof(*addInfoIsNull) * nentries);
 
-		for(i=0; i<nentries; i++)
+		for (i = 0; i < nentries; i++)
 		{
 			addInfo[i] = outerAddInfo;
 			addInfoIsNull[i] = outerAddInfoIsNull;
@@ -519,7 +522,7 @@ rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 	RumBuildState *buildstate = (RumBuildState *) state;
 	MemoryContext oldCtx;
 	int			i;
-	Datum		outerAddInfo = (Datum)0;
+	Datum		outerAddInfo = (Datum) 0;
 	bool		outerAddInfoIsNull = true;
 
 	if (AttributeNumberIsValid(buildstate->rumstate.attrnOrderByColumn))
@@ -566,17 +569,17 @@ IndexBuildResult *
 rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 {
 	IndexBuildResult *result;
-	double			reltuples;
-	RumBuildState	buildstate;
-	Buffer			RootBuffer,
-					MetaBuffer;
-	RumKey		   *items;
-	Datum			key;
-	RumNullCategory	category;
-	uint32			nlist;
-	MemoryContext		oldCtx;
-	OffsetNumber		attnum;
-	GenericXLogState   *state;
+	double		reltuples;
+	RumBuildState buildstate;
+	Buffer		RootBuffer,
+				MetaBuffer;
+	RumKey	   *items;
+	Datum		key;
+	RumNullCategory category;
+	uint32		nlist;
+	MemoryContext oldCtx;
+	OffsetNumber attnum;
+	GenericXLogState *state;
 
 	if (RelationGetNumberOfBlocks(index) != 0)
 		elog(ERROR, "index \"%s\" already contains data",
@@ -634,7 +637,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	oldCtx = MemoryContextSwitchTo(buildstate.tmpCtx);
 	rumBeginBAScan(&buildstate.accum);
 	while ((items = rumGetBAEntry(&buildstate.accum,
-								 &attnum, &key, &category, &nlist)) != NULL)
+								  &attnum, &key, &category, &nlist)) != NULL)
 	{
 		/* there could be many entries, so be willing to abort here */
 		CHECK_FOR_INTERRUPTS();
@@ -671,7 +674,7 @@ rumbuildempty(Relation index)
 {
 	Buffer		RootBuffer,
 				MetaBuffer;
-	GenericXLogState   *state;
+	GenericXLogState *state;
 
 	state = GenericXLogStart(index);
 
@@ -693,7 +696,7 @@ rumbuildempty(Relation index)
 	UnlockReleaseBuffer(MetaBuffer);
 	UnlockReleaseBuffer(RootBuffer);
 
-	return ;
+	return;
 }
 
 /*
@@ -701,11 +704,11 @@ rumbuildempty(Relation index)
  * (non-fast-update) insertion
  */
 static void
-rumHeapTupleInsert(RumState *rumstate, OffsetNumber attnum,
+rumHeapTupleInsert(RumState * rumstate, OffsetNumber attnum,
 				   Datum value, bool isNull,
 				   ItemPointer item,
-				   Datum	outerAddInfo,
-				   bool		outerAddInfoIsNull)
+				   Datum outerAddInfo,
+				   bool outerAddInfoIsNull)
 {
 	Datum	   *entries;
 	RumNullCategory *categories;
@@ -715,14 +718,14 @@ rumHeapTupleInsert(RumState *rumstate, OffsetNumber attnum,
 	bool	   *addInfoIsNull;
 
 	entries = rumExtractEntries(rumstate, attnum, value, isNull,
-								&nentries, &categories, &addInfo, &addInfoIsNull);
+						   &nentries, &categories, &addInfo, &addInfoIsNull);
 
 	if (attnum == rumstate->attrnAddToColumn)
 	{
 		addInfo = palloc(sizeof(*addInfo) * nentries);
 		addInfoIsNull = palloc(sizeof(*addInfoIsNull) * nentries);
 
-		for(i=0; i<nentries; i++)
+		for (i = 0; i < nentries; i++)
 		{
 			addInfo[i] = outerAddInfo;
 			addInfoIsNull[i] = outerAddInfoIsNull;
@@ -731,7 +734,7 @@ rumHeapTupleInsert(RumState *rumstate, OffsetNumber attnum,
 
 	for (i = 0; i < nentries; i++)
 	{
-		RumKey	insert_item;
+		RumKey		insert_item;
 
 		insert_item.iptr = *item;
 		insert_item.addInfo = addInfo[i];
@@ -751,7 +754,7 @@ ruminsert(Relation index, Datum *values, bool *isnull,
 	MemoryContext oldCtx;
 	MemoryContext insertCtx;
 	int			i;
-	Datum		outerAddInfo = (Datum)0;
+	Datum		outerAddInfo = (Datum) 0;
 	bool		outerAddInfoIsNull = true;
 
 	insertCtx = AllocSetContextCreate(CurrentMemoryContext,

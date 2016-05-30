@@ -32,6 +32,7 @@ PG_FUNCTION_INFO_V1(rumhandler);
 
 /* Kind of relation optioms for rum index */
 static relopt_kind rum_relopt_kind;
+
 /*
  * Module load callback
  */
@@ -40,12 +41,12 @@ _PG_init(void)
 {
 	/* Define custom GUC variables. */
 	DefineCustomIntVariable("rum_fuzzy_search_limit",
-					"Sets the maximum allowed result for exact search by RUM.",
-					NULL,
-					&RumFuzzySearchLimit,
-					0, 0, INT_MAX,
-					PGC_USERSET, 0,
-					NULL, NULL, NULL);
+				  "Sets the maximum allowed result for exact search by RUM.",
+							NULL,
+							&RumFuzzySearchLimit,
+							0, 0, INT_MAX,
+							PGC_USERSET, 0,
+							NULL, NULL, NULL);
 
 	rum_relopt_kind = add_reloption_kind();
 
@@ -56,7 +57,7 @@ _PG_init(void)
 						 "Column name to add a order by column",
 						 NULL, NULL);
 	add_bool_reloption(rum_relopt_kind, "use_alternative_order",
-					   "Use (addinfo, itempointer) order instead of just itempointer",
+			  "Use (addinfo, itempointer) order instead of just itempointer",
 					   false);
 }
 
@@ -110,7 +111,7 @@ rumhandler(PG_FUNCTION_ARGS)
  * Note: assorted subsidiary data is allocated in the CurrentMemoryContext.
  */
 void
-initRumState(RumState *state, Relation index)
+initRumState(RumState * state, Relation index)
 {
 	TupleDesc	origTupdesc = RelationGetDescr(index);
 	int			i;
@@ -125,11 +126,11 @@ initRumState(RumState *state, Relation index)
 	state->attrnAddToColumn = InvalidAttrNumber;
 	if (index->rd_options)
 	{
-		RumOptions	*options = (RumOptions*) index->rd_options;
+		RumOptions *options = (RumOptions *) index->rd_options;
 
 		if (options->orderByColumn > 0)
 		{
-			char		*colname = (char *) options + options->orderByColumn;
+			char	   *colname = (char *) options + options->orderByColumn;
 			AttrNumber	attrnOrderByHeapColumn;
 
 			attrnOrderByHeapColumn = get_attnum(index->rd_index->indrelid, colname);
@@ -145,7 +146,7 @@ initRumState(RumState *state, Relation index)
 
 		if (options->addToColumn > 0)
 		{
-			char		*colname = (char *) options + options->addToColumn;
+			char	   *colname = (char *) options + options->addToColumn;
 			AttrNumber	attrnAddToHeapColumn;
 
 			attrnAddToHeapColumn = get_attnum(index->rd_index->indrelid, colname);
@@ -175,7 +176,7 @@ initRumState(RumState *state, Relation index)
 
 	for (i = 0; i < origTupdesc->natts; i++)
 	{
-		RumConfig rumConfig;
+		RumConfig	rumConfig;
 
 		rumConfig.addInfoTypeOid = InvalidOid;
 
@@ -188,13 +189,13 @@ initRumState(RumState *state, Relation index)
 			FunctionCall1(&state->configFn[i], PointerGetDatum(&rumConfig));
 		}
 
-		if (state->attrnAddToColumn == i+1)
+		if (state->attrnAddToColumn == i + 1)
 		{
-			if (OidIsValid(rumConfig.addInfoTypeOid)) 
+			if (OidIsValid(rumConfig.addInfoTypeOid))
 				elog(ERROR, "AddTo could should not have AddInfo");
 
 			state->addInfoTypeOid[i] = origTupdesc->attrs[
-					state->attrnOrderByColumn - 1]->atttypid;
+									state->attrnOrderByColumn - 1]->atttypid;
 		}
 		else
 		{
@@ -204,7 +205,7 @@ initRumState(RumState *state, Relation index)
 		if (state->oneCol)
 		{
 			state->tupdesc[i] = CreateTemplateTupleDesc(
-				OidIsValid(state->addInfoTypeOid[i]) ? 2 : 1, false);
+						OidIsValid(state->addInfoTypeOid[i]) ? 2 : 1, false);
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 1, NULL,
 							   origTupdesc->attrs[i]->atttypid,
 							   origTupdesc->attrs[i]->atttypmod,
@@ -214,7 +215,7 @@ initRumState(RumState *state, Relation index)
 			if (OidIsValid(state->addInfoTypeOid[i]))
 			{
 				TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 2, NULL,
-											state->addInfoTypeOid[i], -1, 0);
+								   state->addInfoTypeOid[i], -1, 0);
 				state->addAttrs[i] = state->tupdesc[i]->attrs[1];
 			}
 			else
@@ -225,7 +226,7 @@ initRumState(RumState *state, Relation index)
 		else
 		{
 			state->tupdesc[i] = CreateTemplateTupleDesc(
-				OidIsValid(state->addInfoTypeOid[i]) ? 3 : 2, false);
+						OidIsValid(state->addInfoTypeOid[i]) ? 3 : 2, false);
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 1, NULL,
 							   INT2OID, -1, 0);
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 2, NULL,
@@ -237,7 +238,7 @@ initRumState(RumState *state, Relation index)
 			if (OidIsValid(state->addInfoTypeOid[i]))
 			{
 				TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 3, NULL,
-											state->addInfoTypeOid[i], -1, 0);
+								   state->addInfoTypeOid[i], -1, 0);
 				state->addAttrs[i] = state->tupdesc[i]->attrs[2];
 			}
 			else
@@ -280,7 +281,7 @@ initRumState(RumState *state, Relation index)
 		if (index_getprocid(index, i + 1, RUM_PRE_CONSISTENT_PROC) != InvalidOid)
 		{
 			fmgr_info_copy(&(state->preConsistentFn[i]),
-				   index_getprocinfo(index, i + 1, RUM_PRE_CONSISTENT_PROC),
+					index_getprocinfo(index, i + 1, RUM_PRE_CONSISTENT_PROC),
 						   CurrentMemoryContext);
 			state->canPreConsistent[i] = true;
 		}
@@ -295,7 +296,7 @@ initRumState(RumState *state, Relation index)
 		if (index_getprocid(index, i + 1, RUM_ORDERING_PROC) != InvalidOid)
 		{
 			fmgr_info_copy(&(state->orderingFn[i]),
-				   index_getprocinfo(index, i + 1, RUM_ORDERING_PROC),
+						   index_getprocinfo(index, i + 1, RUM_ORDERING_PROC),
 						   CurrentMemoryContext);
 			state->canOrdering[i] = true;
 		}
@@ -307,8 +308,8 @@ initRumState(RumState *state, Relation index)
 		if (index_getprocid(index, i + 1, RUM_OUTER_ORDERING_PROC) != InvalidOid)
 		{
 			fmgr_info_copy(&(state->outerOrderingFn[i]),
-				index_getprocinfo(index, i + 1, RUM_OUTER_ORDERING_PROC),
-						CurrentMemoryContext);
+					index_getprocinfo(index, i + 1, RUM_OUTER_ORDERING_PROC),
+						   CurrentMemoryContext);
 			state->canOuterOrdering[i] = true;
 		}
 		else
@@ -346,7 +347,7 @@ initRumState(RumState *state, Relation index)
  * Extract attribute (column) number of stored entry from RUM tuple
  */
 OffsetNumber
-rumtuple_get_attrnum(RumState *rumstate, IndexTuple tuple)
+rumtuple_get_attrnum(RumState * rumstate, IndexTuple tuple)
 {
 	OffsetNumber colN;
 
@@ -379,8 +380,8 @@ rumtuple_get_attrnum(RumState *rumstate, IndexTuple tuple)
  * Extract stored datum (and possible null category) from RUM tuple
  */
 Datum
-rumtuple_get_key(RumState *rumstate, IndexTuple tuple,
-				 RumNullCategory *category)
+rumtuple_get_key(RumState * rumstate, IndexTuple tuple,
+				 RumNullCategory * category)
 {
 	Datum		res;
 	bool		isnull;
@@ -497,7 +498,7 @@ void
 RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer)
 {
 	Page		metaPage;
-	RumMetaPageData	   *metadata;
+	RumMetaPageData *metadata;
 
 	/* Initialize contents of meta page */
 	metaPage = GenericXLogRegisterBuffer(state, metaBuffer,
@@ -524,7 +525,7 @@ RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer)
  * Compare two keys of the same index column
  */
 int
-rumCompareEntries(RumState *rumstate, OffsetNumber attnum,
+rumCompareEntries(RumState * rumstate, OffsetNumber attnum,
 				  Datum a, RumNullCategory categorya,
 				  Datum b, RumNullCategory categoryb)
 {
@@ -546,7 +547,7 @@ rumCompareEntries(RumState *rumstate, OffsetNumber attnum,
  * Compare two keys of possibly different index columns
  */
 int
-rumCompareAttEntries(RumState *rumstate,
+rumCompareAttEntries(RumState * rumstate,
 					 OffsetNumber attnuma, Datum a, RumNullCategory categorya,
 					 OffsetNumber attnumb, Datum b, RumNullCategory categoryb)
 {
@@ -621,9 +622,9 @@ cmpEntries(const void *a, const void *b, void *arg)
  * This avoids generating redundant index entries.
  */
 Datum *
-rumExtractEntries(RumState *rumstate, OffsetNumber attnum,
+rumExtractEntries(RumState * rumstate, OffsetNumber attnum,
 				  Datum value, bool isNull,
-				  int32 *nentries, RumNullCategory **categories,
+				  int32 *nentries, RumNullCategory ** categories,
 				  Datum **addInfo, bool **addInfoIsNull)
 {
 	Datum	   *entries;
@@ -660,7 +661,7 @@ rumExtractEntries(RumState *rumstate, OffsetNumber attnum,
 										  PointerGetDatum(&nullFlags),
 										  PointerGetDatum(addInfo),
 										  PointerGetDatum(addInfoIsNull)
-									));
+										  ));
 
 	/*
 	 * Generate a placeholder if the item contained no keys.
@@ -681,13 +682,13 @@ rumExtractEntries(RumState *rumstate, OffsetNumber attnum,
 
 	if (!(*addInfo))
 	{
-		(*addInfo) = (Datum *)palloc(sizeof(Datum) * *nentries);
+		(*addInfo) = (Datum *) palloc(sizeof(Datum) * *nentries);
 		for (i = 0; i < *nentries; i++)
 			(*addInfo)[i] = (Datum) 0;
 	}
 	if (!(*addInfoIsNull))
 	{
-		(*addInfoIsNull) = (bool *)palloc(sizeof(bool) * *nentries);
+		(*addInfoIsNull) = (bool *) palloc(sizeof(bool) * *nentries);
 		for (i = 0; i < *nentries; i++)
 			(*addInfoIsNull)[i] = true;
 	}
@@ -847,8 +848,8 @@ rumUpdateStats(Relation index, const GinStatsData *stats)
 {
 	Buffer		metabuffer;
 	Page		metapage;
-	RumMetaPageData	   *metadata;
-	GenericXLogState   *state;
+	RumMetaPageData *metadata;
+	GenericXLogState *state;
 
 	state = GenericXLogStart(index);
 
@@ -869,9 +870,9 @@ rumUpdateStats(Relation index, const GinStatsData *stats)
 
 Datum
 FunctionCall10Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
-				  Datum arg3, Datum arg4, Datum arg5,
-				  Datum arg6, Datum arg7, Datum arg8,
-				  Datum arg9, Datum arg10)
+				   Datum arg3, Datum arg4, Datum arg5,
+				   Datum arg6, Datum arg7, Datum arg8,
+				   Datum arg9, Datum arg10)
 {
 	FunctionCallInfoData fcinfo;
 	Datum		result;

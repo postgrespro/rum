@@ -70,16 +70,16 @@ rumPrepareFindLeafPage(RumBtree btree, BlockNumber blkno)
  * Locates leaf page contained tuple
  */
 RumBtreeStack *
-rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack)
+rumReFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 {
 	/*
-	 * Traverse the tree upwards until we sure that requested leaf page is
-	 * in this subtree. Or we can stop at root page.
+	 * Traverse the tree upwards until we sure that requested leaf page is in
+	 * this subtree. Or we can stop at root page.
 	 */
 	while (stack->parent)
 	{
 		RumBtreeStack *ptr;
-		Page page;
+		Page		page;
 		OffsetNumber maxoff;
 
 		LockBuffer(stack->buffer, RUM_UNLOCK);
@@ -96,12 +96,12 @@ rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack)
 
 		/*
 		 * We don't know right bound of rightmost pointer. So, we can be sure
-		 * that requested leaf page is in this subtree only when requested item
-		 * pointer is less than item pointer previous to rightmost.
+		 * that requested leaf page is in this subtree only when requested
+		 * item pointer is less than item pointer previous to rightmost.
 		 */
 		if (rumCompareItemPointers(
-				&(((PostingItem *)RumDataPageGetItem(page, maxoff - 1))->key),
-				&btree->items[btree->curitem].iptr) >= 0)
+			  &(((PostingItem *) RumDataPageGetItem(page, maxoff - 1))->key),
+								   &btree->items[btree->curitem].iptr) >= 0)
 		{
 			break;
 		}
@@ -116,7 +116,7 @@ rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack)
  * Locates leaf page contained tuple
  */
 RumBtreeStack *
-rumFindLeafPage(RumBtree btree, RumBtreeStack *stack)
+rumFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 {
 	bool		isfirst = TRUE;
 	BlockNumber rootBlkno;
@@ -176,7 +176,7 @@ rumFindLeafPage(RumBtree btree, RumBtreeStack *stack)
 		{
 			/* in search mode we may forget path to leaf */
 			RumBtreeStack *ptr = (RumBtreeStack *) palloc(sizeof(RumBtreeStack));
-			Buffer buffer = ReleaseAndReadBuffer(stack->buffer, btree->index, child);
+			Buffer		buffer = ReleaseAndReadBuffer(stack->buffer, btree->index, child);
 
 			ptr->parent = stack;
 			ptr->predictNumber = stack->predictNumber;
@@ -213,7 +213,7 @@ rumStepRight(Buffer buffer, Relation index, int lockmode)
 	Page		page = BufferGetPage(buffer);
 	bool		isLeaf = RumPageIsLeaf(page);
 	bool		isData = RumPageIsData(page);
-	BlockNumber	blkno = RumPageGetOpaque(page)->rightlink;
+	BlockNumber blkno = RumPageGetOpaque(page)->rightlink;
 
 	nextbuffer = ReadBuffer(index, blkno);
 	LockBuffer(nextbuffer, lockmode);
@@ -225,17 +225,17 @@ rumStepRight(Buffer buffer, Relation index, int lockmode)
 		elog(ERROR, "right sibling of RUM page is of different type");
 
 	/*
-	 * Given the proper lock sequence above, we should never land on a
-	 * deleted page.
+	 * Given the proper lock sequence above, we should never land on a deleted
+	 * page.
 	 */
-	if  (RumPageIsDeleted(page))
+	if (RumPageIsDeleted(page))
 		elog(ERROR, "right sibling of RUM page was deleted");
 
 	return nextbuffer;
 }
 
 void
-freeRumBtreeStack(RumBtreeStack *stack)
+freeRumBtreeStack(RumBtreeStack * stack)
 {
 	while (stack)
 	{
@@ -256,7 +256,7 @@ freeRumBtreeStack(RumBtreeStack *stack)
  * with vacuum process
  */
 void
-rumFindParents(RumBtree btree, RumBtreeStack *stack,
+rumFindParents(RumBtree btree, RumBtreeStack * stack,
 			   BlockNumber rootBlkno)
 {
 	Page		page;
@@ -355,7 +355,7 @@ rumFindParents(RumBtree btree, RumBtreeStack *stack,
  * NB: the passed-in stack is freed, as though by freeRumBtreeStack.
  */
 void
-rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
+rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 			   GinStatsData *buildStats)
 {
 	RumBtreeStack *parent;
@@ -363,7 +363,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 	Page		page,
 				rpage,
 				lpage;
-	GenericXLogState   *state;
+	GenericXLogState *state;
 
 	/* extract root BlockNumber from stack */
 	Assert(stack != NULL);
@@ -421,8 +421,8 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 												  GENERIC_XLOG_FULL_IMAGE);
 
 				/*
-				 * newlpage is a pointer to memory page, it doesn't associate with
-				 * buffer, stack->buffer should be untouched
+				 * newlpage is a pointer to memory page, it doesn't associate
+				 * with buffer, stack->buffer should be untouched
 				 */
 				newlpage = btree->splitPage(btree, stack->buffer, rbuffer,
 											page, rpage, stack->off);
@@ -473,8 +473,8 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
 				rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
 
 				/*
-				 * newlpage is a pointer to memory page, it doesn't associate with
-				 * buffer, stack->buffer should be untouched
+				 * newlpage is a pointer to memory page, it doesn't associate
+				 * with buffer, stack->buffer should be untouched
 				 */
 				newlpage = btree->splitPage(btree, stack->buffer, rbuffer,
 											lpage, rpage, stack->off);

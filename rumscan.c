@@ -137,7 +137,7 @@ static void
 rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 			   StrategyNumber strategy, int32 searchMode,
 			   Datum query, uint32 nQueryValues,
-			   Datum *queryValues, RumNullCategory *queryCategories,
+			   Datum *queryValues, RumNullCategory * queryCategories,
 			   bool *partial_matches, Pointer *extra_data,
 			   bool orderBy)
 {
@@ -170,7 +170,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 		if (nQueryValues != 1)
 			elog(ERROR, "extractQuery should return only one value");
 		if (rumstate->canOuterOrdering[attnum - 1] == false)
-			elog(ERROR,"doesn't support ordering as additional info");
+			elog(ERROR, "doesn't support ordering as additional info");
 
 		key->useAddToColumn = true;
 		key->attnum = rumstate->attrnAddToColumn;
@@ -298,7 +298,7 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 	Datum	   *queryValues;
 	int32		nQueryValues = 0;
 	bool	   *partial_matches = NULL;
-	Pointer	   *extra_data = NULL;
+	Pointer    *extra_data = NULL;
 	bool	   *nullFlags = NULL;
 	int32		searchMode = GIN_SEARCH_MODE_DEFAULT;
 
@@ -315,18 +315,18 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 	/* OK to call the extractQueryFn */
 	queryValues = (Datum *)
 		DatumGetPointer(FunctionCall7Coll(&so->rumstate.extractQueryFn[skey->sk_attno - 1],
-						so->rumstate.supportCollation[skey->sk_attno - 1],
-											skey->sk_argument,
-											PointerGetDatum(&nQueryValues),
-										UInt16GetDatum(skey->sk_strategy),
-										PointerGetDatum(&partial_matches),
-											PointerGetDatum(&extra_data),
-											PointerGetDatum(&nullFlags),
-											PointerGetDatum(&searchMode)));
+						   so->rumstate.supportCollation[skey->sk_attno - 1],
+										  skey->sk_argument,
+										  PointerGetDatum(&nQueryValues),
+										  UInt16GetDatum(skey->sk_strategy),
+										  PointerGetDatum(&partial_matches),
+										  PointerGetDatum(&extra_data),
+										  PointerGetDatum(&nullFlags),
+										  PointerGetDatum(&searchMode)));
 
 	/*
-	 * If bogus searchMode is returned, treat as RUM_SEARCH_MODE_ALL; note
-	 * in particular we don't allow extractQueryFn to select
+	 * If bogus searchMode is returned, treat as RUM_SEARCH_MODE_ALL; note in
+	 * particular we don't allow extractQueryFn to select
 	 * RUM_SEARCH_MODE_EVERYTHING.
 	 */
 	if (searchMode < GIN_SEARCH_MODE_DEFAULT ||
@@ -347,15 +347,15 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 			so->isVoidRes = true;
 			return;
 		}
-		nQueryValues = 0;	/* ensure sane value */
+		nQueryValues = 0;		/* ensure sane value */
 	}
 
 	/*
 	 * If the extractQueryFn didn't create a nullFlags array, create one,
-	 * assuming that everything's non-null.  Otherwise, run through the
-	 * array and make sure each value is exactly 0 or 1; this ensures
-	 * binary compatibility with the RumNullCategory representation. While
-	 * at it, detect whether any null keys are present.
+	 * assuming that everything's non-null.  Otherwise, run through the array
+	 * and make sure each value is exactly 0 or 1; this ensures binary
+	 * compatibility with the RumNullCategory representation. While at it,
+	 * detect whether any null keys are present.
 	 */
 	if (nullFlags == NULL)
 		nullFlags = (bool *) palloc0(nQueryValues * sizeof(bool));
@@ -367,7 +367,7 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 		{
 			if (nullFlags[j])
 			{
-				nullFlags[j] = true;		/* not any other nonzero value */
+				nullFlags[j] = true;	/* not any other nonzero value */
 				*hasNullQuery = true;
 			}
 		}
@@ -375,11 +375,11 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 	/* now we can use the nullFlags as category codes */
 
 	rumFillScanKey(so, skey->sk_attno,
-					skey->sk_strategy, searchMode,
-					skey->sk_argument, nQueryValues,
-					queryValues, (RumNullCategory *) nullFlags,
-					partial_matches, extra_data,
-					(skey->sk_flags & SK_ORDER_BY) ? true: false);
+				   skey->sk_strategy, searchMode,
+				   skey->sk_argument, nQueryValues,
+				   queryValues, (RumNullCategory *) nullFlags,
+				   partial_matches, extra_data,
+				   (skey->sk_flags & SK_ORDER_BY) ? true : false);
 }
 
 void
@@ -400,7 +400,7 @@ rumNewScanKey(IndexScanDesc scan)
 	/* if no scan keys provided, allocate extra EVERYTHING RumScanKey */
 	so->keys = (RumScanKey)
 		palloc((Max(scan->numberOfKeys, 1) + scan->numberOfOrderBys) *
-														sizeof(RumScanKeyData));
+			   sizeof(RumScanKeyData));
 	so->nkeys = 0;
 
 	/* initialize expansible array of RumScanEntry pointers */
@@ -418,6 +418,7 @@ rumNewScanKey(IndexScanDesc scan)
 		if (so->isVoidRes)
 			break;
 	}
+
 	/*
 	 * If there are no regular scan keys, generate an EVERYTHING scankey to
 	 * drive a full-index scan.

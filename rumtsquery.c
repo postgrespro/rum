@@ -22,23 +22,24 @@
 
 typedef struct QueryItemWrap
 {
-	QueryItemType			type;
-	int8					oper;
-	bool					not;
-	int						operandsCount,
-							operandsAllocated;
-	struct QueryItemWrap   *operands;
-	struct QueryItemWrap   *parent;
-	int						distance,
-							length;
-	int						sum;
-	int						num;
-} QueryItemWrap;
+	QueryItemType type;
+	int8		oper;
+	bool		not;
+	int			operandsCount,
+				operandsAllocated;
+	struct QueryItemWrap *operands;
+	struct QueryItemWrap *parent;
+	int			distance,
+				length;
+	int			sum;
+	int			num;
+}	QueryItemWrap;
 
 static QueryItemWrap *
-add_child(QueryItemWrap *parent)
+add_child(QueryItemWrap * parent)
 {
 	QueryItemWrap *result;
+
 	if (!parent)
 	{
 		result = (QueryItemWrap *) palloc0(sizeof(QueryItemWrap));
@@ -67,12 +68,12 @@ add_child(QueryItemWrap *parent)
 }
 
 static QueryItemWrap *
-make_query_item_wrap(QueryItem *item, QueryItemWrap *parent, bool not)
+make_query_item_wrap(QueryItem *item, QueryItemWrap * parent, bool not)
 {
 	if (item->type == QI_VAL)
 	{
-		QueryOperand   *operand = (QueryOperand *) item;
-		QueryItemWrap  *wrap = add_child(parent);
+		QueryOperand *operand = (QueryOperand *) item;
+		QueryItemWrap *wrap = add_child(parent);
 
 		if (operand->prefix)
 			elog(ERROR, "Indexing of prefix tsqueries isn't supported yet");
@@ -91,29 +92,30 @@ make_query_item_wrap(QueryItem *item, QueryItemWrap *parent, bool not)
 
 		case OP_AND:
 		case OP_OR:
-		{
-			uint8 oper = item->qoperator.oper;
-			if (not)
-				oper = (oper == OP_AND) ? OP_OR : OP_AND;
-
-			if (!parent || oper != parent->oper)
 			{
-				QueryItemWrap *wrap = add_child(parent);
+				uint8		oper = item->qoperator.oper;
 
-				wrap->type = QI_OPR;
-				wrap->oper = oper;
+				if (not)
+					oper = (oper == OP_AND) ? OP_OR : OP_AND;
 
-				make_query_item_wrap(item + item->qoperator.left, wrap, not);
-				make_query_item_wrap(item + 1, wrap, not);
-				return wrap;
+				if (!parent || oper != parent->oper)
+				{
+					QueryItemWrap *wrap = add_child(parent);
+
+					wrap->type = QI_OPR;
+					wrap->oper = oper;
+
+					make_query_item_wrap(item + item->qoperator.left, wrap, not);
+					make_query_item_wrap(item + 1, wrap, not);
+					return wrap;
+				}
+				else
+				{
+					make_query_item_wrap(item + item->qoperator.left, parent, not);
+					make_query_item_wrap(item + 1, parent, not);
+					return NULL;
+				}
 			}
-			else
-			{
-				make_query_item_wrap(item + item->qoperator.left, parent, not);
-				make_query_item_wrap(item + 1, parent, not);
-				return NULL;
-			}
-		}
 		case OP_PHRASE:
 			elog(ERROR, "Indexing of phrase tsqueries isn't supported yet");
 		default:
@@ -125,9 +127,11 @@ make_query_item_wrap(QueryItem *item, QueryItemWrap *parent, bool not)
 }
 
 static int
-calc_wraps(QueryItemWrap *wrap, int *num)
+calc_wraps(QueryItemWrap * wrap, int *num)
 {
-	int		i, notCount = 0, result;
+	int			i,
+				notCount = 0,
+				result;
 
 	for (i = 0; i < wrap->operandsCount; i++)
 	{
@@ -155,7 +159,7 @@ calc_wraps(QueryItemWrap *wrap, int *num)
 }
 
 static bool
-check_allnegative(QueryItemWrap *wrap)
+check_allnegative(QueryItemWrap * wrap)
 {
 	if (wrap->type == QI_VAL)
 	{
@@ -163,7 +167,8 @@ check_allnegative(QueryItemWrap *wrap)
 	}
 	else if (wrap->oper == OP_AND)
 	{
-		int		i;
+		int			i;
+
 		for (i = 0; i < wrap->operandsCount; i++)
 		{
 			if (!check_allnegative(&wrap->operands[i]))
@@ -173,7 +178,8 @@ check_allnegative(QueryItemWrap *wrap)
 	}
 	else if (wrap->oper == OP_OR)
 	{
-		int		i;
+		int			i;
+
 		for (i = 0; i < wrap->operandsCount; i++)
 		{
 			if (check_allnegative(&wrap->operands[i]))
@@ -249,30 +255,31 @@ decode_varbyte(unsigned char **ptr)
 
 typedef struct
 {
-	Datum  *addInfo;
-	bool   *addInfoIsNull;
-	Datum  *entries;
-	int		index;
-	char   *operand;
-} ExtractContext;
+	Datum	   *addInfo;
+	bool	   *addInfoIsNull;
+	Datum	   *entries;
+	int			index;
+	char	   *operand;
+}	ExtractContext;
 
 static void
-extract_wraps(QueryItemWrap *wrap, ExtractContext *context, int level)
+extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 {
 	if (wrap->type == QI_VAL)
 	{
-		bytea		   *addinfo;
-		unsigned char  *ptr;
-		int				index = context->index;
+		bytea	   *addinfo;
+		unsigned char *ptr;
+		int			index = context->index;
 
 
 		for (index = 0; index < context->index; index++)
 		{
-			text *entry;
+			text	   *entry;
+
 			entry = DatumGetByteaP(context->entries[index]);
 			if (VARSIZE_ANY_EXHDR(entry) == wrap->length &&
 				!memcmp(context->operand + wrap->distance, VARDATA_ANY(entry), wrap->length))
-					break;
+				break;
 		}
 
 		if (index >= context->index)
@@ -284,26 +291,40 @@ extract_wraps(QueryItemWrap *wrap, ExtractContext *context, int level)
 			context->addInfo[index] = PointerGetDatum(addinfo);
 			context->addInfoIsNull[index] = false;
 			context->index++;
-			/*ptrEnd = (unsigned char *) VARDATA(addinfo) + VARHDRSZ + 2 * Max(level, 1) * MAX_ENCODED_LEN;*/
+
+			/*
+			 * ptrEnd = (unsigned char *) VARDATA(addinfo) + VARHDRSZ + 2 *
+			 * Max(level, 1) * MAX_ENCODED_LEN;
+			 */
 		}
 		else
 		{
 			addinfo = DatumGetByteaP(context->addInfo[index]);
 			addinfo = (bytea *) repalloc(addinfo,
-				VARSIZE(addinfo) + 2 * Max(level, 1) * MAX_ENCODED_LEN);
+					 VARSIZE(addinfo) + 2 * Max(level, 1) * MAX_ENCODED_LEN);
 			context->addInfo[index] = PointerGetDatum(addinfo);
 			ptr = (unsigned char *) VARDATA(addinfo) + VARSIZE_ANY_EXHDR(addinfo);
-			/*ptrEnd = (unsigned char *) VARDATA(addinfo) + VARSIZE_ANY_EXHDR(addinfo) + 2 * Max(level, 1) * MAX_ENCODED_LEN;*/
+
+			/*
+			 * ptrEnd = (unsigned char *) VARDATA(addinfo) +
+			 * VARSIZE_ANY_EXHDR(addinfo) + 2 * Max(level, 1) *
+			 * MAX_ENCODED_LEN;
+			 */
 		}
-		/*elog(NOTICE, "%s", text_to_cstring(DatumGetTextP(context->entries[index])));*/
+
+		/*
+		 * elog(NOTICE, "%s",
+		 * text_to_cstring(DatumGetTextP(context->entries[index])));
+		 */
 
 		while (wrap->parent)
 		{
-			QueryItemWrap  *parent = wrap->parent;
-			uint32			sum;
-			/*elog(NOTICE, "%d %d %d", parent->num, parent->sum, wrap->not);*/
+			QueryItemWrap *parent = wrap->parent;
+			uint32		sum;
+
+			/* elog(NOTICE, "%d %d %d", parent->num, parent->sum, wrap->not); */
 			encode_varbyte((uint32) parent->num, &ptr);
-			sum = (uint32)abs(parent->sum);
+			sum = (uint32) abs(parent->sum);
 			sum <<= 2;
 			if (parent->sum < 0)
 				sum |= 2;
@@ -317,13 +338,18 @@ extract_wraps(QueryItemWrap *wrap, ExtractContext *context, int level)
 			encode_varbyte(1, &ptr);
 			encode_varbyte(4 | 1, &ptr);
 		}
-		/*Assert(ptr <= ptrEnd);*/
-		SET_VARSIZE(addinfo, ptr - (unsigned char *)addinfo);
-		/*elog(NOTICE, "%s", DatumGetPointer(DirectFunctionCall1(byteaout, PointerGetDatum(addinfo))));*/
+		/* Assert(ptr <= ptrEnd); */
+		SET_VARSIZE(addinfo, ptr - (unsigned char *) addinfo);
+
+		/*
+		 * elog(NOTICE, "%s", DatumGetPointer(DirectFunctionCall1(byteaout,
+		 * PointerGetDatum(addinfo))));
+		 */
 	}
 	else if (wrap->type == QI_OPR)
 	{
-		int	i;
+		int			i;
+
 		for (i = 0; i < wrap->operandsCount; i++)
 			extract_wraps(&wrap->operands[i], context, level + 1);
 	}
@@ -351,8 +377,8 @@ ruminv_extract_tsquery(PG_FUNCTION_ARGS)
 	TSQuery		query = PG_GETARG_TSQUERY(0);
 	int32	   *nentries = (int32 *) PG_GETARG_POINTER(1);
 	bool	  **nullFlags = (bool **) PG_GETARG_POINTER(2);
-	Datum	   **addInfo = (Datum **) PG_GETARG_POINTER(3);
-	bool	   **addInfoIsNull = (bool **) PG_GETARG_POINTER(4);
+	Datum	  **addInfo = (Datum **) PG_GETARG_POINTER(3);
+	bool	  **addInfoIsNull = (bool **) PG_GETARG_POINTER(4);
 	Datum	   *entries = NULL;
 	QueryItem  *item = GETQUERY(query);
 	QueryItemWrap *wrap;
@@ -382,7 +408,7 @@ ruminv_extract_tsquery(PG_FUNCTION_ARGS)
 	count = context.index;
 	if (extractNull)
 	{
-		int	i;
+		int			i;
 
 		count++;
 		*nullFlags = (bool *) palloc(sizeof(bool) * count);
@@ -414,7 +440,7 @@ ruminv_extract_tsvector(PG_FUNCTION_ARGS)
 	bool	  **ptr_partialmatch = (bool **) PG_GETARG_POINTER(3);
 	Pointer   **extra_data = (Pointer **) PG_GETARG_POINTER(4);
 
-	bool	   **nullFlags = (bool **) PG_GETARG_POINTER(5);
+	bool	  **nullFlags = (bool **) PG_GETARG_POINTER(5);
 	int32	   *searchMode = (int32 *) PG_GETARG_POINTER(6);
 	Datum	   *entries = NULL;
 
@@ -452,19 +478,21 @@ ruminv_extract_tsvector(PG_FUNCTION_ARGS)
 
 typedef struct
 {
-	int		sum;
-	int		parent;
-	bool	not;
-} TmpNode;
+	int			sum;
+	int			parent;
+	bool		not;
+}	TmpNode;
 
 PG_FUNCTION_INFO_V1(ruminv_tsvector_consistent);
 Datum
 ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 {
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
+
 	/* StrategyNumber strategy = PG_GETARG_UINT16(1); */
-	/* TSVector	vector = PG_GETARG_TSVECTOR(2); */
+	/* TSVector vector = PG_GETARG_TSVECTOR(2); */
 	int32		nkeys = PG_GETARG_INT32(3);
+
 	/* Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4); */
 	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
@@ -480,9 +508,9 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 	for (i = 0; i < nkeys - 1; i++)
 	{
 		unsigned char *ptr,
-					  *ptrEnd;
-		int		size;
-		TmpNode *child = NULL;
+				   *ptrEnd;
+		int			size;
+		TmpNode    *child = NULL;
 
 		if (!check[i])
 			continue;
@@ -492,10 +520,13 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 		if (addInfoIsNull[i])
 			elog(ERROR, "Unexpected addInfoIsNull");
 
-		ptr = (unsigned char *)VARDATA_ANY(DatumGetPointer(addInfo[i]));
+		ptr = (unsigned char *) VARDATA_ANY(DatumGetPointer(addInfo[i]));
 		size = VARSIZE_ANY_EXHDR(DatumGetPointer(addInfo[i]));
 
-		/*elog(NOTICE, "%d %s", i, DatumGetPointer(DirectFunctionCall1(byteaout, addInfo[i])));*/
+		/*
+		 * elog(NOTICE, "%d %s", i,
+		 * DatumGetPointer(DirectFunctionCall1(byteaout, addInfo[i])));
+		 */
 
 		if (size == 0)
 		{
@@ -506,10 +537,11 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 		ptrEnd = ptr + size;
 		while (ptr < ptrEnd)
 		{
-			uint32	num = decode_varbyte(&ptr),
-					sumVal = decode_varbyte(&ptr);
-			int		sum, index;
-			bool	not;
+			uint32		num = decode_varbyte(&ptr),
+						sumVal = decode_varbyte(&ptr);
+			int			sum,
+						index;
+			bool		not;
 
 			not = (sumVal & 1) ? true : false;
 			sum = sumVal >> 2;
@@ -517,7 +549,7 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 
 			index = num - 1;
 
-			/*elog(NOTICE, "a %d %d %d %d", i, index, sum, not);*/
+			/* elog(NOTICE, "a %d %d %d %d", i, index, sum, not); */
 
 			if (child)
 			{
@@ -558,10 +590,10 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 	}
 	else
 	{
-		/*for (i = 0; i < lastIndex; i++)
-		{
-			elog(NOTICE, "s %d %d %d %d", i, nodes[i].sum, nodes[i].parent, nodes[i].not);
-		}*/
+		/*
+		 * for (i = 0; i < lastIndex; i++) { elog(NOTICE, "s %d %d %d %d", i,
+		 * nodes[i].sum, nodes[i].parent, nodes[i].not); }
+		 */
 
 		for (i = lastIndex - 1; i >= 0; i--)
 		{
@@ -576,7 +608,8 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 					}
 					else
 					{
-						int parent = nodes[i].parent;
+						int			parent = nodes[i].parent;
+
 						nodes[parent].sum += nodes[i].not ? -1 : 1;
 					}
 				}
@@ -593,8 +626,8 @@ PG_FUNCTION_INFO_V1(ruminv_tsquery_config);
 Datum
 ruminv_tsquery_config(PG_FUNCTION_ARGS)
 {
-	RumConfig *config = (RumConfig *)PG_GETARG_POINTER(0);
+	RumConfig  *config = (RumConfig *) PG_GETARG_POINTER(0);
+
 	config->addInfoTypeOid = BYTEAOID;
 	PG_RETURN_VOID();
 }
-
