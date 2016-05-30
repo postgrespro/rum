@@ -89,7 +89,7 @@ callConsistentFn(RumState *rumstate, RumScanKey key)
 
 		key->outerAddInfoIsNull = true;
 
-		for(i = 0; i < key->nentries/*nuserentries*/; i++)
+		for(i = 0; i < key->nentries; i++)
 		{
 			if (key->entryRes[i] && key->addInfoIsNull[0] == false)
 			{
@@ -691,7 +691,8 @@ restartScanEntry:
 			entry->isFinished = FALSE;
 		}
 	}
-	else if (entry->searchMode == GIN_SEARCH_MODE_EVERYTHING)
+	else if (entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
+			 entry->searchMode == GIN_SEARCH_MODE_EVERYTHING)
 	{
 		btreeEntry.findItem(&btreeEntry, stackEntry);
 		collectMatchRumKey(&btreeEntry, stackEntry, entry);

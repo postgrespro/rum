@@ -419,10 +419,10 @@ rumNewScanKey(IndexScanDesc scan)
 			break;
 	}
 	/*
-	 * If there are no regular scan keys, generate an EMPTY scankey to
+	 * If there are no regular scan keys, generate an EVERYTHING scankey to
 	 * drive a full-index scan.
 	 */
-	if (so->nkeys == 0 && scan->numberOfOrderBys > 0 && !so->isVoidRes)
+	if (so->nkeys == 0 && !so->isVoidRes)
 	{
 		hasNullQuery = true;
 		rumFillScanKey(so, FirstOffsetNumber,
@@ -445,20 +445,6 @@ rumNewScanKey(IndexScanDesc scan)
 		scan->xs_orderbynulls = palloc(sizeof(bool) * scan->numberOfOrderBys);
 		memset(scan->xs_orderbynulls, true, sizeof(bool) *
 			   scan->numberOfOrderBys);
-	}
-
-	/*
-	 * If there are no regular scan keys, generate an EVERYTHING scankey to
-	 * drive a full-index scan.
-	 */
-	if (so->nkeys == 0 && !so->isVoidRes)
-	{
-		hasNullQuery = true;
-		rumFillScanKey(so, FirstOffsetNumber,
-					   InvalidStrategy,
-					   GIN_SEARCH_MODE_EVERYTHING,
-					   (Datum) 0, 0,
-					   NULL, NULL, NULL, NULL, false);
 	}
 
 	MemoryContextSwitchTo(oldCtx);
