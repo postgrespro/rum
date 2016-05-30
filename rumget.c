@@ -38,6 +38,7 @@ static bool scanPage(RumState *rumstate, RumScanEntry entry, ItemPointer item,
 		Page page, bool equalOk);
 static void insertScanItem(RumScanOpaque so, bool recheck);
 static int scan_entry_cmp(const void *p1, const void *p2);
+static int rum_key_cmp_with_check(const void *p1, const void *p2, void *arg);
 static void entryGetItem(RumState *rumstate, RumScanEntry entry);
 
 
@@ -414,6 +415,41 @@ collectMatchBitmap(RumBtreeData *btree, RumBtreeStack *stack,
 	}
 }
 
+/*
+ * Sort array of RumKey and remove duplicates.
+ *
+ * Returns new size of the array.
+ */
+static uint32
+sortAndUniqRumKeys(RumKey *list, uint32 nlist)
+{
+	uint32		i, j;
+	bool		haveDups = false;
+
+	if (nlist < 2)
+		return nlist;
+
+	qsort_arg(list, nlist, sizeof(RumKey), rum_key_cmp_with_check,
+			  (void *) &haveDups);
+
+	/* There are duplicates, remove them */
+	if (haveDups)
+	{
+		j = 1;
+		for (i = 1; i < nlist; i++)
+		{
+			if (rumCompareItemPointers(&list[i - 1].iptr, &list[i].iptr) != 0)
+			{
+				list[j] = list[i];
+				j++;
+			}
+		}
+		return j;
+	}
+	else
+		return nlist;
+}
+
 static void
 collectMatchRumKey(RumBtreeData *btree, RumBtreeStack *stack,
 				   RumScanEntry entry)
@@ -588,14 +624,16 @@ collectMatchRumKey(RumBtreeData *btree, RumBtreeStack *stack,
 		}
 		else if (RumGetNPosting(itup) > 0)
 		{
-			uint32		j;
+			uint32		off, count;
 
-			j = entry->nlist;
-			entry->nlist += RumGetNPosting(itup);
-			entry->predictNumberResult += RumGetNPosting(itup);
+			count = RumGetNPosting(itup);
+
+			off = entry->nlist;
+			entry->nlist += count;
+			entry->predictNumberResult += count;
 			if (entry->nalloc == 0)
 			{
-				entry->nalloc = Max(RumGetNPosting(itup), 32);
+				entry->nalloc = Max(count, 32);
 				entry->list = (RumKey *) palloc(entry->nalloc * sizeof(RumKey));
 			}
 			else if (entry->nlist > entry->nalloc)
@@ -605,7 +643,7 @@ collectMatchRumKey(RumBtreeData *btree, RumBtreeStack *stack,
 					repalloc(entry->list, entry->nalloc * sizeof(RumKey));
 			}
 
-			rumReadTuple(btree->rumstate, entry->attnum, itup, entry->list + j);
+			rumReadTuple(btree->rumstate, entry->attnum, itup, entry->list + off);
 			entry->isFinished = FALSE;
 		}
 
@@ -696,6 +734,7 @@ restartScanEntry:
 	{
 		btreeEntry.findItem(&btreeEntry, stackEntry);
 		collectMatchRumKey(&btreeEntry, stackEntry, entry);
+		entry->nlist = sortAndUniqRumKeys(entry->list, entry->nlist);
 	}
 	else if (btreeEntry.findItem(&btreeEntry, stackEntry))
 	{
@@ -808,6 +847,22 @@ scan_entry_cmp(const void *p1, const void *p2)
 	RumScanEntry e2 = *((RumScanEntry *)p2);
 
 	return -cmpEntries(e1, e2);
+}
+
+static int
+rum_key_cmp_with_check(const void *p1, const void *p2, void *arg)
+{
+	const RumKey *k1 = (const RumKey *) p1;
+	const RumKey *k2 = (const RumKey *) p2;
+	bool	   *haveDups = (bool *) arg;
+	int			res;
+
+	res = rumCompareItemPointers(&k1->iptr, &k2->iptr);
+
+	if (res == 0)
+		*haveDups = true;
+
+	return res;
 }
 
 static void
