@@ -1655,6 +1655,9 @@ preConsistentCheck(RumScanOpaque so)
 		if (key->orderBy)
 			continue;
 
+		if (key->searchMode == GIN_SEARCH_MODE_EVERYTHING)
+			continue;
+
 		if (!so->rumstate.canPreConsistent[key->attnum - 1])
 			continue;
 
