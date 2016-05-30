@@ -114,15 +114,12 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))
 
 SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')), *
 	FROM test_rum
-	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 5;
- rum_ts_distance |                                    t                                     |                                 a                                 
------------------+--------------------------------------------------------------------------+-------------------------------------------------------------------
-         9.65659 | thinking--“to go or not to go?” We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
-         10.0905 | itself. Put on your “specs” and look at the castle, half way up the      | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-           1e+20 | so well that only a fragment, as it were, gave way. It still hangs as if | 'fragment':6 'gave':10 'hang':14 'still':13 'way':11 'well':2
-           1e+20 | my appreciation of you in a more complimentary way than by sending this  | 'appreci':2 'complimentari':8 'send':12 'way':9
-           1e+20 | but is an ancient structure (1592) in the Renaissance style, and one of  | '1592':6 'ancient':4 'one':12 'renaiss':9 'structur':5 'style':10
-(5 rows)
+	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
+ rum_ts_distance |                                  t                                  |                            a                            
+-----------------+---------------------------------------------------------------------+---------------------------------------------------------
+         9.65659 | thinking--“to go or not to go?” We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+         10.0905 | itself. Put on your “specs” and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+(2 rows)
 
 INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');
 INSERT INTO test_rum (t) VALUES ('345 qwerty copyright');
