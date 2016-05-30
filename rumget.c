@@ -2572,6 +2572,12 @@ insertScanItem(RumScanOpaque so, bool recheck)
 			continue;
 
 		item->data[j] = keyGetOrdering(&so->rumstate, so->tempCtx, &so->keys[i], &so->iptr);
+		/*
+		elog(NOTICE, "%f %u:%u",
+			 item->data[j],
+			 ItemPointerGetBlockNumber(&item->iptr),
+			 ItemPointerGetOffsetNumber(&item->iptr));
+		*/
 		j++;
 	}
 	rum_tuplesort_putrum(so->sortstate, item);

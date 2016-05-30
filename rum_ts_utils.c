@@ -30,10 +30,10 @@ PG_FUNCTION_INFO_V1(rum_tsquery_timestamp_consistent);
 PG_FUNCTION_INFO_V1(rum_tsquery_distance);
 PG_FUNCTION_INFO_V1(rum_ts_distance);
 
-static float calc_rank_pos_and(float *w, Datum *addInfo, bool *addInfoIsNull,
-						   int size);
-static float calc_rank_pos_or(float *w, Datum *addInfo, bool *addInfoIsNull,
-						  int size);
+static float calc_rank_pos_and(float *w, bool *check,
+							   Datum *addInfo, bool *addInfoIsNull, int size);
+static float calc_rank_pos_or(float *w, bool *check,
+							  Datum *addInfo, bool *addInfoIsNull, int size);
 
 static int count_pos(char *ptr, int len);
 static char * decompress_pos(char *ptr, uint16 *pos);
@@ -330,7 +330,7 @@ count_pos(char *ptr, int len)
 }
 
 static float
-calc_rank_pos_and(float *w, Datum *addInfo, bool *addInfoIsNull, int size)
+calc_rank_pos_and(float *w, bool *check, Datum *addInfo, bool *addInfoIsNull, int size)
 {
 	int			i,
 				k,
@@ -345,13 +345,13 @@ calc_rank_pos_and(float *w, Datum *addInfo, bool *addInfoIsNull, int size)
 	char		*ptrt, *ptrc;
 
 	if (size < 2)
-	{
-		return calc_rank_pos_or(w, addInfo, addInfoIsNull, size);
-	}
-	WEP_SETPOS(POSNULL.pos[0], MAXENTRYPOS - 1);
+		return calc_rank_pos_or(w, check, addInfo, addInfoIsNull, size);
 
 	for (i = 0; i < size; i++)
 	{
+		if (!check[i])
+			continue;
+
 		if (!addInfoIsNull[i])
 		{
 			dimt = count_pos(VARDATA_ANY(addInfo[i]), VARSIZE_ANY_EXHDR(addInfo[i]));
@@ -371,7 +371,10 @@ calc_rank_pos_and(float *w, Datum *addInfo, bool *addInfoIsNull, int size)
 			post = 0;
 			for (l = 0; l < dimt; l++)
 			{
-				ptrt = decompress_pos(ptrt, &post);
+				if (ptrt == (char *)POSNULL.pos)
+					post = POSNULL.pos[0];
+				else
+					ptrt = decompress_pos(ptrt, &post);
 				ct = 0;
 				if (!addInfoIsNull[k])
 					ptrc = (char *)VARDATA_ANY(addInfo[k]);
@@ -379,7 +382,10 @@ calc_rank_pos_and(float *w, Datum *addInfo, bool *addInfoIsNull, int size)
 					ptrc = (char *)POSNULL.pos;
 				for (p = 0; p < lenct; p++)
 				{
-					ptrc = decompress_pos(ptrc, &ct);
+					if (ptrc == (char *)POSNULL.pos)
+						ct = POSNULL.pos[0];
+					else
+						ptrc = decompress_pos(ptrc, &ct);
 					dist = Abs((int) WEP_GETPOS(post) - (int) WEP_GETPOS(ct));
 					if (dist || (dist == 0 && (ptrt == (char *)POSNULL.pos || ptrc == (char *)POSNULL.pos)))
 					{
@@ -399,7 +405,7 @@ calc_rank_pos_and(float *w, Datum *addInfo, bool *addInfoIsNull, int size)
 }
 
 static float
-calc_rank_pos_or(float *w, Datum *addInfo, bool *addInfoIsNull, int size)
+calc_rank_pos_or(float *w, bool *check, Datum *addInfo, bool *addInfoIsNull, int size)
 {
 	WordEntryPos post;
 	int32		dimt,
@@ -413,6 +419,9 @@ calc_rank_pos_or(float *w, Datum *addInfo, bool *addInfoIsNull, int size)
 		float		resj,
 					wjm;
 		int32		jm;
+
+		if (!check[i])
+			continue;
 
 		if (!addInfoIsNull[i])
 		{
@@ -431,7 +440,10 @@ calc_rank_pos_or(float *w, Datum *addInfo, bool *addInfoIsNull, int size)
 		post = 0;
 		for (j = 0; j < dimt; j++)
 		{
-			ptrt = decompress_pos(ptrt, &post);
+			if (ptrt == (char *)POSNULL.pos)
+				post = POSNULL.pos[0];
+			else
+				ptrt = decompress_pos(ptrt, &post);
 			resj = resj + wpos(post) / ((j + 1) * (j + 1));
 			if (wpos(post) > wjm)
 			{
@@ -455,7 +467,7 @@ calc_rank_pos_or(float *w, Datum *addInfo, bool *addInfoIsNull, int size)
 }
 
 static float
-calc_rank_pos(float *w, TSQuery q, Datum *addInfo, bool *addInfoIsNull, int size)
+calc_rank_pos(float *w, bool *check, TSQuery q, Datum *addInfo, bool *addInfoIsNull, int size)
 {
 	QueryItem  *item = GETQUERY(q);
 	float		res = 0.0;
@@ -463,11 +475,13 @@ calc_rank_pos(float *w, TSQuery q, Datum *addInfo, bool *addInfoIsNull, int size
 	if (!size || !q->size)
 		return 0.0;
 
+	WEP_SETPOS(POSNULL.pos[0], MAXENTRYPOS - 1);
+
 	/* XXX: What about NOT? */
 	res = (item->type == QI_OPR && (item->qoperator.oper == OP_AND ||
 									item->qoperator.oper == OP_PHRASE)) ?
-		calc_rank_pos_and(w, addInfo, addInfoIsNull, size) :
-		calc_rank_pos_or(w, addInfo, addInfoIsNull, size);
+		calc_rank_pos_and(w, check, addInfo, addInfoIsNull, size) :
+		calc_rank_pos_or(w, check, addInfo, addInfoIsNull, size);
 
 	if (res < 0)
 		res = 1e-20f;
@@ -691,18 +705,16 @@ rum_extract_tsquery(PG_FUNCTION_ARGS)
 Datum
 rum_tsquery_distance(PG_FUNCTION_ARGS)
 {
-	/* bool	   *check = (bool *) PG_GETARG_POINTER(0); */
-
+	bool	   *check = (bool *) PG_GETARG_POINTER(0);
 	/* StrategyNumber strategy = PG_GETARG_UINT16(1); */
 	TSQuery		query = PG_GETARG_TSQUERY(2);
-
 	int32	nkeys = PG_GETARG_INT32(3);
-	/* Pointer	*extra_data = (Pointer *) PG_GETARG_POINTER(4); */
+	Pointer	*extra_data = (Pointer *) PG_GETARG_POINTER(4);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
 	float8 res;
 
-	res = 1.0 / (float8)calc_rank_pos(weights, query,
+	res = 1.0 / (float8)calc_rank_pos(weights, check, query,
 									  addInfo, addInfoIsNull, nkeys);
 
 	PG_RETURN_FLOAT8(res);
@@ -711,10 +723,15 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 Datum
 rum_ts_distance(PG_FUNCTION_ARGS)
 {
-	return DirectFunctionCall2Coll(ts_rank_tt,
-								   PG_GET_COLLATION(),
-								   PG_GETARG_DATUM(0),
-								   PG_GETARG_DATUM(1));
+	float4 r = DatumGetFloat4(DirectFunctionCall2Coll(ts_rank_tt,
+													  PG_GET_COLLATION(),
+													  PG_GETARG_DATUM(0),
+													  PG_GETARG_DATUM(1)));
+
+	if (r == 0)
+		PG_RETURN_FLOAT4(get_float4_infinity());
+	else
+		PG_RETURN_FLOAT4(1.0 / r);
 }
 
 Datum
