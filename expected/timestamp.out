@@ -9,7 +9,7 @@ INSERT INTO test_timestamp VALUES
 	( '2004-10-26 09:55:08' ),
 	( '2004-10-26 10:55:08' )
 ;
-SELECT i <-> '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
+SELECT i <=> '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
  ?column? |            i             
 ----------+--------------------------
      1740 | Tue Oct 26 05:55:08 2004
@@ -20,7 +20,7 @@ SELECT i <-> '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
     16260 | Tue Oct 26 10:55:08 2004
 (6 rows)
 
-SELECT i <-| '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
+SELECT i <=| '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
  ?column? |            i             
 ----------+--------------------------
      1740 | Tue Oct 26 05:55:08 2004
@@ -31,7 +31,7 @@ SELECT i <-| '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
  Infinity | Tue Oct 26 10:55:08 2004
 (6 rows)
 
-SELECT i |-> '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
+SELECT i |=> '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
  ?column? |            i             
 ----------+--------------------------
      9060 | Tue Oct 26 08:55:08 2004

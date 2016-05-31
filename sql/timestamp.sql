@@ -12,9 +12,9 @@ INSERT INTO test_timestamp VALUES
 	( '2004-10-26 10:55:08' )
 ;
 
-SELECT i <-> '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
-SELECT i <-| '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
-SELECT i |-> '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
+SELECT i <=> '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
+SELECT i <=| '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
+SELECT i |=> '2004-10-26 06:24:08', i FROM test_timestamp ORDER BY 1, 2 ASC;
 
 CREATE INDEX idx_timestamp ON test_timestamp USING rum (i);
 

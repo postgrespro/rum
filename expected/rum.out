@@ -19,11 +19,11 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|
 
 explain (costs off)
 SELECT * FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote')
-ORDER BY a <-> to_tsquery('pg_catalog.english', 'ever|wrote');
+ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
                             QUERY PLAN                            
 ------------------------------------------------------------------
  Sort
-   Sort Key: ((a <-> '''ever'' | ''wrote'''::tsquery))
+   Sort Key: ((a <=> '''ever'' | ''wrote'''::tsquery))
    ->  Bitmap Heap Scan on test_rum
          Recheck Cond: (a @@ '''ever'' | ''wrote'''::tsquery)
          ->  Bitmap Index Scan on rumidx
@@ -93,7 +93,7 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
-	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way');
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
  rum_ts_distance |                                    t                                     |                               a                               
 -----------------+--------------------------------------------------------------------------+---------------------------------------------------------------
          16.4493 | my appreciation of you in a more complimentary way than by sending this  | 'appreci':2 'complimentari':8 'send':12 'way':9
@@ -105,7 +105,7 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *
 SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')), *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
-	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)');
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
  rum_ts_distance |                                  t                                  |                            a                            
 -----------------+---------------------------------------------------------------------+---------------------------------------------------------
          9.65659 | thinking--“to go or not to go?” We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
@@ -113,11 +113,11 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))
 (2 rows)
 
 SELECT
-	a <-> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
+	a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
 	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
 	*
 	FROM test_rum
-	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
  ?column? | rum_ts_distance |                                  t                                  |                            a                            
 ----------+-----------------+---------------------------------------------------------------------+---------------------------------------------------------
   9.65659 |         9.65659 | thinking--“to go or not to go?” We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14

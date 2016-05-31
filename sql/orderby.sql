@@ -20,9 +20,9 @@ SELECT count(*) FROM tsts WHERE t @@ '(eq|yt)&(wr|qh)';
 SET enable_indexscan=OFF;
 SET enable_indexonlyscan=OFF;
 SET enable_bitmapscan=OFF;
-SELECT id, d, d <-> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <-> '2016-05-16 14:21:25' LIMIT 5;
-SELECT id, d, d <-| '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <-| '2016-05-16 14:21:25' LIMIT 5;
-SELECT id, d, d |-> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d |-> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d <=| '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=| '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d |=> '2016-05-16 14:21:25' LIMIT 5;
 
 
 RESET enable_indexscan;
@@ -40,15 +40,15 @@ SELECT count(*) FROM tsts WHERE t @@ '(eq&yt)|(wr&qh)';
 SELECT count(*) FROM tsts WHERE t @@ '(eq|yt)&(wr|qh)';
 
 EXPLAIN (costs off)
-SELECT id, d, d <-> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <-> '2016-05-16 14:21:25' LIMIT 5;
-SELECT id, d, d <-> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <-> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
 EXPLAIN (costs off)
-SELECT id, d, d <-| '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <-| '2016-05-16 14:21:25' LIMIT 5;
-SELECT id, d, d <-| '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <-| '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d <=| '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=| '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d <=| '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=| '2016-05-16 14:21:25' LIMIT 5;
 EXPLAIN (costs off)
-SELECT id, d, d |-> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d |-> '2016-05-16 14:21:25' LIMIT 5;
-SELECT id, d, d |-> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d |-> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d |=> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d |=> '2016-05-16 14:21:25' LIMIT 5;
 
 EXPLAIN (costs off)
-SELECT id, d, d <-> '2016-05-16 14:21:25' FROM tsts ORDER BY d <-> '2016-05-16 14:21:25' LIMIT 5;
-SELECT id, d, d <-> '2016-05-16 14:21:25' FROM tsts ORDER BY d <-> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;

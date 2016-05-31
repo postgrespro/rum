@@ -16,7 +16,7 @@ explain (costs off)
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
 explain (costs off)
 SELECT * FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote')
-ORDER BY a <-> to_tsquery('pg_catalog.english', 'ever|wrote');
+ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
 explain (costs off)
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
@@ -34,17 +34,17 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
-	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way');
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
 SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')), *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
-	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)');
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
 SELECT
-	a <-> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
+	a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
 	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
 	*
 	FROM test_rum
-	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
 
 INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');
 INSERT INTO test_rum (t) VALUES ('345 qwerty copyright');

@@ -12,7 +12,7 @@ RETURNS float4
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE OPERATOR <-> (
+CREATE OPERATOR <=> (
         LEFTARG = tsvector,
         RIGHTARG = tsquery,
         PROCEDURE = rum_ts_distance
@@ -52,7 +52,7 @@ CREATE OPERATOR CLASS rum_tsvector_ops
 FOR TYPE tsvector USING rum
 AS
         OPERATOR        1       @@ (tsvector, tsquery),
-        OPERATOR        2       <-> (tsvector, tsquery) FOR ORDER BY pg_catalog.float_ops,
+        OPERATOR        2       <=> (tsvector, tsquery) FOR ORDER BY pg_catalog.float_ops,
         FUNCTION        1       gin_cmp_tslexeme(text, text),
         FUNCTION        2       rum_extract_tsvector(tsvector,internal,internal,internal,internal),
         FUNCTION        3       rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal),
@@ -70,11 +70,11 @@ RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE OPERATOR <-> (
+CREATE OPERATOR <=> (
 	PROCEDURE = timestamp_distance,
 	LEFTARG = timestamp,
 	RIGHTARG = timestamp,
-	COMMUTATOR = <->
+	COMMUTATOR = <=>
 );
 
 CREATE FUNCTION timestamp_left_distance(timestamp, timestamp)
@@ -82,11 +82,11 @@ RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE OPERATOR <-| (
+CREATE OPERATOR <=| (
 	PROCEDURE = timestamp_left_distance,
 	LEFTARG = timestamp,
 	RIGHTARG = timestamp,
-	COMMUTATOR = |->
+	COMMUTATOR = |=>
 );
 
 CREATE FUNCTION timestamp_right_distance(timestamp, timestamp)
@@ -94,11 +94,11 @@ RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE OPERATOR |-> (
+CREATE OPERATOR |=> (
 	PROCEDURE = timestamp_right_distance,
 	LEFTARG = timestamp,
 	RIGHTARG = timestamp,
-	COMMUTATOR = <-|
+	COMMUTATOR = <=|
 );
 
 
@@ -145,9 +145,9 @@ AS
 	FUNCTION        5 rum_timestamp_compare_prefix(timestamp,timestamp,smallint,internal),
 	-- support to timestamp disttance in rum_tsvector_timestamp_ops
 	FUNCTION		9 rum_timestamp_outer_distance(timestamp, timestamp, smallint),
-	OPERATOR		20		<-> (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
-	OPERATOR		21		<-| (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
-	OPERATOR		22		|-> (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
+	OPERATOR		20		<=> (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
+	OPERATOR		21		<=| (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
+	OPERATOR		22		|=> (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
 STORAGE         timestamp;
 
 --together

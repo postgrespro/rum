@@ -34,7 +34,7 @@ The module provides new operators.
 
 |       Operator       | Returns |                 Description
 | -------------------- | ------- | ----------------------------------------------
-| tsvector &lt;-&gt; tsquery | float4  | Returns distance between tsvector and tsquery.
+| tsvector &lt;=&gt; tsquery | float4  | Returns distance between tsvector and tsquery.
 
 ## Examples
 
@@ -67,10 +67,10 @@ CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 And we can execute the following queries:
 
 ```sql
-=# SELECT t, a <-> to_tsquery('english', 'beautiful | place') AS rank
+=# SELECT t, a <=> to_tsquery('english', 'beautiful | place') AS rank
 	FROM test_rum
 	WHERE a @@ to_tsquery('english', 'beautiful | place')
-	ORDER BY a <-> to_tsquery('english', 'beautiful | place');
+	ORDER BY a <=> to_tsquery('english', 'beautiful | place');
                 t                |   rank
 ---------------------------------+-----------
  The situation is most beautiful | 0.0303964
@@ -78,10 +78,10 @@ And we can execute the following queries:
  It looks like a beautiful place | 0.0607927
 (3 rows)
 
-=# SELECT t, a <-> to_tsquery('english', 'place | situation') AS rank
+=# SELECT t, a <=> to_tsquery('english', 'place | situation') AS rank
 	FROM test_rum
 	WHERE a @@ to_tsquery('english', 'place | situation')
-	ORDER BY a <-> to_tsquery('english', 'place | situation');
+	ORDER BY a <=> to_tsquery('english', 'place | situation');
                 t                |   rank
 ---------------------------------+-----------
  The situation is most beautiful | 0.0303964
