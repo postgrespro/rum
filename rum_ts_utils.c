@@ -532,13 +532,11 @@ typedef struct RestoreWordEntry
  * reconstruct partial tsvector from set of index entries
  */
 static TSVector
-rum_reconstruct_tsvector(bool *check, TSQuery query, int32 nkeys,
-						 int *map_item_operand,
+rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 						 Datum *addInfo, bool *addInfoIsNull)
 {
 	TSVector	tsv;
-	int			cntwords = 0,
-				totalwords = query->size * 4;/* 4 positions per word, estimation */
+	int			cntwords = 0;
 	int			i = 0;
 	QueryItem  *item = GETQUERY(query);
 	char	   *operandData = GETOPERAND(query);
@@ -550,8 +548,8 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int32 nkeys,
 	int			stroff;
 
 
-	rwe = palloc(sizeof(*rwe) * totalwords);
-	visited = palloc0(sizeof(*visited) * nkeys);
+	rwe = palloc(sizeof(*rwe) * query->size);
+	visited = palloc0(sizeof(*visited) * query->size);
 
 	/*
 	 * go through query to collect lexemes and add to them
@@ -562,7 +560,7 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int32 nkeys,
 	{
 		if (item->type == QI_VAL)
 		{
-			int				keyN = map_item_operand[i];
+			int	keyN = map_item_operand[i];
 
 			if (check[keyN] == true && visited[keyN] == false)
 			{
@@ -571,12 +569,6 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int32 nkeys,
 				 * or more
 				 */
 				visited[keyN] = true;
-
-				while (cntwords + 1 >= totalwords)
-				{
-					totalwords *= 2;
-					rwe = repalloc(rwe, sizeof(*rwe) * totalwords);
-				}
 
 				rwe[cntwords].word = operandData + item->qoperand.distance;
 				rwe[cntwords].wordlen = item->qoperand.length;
@@ -662,7 +654,7 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 
 	/* StrategyNumber strategy = PG_GETARG_UINT16(1); */
 	TSQuery		query = PG_GETARG_TSQUERY(2);
-	int32		nkeys = PG_GETARG_INT32(3);
+	/* int32		nkeys = PG_GETARG_INT32(3); */
 	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
@@ -670,7 +662,7 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 	int		   *map_item_operand = (int *) (extra_data[0]);
 	TSVector	tsv;
 
-	tsv = rum_reconstruct_tsvector(check, query, nkeys, map_item_operand,
+	tsv = rum_reconstruct_tsvector(check, query, map_item_operand,
 								   addInfo, addInfoIsNull);
 
 	res = DatumGetFloat4(DirectFunctionCall2Coll(ts_rank_tt,
