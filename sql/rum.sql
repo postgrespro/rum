@@ -39,6 +39,12 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)');
+SELECT
+	a <-> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
+	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	*
+	FROM test_rum
+	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 3;
 
 INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');
 INSERT INTO test_rum (t) VALUES ('345 qwerty copyright');
@@ -51,10 +57,6 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '345')
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'rat');
 
 SELECT a FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'bar') ORDER BY a;
-
-DELETE FROM test_rum;
-
-SELECT count(*) from test_rum;
 
 CREATE TABLE tst (i int4, t tsvector);
 INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(1,100000) i;

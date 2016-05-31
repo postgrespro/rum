@@ -37,18 +37,23 @@ rumCombineData(RBNode *existing, const RBNode *newdata, void *arg)
 	{
 		accum->allocatedMemory -= GetMemoryChunkSpace(eo->list);
 		eo->maxcount *= 2;
-		eo->list = (RumEntryAccumulatorItem *)
-			repalloc(eo->list, sizeof(RumEntryAccumulatorItem) * eo->maxcount);
+		eo->list = (RumKey *) repalloc(eo->list, sizeof(RumKey) * eo->maxcount);
 		accum->allocatedMemory += GetMemoryChunkSpace(eo->list);
 	}
 
-	/* If item pointers are not ordered, they will need to be sorted later */
+	/*
+	 * If item pointers are not ordered, they will need to be sorted later
+	 * Note: if useAlternativeOrder == true then shouldSort should be true
+	 * because anyway list isn't right ordered and code below could not check
+	 * it correctly
+	 */
 	if (eo->shouldSort == FALSE)
 	{
 		int			res;
 
+		/* FIXME RumKey */
 		res = rumCompareItemPointers(&eo->list[eo->count - 1].iptr,
-															&en->list->iptr);
+									 &en->list->iptr);
 		Assert(res != 0);
 
 		if (res > 0)
@@ -144,7 +149,7 @@ rumInsertBAEntry(BuildAccumulator *accum,
 	RumEntryAccumulator eatmp;
 	RumEntryAccumulator *ea;
 	bool		isNew;
-	RumEntryAccumulatorItem item;
+	RumKey		item;
 
 	/*
 	 * For the moment, fill only the fields of eatmp that will be looked at by
@@ -172,9 +177,14 @@ rumInsertBAEntry(BuildAccumulator *accum,
 			ea->key = getDatumCopy(accum, attnum, key);
 		ea->maxcount = DEF_NPTR;
 		ea->count = 1;
-		ea->shouldSort = FALSE;
-		ea->list =
-			(RumEntryAccumulatorItem *) palloc(sizeof(RumEntryAccumulatorItem) * DEF_NPTR);
+
+		/*
+		 * if useAlternativeOrder = true then anyway we need to sort list, but
+		 * by setting shouldSort we prevent incorrect comparison in
+		 * rumCombineData()
+		 */
+		ea->shouldSort = accum->rumstate->useAlternativeOrder;
+		ea->list = (RumKey *) palloc(sizeof(RumKey) * DEF_NPTR);
 		ea->list[0].iptr = *heapptr;
 		ea->list[0].addInfo = addInfo;
 		ea->list[0].addInfoIsNull = addInfoIsNull;
@@ -208,7 +218,7 @@ void
 rumInsertBAEntries(BuildAccumulator *accum,
 				   ItemPointer heapptr, OffsetNumber attnum,
 				   Datum *entries, Datum *addInfo, bool *addInfoIsNull,
-				   RumNullCategory *categories, int32 nentries)
+				   RumNullCategory * categories, int32 nentries)
 {
 	uint32		step = nentries;
 
@@ -234,7 +244,7 @@ rumInsertBAEntries(BuildAccumulator *accum,
 
 		for (i = step - 1; i < nentries && i >= 0; i += step << 1 /* *2 */ )
 			rumInsertBAEntry(accum, heapptr, attnum,
-							 entries[i], addInfo[i], addInfoIsNull[i], categories[i]);
+					entries[i], addInfo[i], addInfoIsNull[i], categories[i]);
 
 		step >>= 1;				/* /2 */
 	}
@@ -250,6 +260,12 @@ qsortCompareItemPointers(const void *a, const void *b)
 	return res;
 }
 
+static int
+qsortCompareRumKey(const void *a, const void *b, void *arg)
+{
+	return compareRumKey(arg, a, b);
+}
+
 /* Prepare to read out the rbtree contents using rumGetBAEntry */
 void
 rumBeginBAScan(BuildAccumulator *accum)
@@ -262,13 +278,13 @@ rumBeginBAScan(BuildAccumulator *accum)
  * This consists of a single key datum and a list (array) of one or more
  * heap TIDs in which that key is found.  The list is guaranteed sorted.
  */
-RumEntryAccumulatorItem *
+RumKey *
 rumGetBAEntry(BuildAccumulator *accum,
-			  OffsetNumber *attnum, Datum *key, RumNullCategory *category,
+			  OffsetNumber *attnum, Datum *key, RumNullCategory * category,
 			  uint32 *n)
 {
 	RumEntryAccumulator *entry;
-	RumEntryAccumulatorItem *list;
+	RumKey	   *list;
 
 	entry = (RumEntryAccumulator *) rb_iterate(accum->tree);
 
@@ -283,9 +299,14 @@ rumGetBAEntry(BuildAccumulator *accum,
 
 	Assert(list != NULL && entry->count > 0);
 
-	if (entry->shouldSort && entry->count > 1)
-		qsort(list, entry->count, sizeof(RumEntryAccumulatorItem),
-			  qsortCompareItemPointers);
+	if (entry->count > 1)
+	{
+		if (accum->rumstate->useAlternativeOrder)
+			qsort_arg(list, entry->count, sizeof(RumKey),
+					  qsortCompareRumKey, accum->rumstate);
+		else if (entry->shouldSort)
+			qsort(list, entry->count, sizeof(RumKey), qsortCompareItemPointers);
+	}
 
 	return list;
 }

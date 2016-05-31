@@ -28,7 +28,7 @@ typedef struct
 	void	   *callback_state;
 	RumState	rumstate;
 	BufferAccessStrategy strategy;
-} RumVacuumState;
+}	RumVacuumState;
 
 
 /*
@@ -40,27 +40,29 @@ typedef struct
  */
 
 static uint32
-rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src,
+rumVacuumPostingList(RumVacuumState * gvs, OffsetNumber attnum, Pointer src,
 					 uint32 nitem, Pointer *cleaned, Size size, Size *newSize)
 {
 	uint32		i,
 				j = 0;
-	ItemPointerData iptr = {{0,0},0}, prevIptr;
-	Datum		addInfo = 0;
-	bool		addInfoIsNull;
-	Pointer		dst = NULL, prev, ptr = src;
+	RumKey		item;
+	ItemPointerData prevIptr;
+	Pointer		dst = NULL,
+				prev,
+				ptr = src;
+
+	ItemPointerSetMin(&item.iptr);
 
 	/*
 	 * just scan over ItemPointer array
 	 */
 
-	prevIptr = iptr;
+	prevIptr = item.iptr;
 	for (i = 0; i < nitem; i++)
 	{
 		prev = ptr;
-		ptr = rumDataPageLeafRead(ptr, attnum, &iptr, &addInfo, &addInfoIsNull,
-								  &gvs->rumstate);
-		if (gvs->callback(&iptr, gvs->callback_state))
+		ptr = rumDataPageLeafRead(ptr, attnum, &item, &gvs->rumstate);
+		if (gvs->callback(&item.iptr, gvs->callback_state))
 		{
 			gvs->result->tuples_removed += 1;
 			if (!dst)
@@ -78,12 +80,10 @@ rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src,
 		{
 			gvs->result->num_index_tuples += 1;
 			if (i != j)
-				dst = rumPlaceToDataPageLeaf(dst, attnum, &iptr,
-											 addInfo,
-											 addInfoIsNull,
+				dst = rumPlaceToDataPageLeaf(dst, attnum, &item,
 											 &prevIptr, &gvs->rumstate);
 			j++;
-			prevIptr = iptr;
+			prevIptr = item.iptr;
 		}
 	}
 
@@ -97,7 +97,7 @@ rumVacuumPostingList(RumVacuumState *gvs, OffsetNumber attnum, Pointer src,
  * with additional information.
  */
 static IndexTuple
-RumFormTuple(RumState *rumstate,
+RumFormTuple(RumState * rumstate,
 			 OffsetNumber attnum, Datum key, RumNullCategory category,
 			 Pointer data,
 			 Size dataSize,
@@ -191,7 +191,8 @@ RumFormTuple(RumState *rumstate,
 	 */
 	if (nipd > 0)
 	{
-		char *ptr = RumGetPosting(itup);
+		char	   *ptr = RumGetPosting(itup);
+
 		memcpy(ptr, data, dataSize);
 	}
 
@@ -207,7 +208,7 @@ RumFormTuple(RumState *rumstate,
 }
 
 static bool
-rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum,
+rumVacuumPostingTreeLeaves(RumVacuumState * gvs, OffsetNumber attnum,
 						   BlockNumber blkno, bool isRoot, Buffer *rootBuffer)
 {
 	Buffer		buffer;
@@ -244,8 +245,8 @@ rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum,
 		page = GenericXLogRegisterBuffer(state, buffer, 0);
 
 		newMaxOff = rumVacuumPostingList(gvs, attnum,
-				RumDataPageGetData(page), oldMaxOff, &cleaned,
-				RumDataPageSize - RumPageGetOpaque(page)->freespace, &newSize);
+							   RumDataPageGetData(page), oldMaxOff, &cleaned,
+			  RumDataPageSize - RumPageGetOpaque(page)->freespace, &newSize);
 
 		/* saves changes about deleted tuple ... */
 		if (oldMaxOff != newMaxOff)
@@ -276,7 +277,7 @@ rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum,
 			PostingItem *pitem = (PostingItem *) RumDataPageGetItem(page, i);
 
 			if (rumVacuumPostingTreeLeaves(gvs, attnum,
-								PostingItemGetBlockNumber(pitem), FALSE, NULL))
+							  PostingItemGetBlockNumber(pitem), FALSE, NULL))
 				isChildHasVoid = TRUE;
 		}
 
@@ -305,7 +306,7 @@ rumVacuumPostingTreeLeaves(RumVacuumState *gvs, OffsetNumber attnum,
  * Delete a posting tree page.
  */
 static void
-rumDeletePage(RumVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkno,
+rumDeletePage(RumVacuumState * gvs, BlockNumber deleteBlkno, BlockNumber leftBlkno,
 			  BlockNumber parentBlkno, OffsetNumber myoff, bool isParentRoot)
 {
 	Buffer		dBuffer;
@@ -314,7 +315,7 @@ rumDeletePage(RumVacuumState *gvs, BlockNumber deleteBlkno, BlockNumber leftBlkn
 	Page		lPage,
 				dPage,
 				parentPage;
-	BlockNumber	rightlink;
+	BlockNumber rightlink;
 	GenericXLogState *state;
 
 	state = GenericXLogStart(gvs->index);
@@ -386,7 +387,7 @@ typedef struct DataPageDeleteStack
  * scans posting tree and deletes empty pages
  */
 static bool
-rumScanToDelete(RumVacuumState *gvs, BlockNumber blkno, bool isRoot, DataPageDeleteStack *parent, OffsetNumber myoff)
+rumScanToDelete(RumVacuumState * gvs, BlockNumber blkno, bool isRoot, DataPageDeleteStack *parent, OffsetNumber myoff)
 {
 	DataPageDeleteStack *me;
 	Buffer		buffer;
@@ -450,7 +451,7 @@ rumScanToDelete(RumVacuumState *gvs, BlockNumber blkno, bool isRoot, DataPageDel
 }
 
 static void
-rumVacuumPostingTree(RumVacuumState *gvs, OffsetNumber attnum, BlockNumber rootBlkno)
+rumVacuumPostingTree(RumVacuumState * gvs, OffsetNumber attnum, BlockNumber rootBlkno)
 {
 	Buffer		rootBuffer = InvalidBuffer;
 	DataPageDeleteStack root,
@@ -488,7 +489,7 @@ rumVacuumPostingTree(RumVacuumState *gvs, OffsetNumber attnum, BlockNumber rootB
  * then page is copied into temporary one.
  */
 static Page
-rumVacuumEntryPage(RumVacuumState *gvs, Buffer buffer, BlockNumber *roots, OffsetNumber *attnums, uint32 *nroot)
+rumVacuumEntryPage(RumVacuumState * gvs, Buffer buffer, BlockNumber *roots, OffsetNumber *attnums, uint32 *nroot)
 {
 	Page		origpage = BufferGetPage(buffer),
 				tmppage;
@@ -519,13 +520,13 @@ rumVacuumEntryPage(RumVacuumState *gvs, Buffer buffer, BlockNumber *roots, Offse
 			 * if we already create temporary page, we will make changes in
 			 * place
 			 */
-			Size cleanedSize;
-			Pointer cleaned = NULL;
+			Size		cleanedSize;
+			Pointer		cleaned = NULL;
 			uint32		newN =
-				rumVacuumPostingList(gvs, rumtuple_get_attrnum(&gvs->rumstate, itup),
-					RumGetPosting(itup), RumGetNPosting(itup), &cleaned,
-					IndexTupleSize(itup) - RumGetPostingOffset(itup),
-					&cleanedSize);
+			rumVacuumPostingList(gvs, rumtuple_get_attrnum(&gvs->rumstate, itup),
+						 RumGetPosting(itup), RumGetNPosting(itup), &cleaned,
+							IndexTupleSize(itup) - RumGetPostingOffset(itup),
+								 &cleanedSize);
 
 			if (RumGetNPosting(itup) != newN)
 			{

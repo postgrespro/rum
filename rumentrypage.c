@@ -20,31 +20,40 @@
  * Information is stored in the same manner as in leaf data pages.
  */
 void
-rumReadTuple(RumState *rumstate, OffsetNumber attnum,
-	IndexTuple itup, ItemPointerData *ipd, Datum *addInfo, bool *addInfoIsNull)
+rumReadTuple(RumState * rumstate, OffsetNumber attnum,
+			 IndexTuple itup, RumKey * items)
 {
-	Pointer ptr;
-	int nipd = RumGetNPosting(itup), i;
-	ItemPointerData ip = {{0,0},0};
+	Pointer		ptr = RumGetPosting(itup);
+	RumKey		item;
+	int			nipd = RumGetNPosting(itup),
+				i;
 
-	ptr = RumGetPosting(itup);
-
-	if (addInfo && addInfoIsNull)
+	ItemPointerSetMin(&item.iptr);
+	for (i = 0; i < nipd; i++)
 	{
-		for (i = 0; i < nipd; i++)
-		{
-			ptr = rumDataPageLeafRead(ptr, attnum, &ip, &addInfo[i],
-												&addInfoIsNull[i], rumstate);
-			ipd[i] = ip;
-		}
+		ptr = rumDataPageLeafRead(ptr, attnum, &item, rumstate);
+		items[i] = item;
 	}
-	else
+}
+
+/*
+ * Read only item pointers from leaf data page.
+ * Information is stored in the same manner as in leaf data pages.
+ */
+void
+rumReadTuplePointers(RumState * rumstate, OffsetNumber attnum,
+					 IndexTuple itup, ItemPointerData *ipd)
+{
+	Pointer		ptr = RumGetPosting(itup);
+	int			nipd = RumGetNPosting(itup),
+				i;
+	RumKey		item;
+
+	ItemPointerSetMin(&item.iptr);
+	for (i = 0; i < nipd; i++)
 	{
-		for (i = 0; i < nipd; i++)
-		{
-			ptr = rumDataPageLeafRead(ptr, attnum, &ip, NULL, NULL, rumstate);
-			ipd[i] = ip;
-		}
+		ptr = rumDataPageLeafReadPointer(ptr, attnum, &item, rumstate);
+		ipd[i] = item.iptr;
 	}
 }
 
@@ -125,7 +134,7 @@ entryIsMoveRight(RumBtree btree, Page page)
  * page correctly chosen and searching value SHOULD be on page
  */
 static BlockNumber
-entryLocateEntry(RumBtree btree, RumBtreeStack *stack)
+entryLocateEntry(RumBtree btree, RumBtreeStack * stack)
 {
 	OffsetNumber low,
 				high,
@@ -201,7 +210,7 @@ entryLocateEntry(RumBtree btree, RumBtreeStack *stack)
  * Returns true if value found on page.
  */
 static bool
-entryLocateLeafEntry(RumBtree btree, RumBtreeStack *stack)
+entryLocateLeafEntry(RumBtree btree, RumBtreeStack * stack)
 {
 	Page		page = BufferGetPage(stack->buffer);
 	OffsetNumber low,
@@ -523,7 +532,7 @@ rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
 void
 rumPrepareEntryScan(RumBtree btree, OffsetNumber attnum,
 					Datum key, RumNullCategory category,
-					RumState *rumstate)
+					RumState * rumstate)
 {
 	memset(btree, 0, sizeof(RumBtreeData));
 

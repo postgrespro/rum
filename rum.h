@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  *
- * rum.h
+ * bloom.h
  *	  Exported definitions for RUM index.
  *
  * Portions Copyright (c) 2015-2016, Postgres Professional
@@ -42,7 +42,7 @@ typedef struct RumPageOpaqueData
 								 * heap tuples. */
 	OffsetNumber freespace;
 	uint16		flags;			/* see bit definitions below */
-} RumPageOpaqueData;
+}	RumPageOpaqueData;
 
 typedef RumPageOpaqueData *RumPageOpaque;
 
@@ -91,7 +91,7 @@ typedef struct RumMetaPageData
 	BlockNumber nEntryPages;
 	BlockNumber nDataPages;
 	int64		nEntries;
-} RumMetaPageData;
+}	RumMetaPageData;
 
 #define RUM_CURRENT_VERSION		(0xC0DE0001)
 
@@ -194,14 +194,14 @@ typedef signed char RumNullCategory;
 	(IndexInfoFindDataOffset((itup)->t_info) + \
 	 ((rumstate)->oneCol ? 0 : sizeof(int16)))
 /*#define RumGetNullCategory(itup,rumstate) \
-  	(*((RumNullCategory *) ((char*)(itup) + RumCategoryOffset(itup,rumstate))))
+	(*((RumNullCategory *) ((char*)(itup) + RumCategoryOffset(itup,rumstate))))
   #define RumSetNullCategory(itup,rumstate,c) \
 	(*((RumNullCategory *) ((char*)(itup) + RumCategoryOffset(itup,rumstate))) = (c))*/
 
 #define RumGetNullCategory(itup,rumstate) \
-      (*((RumNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(RumNullCategory))))
+	  (*((RumNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(RumNullCategory))))
 #define RumSetNullCategory(itup,rumstate,c) \
-      (*((RumNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(RumNullCategory))) = (c))
+	  (*((RumNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(RumNullCategory))) = (c))
 
 /*
  * Access macros for leaf-page entry tuples (see discussion in README)
@@ -261,12 +261,12 @@ typedef struct
 {
 	ItemPointerData iptr;
 	OffsetNumber offsetNumer;
-	uint16 pageOffset;
-} RumDataLeafItemIndex;
+	uint16		pageOffset;
+}	RumDataLeafItemIndex;
 
 #define RumDataLeafIndexCount 32
 
-#define RumDataPageSize	\
+#define RumDataPageSize \
 	(BLCKSZ - MAXALIGN(SizeOfPageHeaderData) \
 	 - MAXALIGN(sizeof(ItemPointerData)) \
 	 - MAXALIGN(sizeof(RumPageOpaqueData)) \
@@ -290,7 +290,7 @@ typedef struct RumOptions
 	bool		useAlternativeOrder;
 	int			orderByColumn;
 	int			addToColumn;
-} RumOptions;
+}	RumOptions;
 
 #define RUM_DEFAULT_USE_FASTUPDATE	false
 #define RumGetUseFastUpdate(relation) \
@@ -303,11 +303,19 @@ typedef struct RumOptions
 #define RUM_SHARE	BUFFER_LOCK_SHARE
 #define RUM_EXCLUSIVE  BUFFER_LOCK_EXCLUSIVE
 
-typedef struct RumKey {
-	ItemPointerData		ipd;
-	bool				isNull;
-	Datum				addToCompare;
-} RumKey;
+typedef struct RumKey
+{
+	ItemPointerData iptr;
+	Datum		addInfo;
+	bool		addInfoIsNull;
+}	RumKey;
+
+#define RumItemSetMin(item)  \
+do { \
+	ItemPointerSetMin(&((item)->iptr)); \
+	(item)->addInfo = (Datum) 0; \
+	(item)->addInfoIsNull = true; \
+} while (0)
 
 /*
  * RumState: working data structure describing the index being worked on
@@ -343,11 +351,11 @@ typedef struct RumState
 	FmgrInfo	extractValueFn[INDEX_MAX_KEYS];
 	FmgrInfo	extractQueryFn[INDEX_MAX_KEYS];
 	FmgrInfo	consistentFn[INDEX_MAX_KEYS];
-	FmgrInfo	comparePartialFn[INDEX_MAX_KEYS];	/* optional method */
-	FmgrInfo	configFn[INDEX_MAX_KEYS];			/* optional method */
-	FmgrInfo	preConsistentFn[INDEX_MAX_KEYS];			/* optional method */
-	FmgrInfo	orderingFn[INDEX_MAX_KEYS];			/* optional method */
-	FmgrInfo	outerOrderingFn[INDEX_MAX_KEYS];			/* optional method */
+	FmgrInfo	comparePartialFn[INDEX_MAX_KEYS];		/* optional method */
+	FmgrInfo	configFn[INDEX_MAX_KEYS];		/* optional method */
+	FmgrInfo	preConsistentFn[INDEX_MAX_KEYS];		/* optional method */
+	FmgrInfo	orderingFn[INDEX_MAX_KEYS];		/* optional method */
+	FmgrInfo	outerOrderingFn[INDEX_MAX_KEYS];		/* optional method */
 	/* canPartialMatch[i] is true if comparePartialFn[i] is valid */
 	bool		canPartialMatch[INDEX_MAX_KEYS];
 	/* canPreConsistent[i] is true if preConsistentFn[i] is valid */
@@ -357,12 +365,12 @@ typedef struct RumState
 	bool		canOuterOrdering[INDEX_MAX_KEYS];
 	/* Collations to pass to the support functions */
 	Oid			supportCollation[INDEX_MAX_KEYS];
-} RumState;
+}	RumState;
 
 typedef struct RumConfig
 {
 	Oid			addInfoTypeOid;
-} RumConfig;
+}	RumConfig;
 
 /* XLog stuff */
 
@@ -371,47 +379,45 @@ typedef struct rumxlogDeleteListPages
 {
 	int32		ndeleted;
 	BlockNumber toDelete[RUM_NDELETE_AT_ONCE];
-} rumxlogDeleteListPages;
+}	rumxlogDeleteListPages;
 
 
 /* rumutil.c */
 extern bytea *rumoptions(Datum reloptions, bool validate);
 extern Datum rumhandler(PG_FUNCTION_ARGS);
-extern void initRumState(RumState *state, Relation index);
+extern void initRumState(RumState * state, Relation index);
 extern Buffer RumNewBuffer(Relation index);
 extern void RumInitBuffer(GenericXLogState *state, Buffer buffer, uint32 flags);
 extern void RumInitPage(Page page, uint32 f, Size pageSize);
 extern void RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer);
-extern int rumCompareEntries(RumState *rumstate, OffsetNumber attnum,
+extern int rumCompareEntries(RumState * rumstate, OffsetNumber attnum,
 				  Datum a, RumNullCategory categorya,
 				  Datum b, RumNullCategory categoryb);
-extern int rumCompareAttEntries(RumState *rumstate,
+extern int rumCompareAttEntries(RumState * rumstate,
 					 OffsetNumber attnuma, Datum a, RumNullCategory categorya,
 				   OffsetNumber attnumb, Datum b, RumNullCategory categoryb);
-extern Datum *rumExtractEntries(RumState *rumstate, OffsetNumber attnum,
+extern Datum *rumExtractEntries(RumState * rumstate, OffsetNumber attnum,
 				  Datum value, bool isNull,
-				  int32 *nentries, RumNullCategory **categories,
+				  int32 *nentries, RumNullCategory ** categories,
 				  Datum **addInfo, bool **addInfoIsNull);
 
-extern OffsetNumber rumtuple_get_attrnum(RumState *rumstate, IndexTuple tuple);
-extern Datum rumtuple_get_key(RumState *rumstate, IndexTuple tuple,
-				 RumNullCategory *category);
+extern OffsetNumber rumtuple_get_attrnum(RumState * rumstate, IndexTuple tuple);
+extern Datum rumtuple_get_key(RumState * rumstate, IndexTuple tuple,
+				 RumNullCategory * category);
 
 extern void rumGetStats(Relation index, GinStatsData *stats);
 extern void rumUpdateStats(Relation index, const GinStatsData *stats);
 
 /* ruminsert.c */
 extern IndexBuildResult *rumbuild(Relation heap, Relation index,
-								  struct IndexInfo *indexInfo);
+		 struct IndexInfo *indexInfo);
 extern void rumbuildempty(Relation index);
 extern bool ruminsert(Relation index, Datum *values, bool *isnull,
-					  ItemPointer ht_ctid, Relation heapRel,
-					  IndexUniqueCheck checkUnique);
-extern void rumEntryInsert(RumState *rumstate,
+		  ItemPointer ht_ctid, Relation heapRel,
+		  IndexUniqueCheck checkUnique);
+extern void rumEntryInsert(RumState * rumstate,
 			   OffsetNumber attnum, Datum key, RumNullCategory category,
-			   ItemPointerData *items, Datum *addInfo,
-			   bool *addInfoIsNull, uint32 nitem,
-			   GinStatsData *buildStats);
+			   RumKey * items, uint32 nitem, GinStatsData *buildStats);
 
 /* rumbtree.c */
 
@@ -423,7 +429,7 @@ typedef struct RumBtreeStack
 	/* predictNumber contains predicted number of pages on current level */
 	uint32		predictNumber;
 	struct RumBtreeStack *parent;
-} RumBtreeStack;
+}	RumBtreeStack;
 
 typedef struct RumBtreeData *RumBtree;
 
@@ -460,50 +466,46 @@ typedef struct RumBtreeData
 	bool		isDelete;
 
 	/* Data (posting tree) options */
-	ItemPointerData *items;
-	Datum		*addInfo;
-	bool		*addInfoIsNull;
+	RumKey	   *items;
 
 	uint32		nitem;
 	uint32		curitem;
 
 	PostingItem pitem;
-} RumBtreeData;
+}	RumBtreeData;
 
 extern RumBtreeStack *rumPrepareFindLeafPage(RumBtree btree, BlockNumber blkno);
-extern RumBtreeStack *rumFindLeafPage(RumBtree btree, RumBtreeStack *stack);
-extern RumBtreeStack *rumReFindLeafPage(RumBtree btree, RumBtreeStack *stack);
+extern RumBtreeStack *rumFindLeafPage(RumBtree btree, RumBtreeStack * stack);
+extern RumBtreeStack *rumReFindLeafPage(RumBtree btree, RumBtreeStack * stack);
 extern Buffer rumStepRight(Buffer buffer, Relation index, int lockmode);
-extern void freeRumBtreeStack(RumBtreeStack *stack);
-extern void rumInsertValue(Relation index, RumBtree btree, RumBtreeStack *stack,
-						   GinStatsData *buildStats);
-extern void rumFindParents(RumBtree btree, RumBtreeStack *stack, BlockNumber rootBlkno);
+extern void freeRumBtreeStack(RumBtreeStack * stack);
+extern void rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
+			   GinStatsData *buildStats);
+extern void rumFindParents(RumBtree btree, RumBtreeStack * stack, BlockNumber rootBlkno);
 
 /* rumentrypage.c */
 extern void rumPrepareEntryScan(RumBtree btree, OffsetNumber attnum,
 					Datum key, RumNullCategory category,
-					RumState *rumstate);
+					RumState * rumstate);
 extern void rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
-							 Page page, Page lpage, Page rpage);
+				 Page page, Page lpage, Page rpage);
 extern IndexTuple rumPageGetLinkItup(Buffer buf, Page page);
-extern void rumReadTuple(RumState *rumstate, OffsetNumber attnum,
-	IndexTuple itup, ItemPointerData *ipd, Datum *addInfo, bool *addInfoIsNull);
-extern ItemPointerData updateItemIndexes(Page page, OffsetNumber attnum, RumState *rumstate);
-extern void checkLeafDataPage(RumState *rumstate, AttrNumber attrnum, Page page);
+extern void rumReadTuple(RumState * rumstate, OffsetNumber attnum,
+			 IndexTuple itup, RumKey * items);
+extern void rumReadTuplePointers(RumState * rumstate, OffsetNumber attnum,
+					 IndexTuple itup, ItemPointerData *ipd);
+extern ItemPointerData updateItemIndexes(Page page, OffsetNumber attnum, RumState * rumstate);
+extern void checkLeafDataPage(RumState * rumstate, AttrNumber attrnum, Page page);
 
 /* rumdatapage.c */
-extern int rumCompareItemPointers(ItemPointer a, ItemPointer b);
-extern int compareRumKey(RumState *state, RumKey *a, RumKey *b);
-extern char *rumDataPageLeafWriteItemPointer(char *ptr, ItemPointer iptr, ItemPointer prev, bool addInfoIsNull);
+extern int	rumCompareItemPointers(const ItemPointerData *a, const ItemPointerData *b);
+extern int	compareRumKey(RumState * state, const RumKey * a, const RumKey * b);
 extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
-	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
-	RumState *rumstate);
+					   RumKey * item, ItemPointer prev, RumState * rumstate);
 extern Size rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
-	ItemPointer iptr, Datum addInfo, bool addInfoIsNull, ItemPointer prev,
-	RumState *rumstate, Size size);
-extern uint32 rumMergeItemPointers(ItemPointerData *dst, Datum *dst2, bool *dst3,
-					 ItemPointerData *a, Datum *a2, bool *a3, uint32 na,
-					 ItemPointerData *b, Datum * b2, bool *b3, uint32 nb);
+			RumKey * item, ItemPointer prev, RumState * rumstate, Size size);
+extern uint32 rumMergeItemPointers(RumState * rumstate, RumKey * dst,
+					 RumKey * a, uint32 na, RumKey * b, uint32 nb);
 extern void RumDataPageAddItem(Page page, void *data, OffsetNumber offset);
 extern void RumPageDeletePostingItem(Page page, OffsetNumber offset);
 
@@ -511,22 +513,19 @@ typedef struct
 {
 	RumBtreeData btree;
 	RumBtreeStack *stack;
-} RumPostingTreeScan;
+}	RumPostingTreeScan;
 
 extern RumPostingTreeScan *rumPrepareScanPostingTree(Relation index,
-						  BlockNumber rootBlkno, bool searchMode, OffsetNumber attnum, RumState *rumstate);
-extern void rumInsertItemPointers(RumState *rumstate,
+						  BlockNumber rootBlkno, bool searchMode, OffsetNumber attnum, RumState * rumstate);
+extern void rumInsertItemPointers(RumState * rumstate,
 					  OffsetNumber attnum,
-					  RumPostingTreeScan *gdi,
-					  ItemPointerData *items,
-					  Datum *addInfo,
-					  bool *addInfoIsNull,
-					  uint32 nitem,
+					  RumPostingTreeScan * gdi,
+					  RumKey * items, uint32 nitem,
 					  GinStatsData *buildStats);
-extern Buffer rumScanBeginPostingTree(RumPostingTreeScan *gdi);
+extern Buffer rumScanBeginPostingTree(RumPostingTreeScan * gdi);
 extern void rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
-							Page page, Page lpage, Page rpage);
-extern void rumPrepareDataScan(RumBtree btree, Relation index, OffsetNumber attnum, RumState *rumstate);
+				Page page, Page lpage, Page rpage);
+extern void rumPrepareDataScan(RumBtree btree, Relation index, OffsetNumber attnum, RumState * rumstate);
 
 /* rumscan.c */
 
@@ -572,7 +571,7 @@ typedef struct RumScanKeyData
 	/* NB: these three arrays have only nuserentries elements! */
 	Datum	   *queryValues;
 	RumNullCategory *queryCategories;
-	Pointer		*extra_data;
+	Pointer    *extra_data;
 	StrategyNumber strategy;
 	int32		searchMode;
 	OffsetNumber attnum;
@@ -606,9 +605,7 @@ typedef struct RumScanEntryData
 	Buffer		buffer;
 
 	/* current ItemPointer to heap */
-	ItemPointerData curItem;
-	Datum		curAddInfo;
-	bool		curAddInfoIsNull;
+	RumKey		curItem;
 
 	/* for a partial-match or full-scan query, we accumulate all TIDs here */
 	TIDBitmap  *matchBitmap;
@@ -616,11 +613,10 @@ typedef struct RumScanEntryData
 	TBMIterateResult *matchResult;
 
 	/* used for Posting list and one page in Posting tree */
-	ItemPointerData *list;
-	Datum		*addInfo;
-	bool		*addInfoIsNull;
+	RumKey	   *list;
 	MemoryContext context;
 	uint32		nlist;
+	uint32		nalloc;
 	OffsetNumber offset;
 
 	bool		isFinished;
@@ -633,9 +629,9 @@ typedef struct RumScanEntryData
 typedef struct
 {
 	ItemPointerData iptr;
-	float8			distance;
-	bool			recheck;
-} RumOrderingItem;
+	float8		distance;
+	bool		recheck;
+}	RumOrderingItem;
 
 typedef struct RumScanOpaqueData
 {
@@ -648,7 +644,7 @@ typedef struct RumScanOpaqueData
 	int			norderbys;
 
 	RumScanEntry *entries;		/* one per index search condition */
-	RumScanEntry *sortedEntries;		/* one per index search condition */
+	RumScanEntry *sortedEntries;	/* one per index search condition */
 	int			entriesIncrIndex;
 	uint32		totalentries;
 	uint32		allocentries;	/* allocated length of entries[] */
@@ -660,14 +656,14 @@ typedef struct RumScanOpaqueData
 	bool		isVoidRes;		/* true if query is unsatisfiable */
 	bool		useFastScan;
 	TIDBitmap  *tbm;
-} RumScanOpaqueData;
+}	RumScanOpaqueData;
 
 typedef RumScanOpaqueData *RumScanOpaque;
 
 extern IndexScanDesc rumbeginscan(Relation rel, int nkeys, int norderbys);
 extern void rumendscan(IndexScanDesc scan);
 extern void rumrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
-					  ScanKey orderbys, int norderbys);
+		  ScanKey orderbys, int norderbys);
 extern Datum rummarkpos(PG_FUNCTION_ARGS);
 extern Datum rumrestrpos(PG_FUNCTION_ARGS);
 extern void rumNewScanKey(IndexScanDesc scan);
@@ -678,17 +674,10 @@ extern bool rumgettuple(IndexScanDesc scan, ScanDirection direction);
 
 /* rumvacuum.c */
 extern IndexBulkDeleteResult *rumbulkdelete(IndexVacuumInfo *info,
-			 IndexBulkDeleteResult *stats, IndexBulkDeleteCallback callback,
-			 void *callback_state);
+			  IndexBulkDeleteResult *stats, IndexBulkDeleteCallback callback,
+			  void *callback_state);
 extern IndexBulkDeleteResult *rumvacuumcleanup(IndexVacuumInfo *info,
-											   IndexBulkDeleteResult *stats);
-
-typedef struct
-{
-	ItemPointerData	iptr;
-	bool			addInfoIsNull;
-	Datum			addInfo;
-} RumEntryAccumulatorItem;
+				 IndexBulkDeleteResult *stats);
 
 /* rumvalidate.c */
 extern bool rumvalidate(Oid opclassoid);
@@ -701,10 +690,10 @@ typedef struct RumEntryAccumulator
 	RumNullCategory category;
 	OffsetNumber attnum;
 	bool		shouldSort;
-	RumEntryAccumulatorItem *list;
+	RumKey	   *list;
 	uint32		maxcount;		/* allocated size of list[] */
 	uint32		count;			/* current number of list[] entries */
-} RumEntryAccumulator;
+}	RumEntryAccumulator;
 
 typedef struct
 {
@@ -713,16 +702,18 @@ typedef struct
 	RumEntryAccumulator *entryallocator;
 	uint32		eas_used;
 	RBTree	   *tree;
+	RumKey	   *sortSpace;
+	uint32		sortSpaceN;
 } BuildAccumulator;
 
 extern void rumInitBA(BuildAccumulator *accum);
 extern void rumInsertBAEntries(BuildAccumulator *accum,
 				   ItemPointer heapptr, OffsetNumber attnum,
 				   Datum *entries, Datum *addInfo, bool *addInfoIsNull,
-				   RumNullCategory *categories, int32 nentries);
+				   RumNullCategory * categories, int32 nentries);
 extern void rumBeginBAScan(BuildAccumulator *accum);
-extern RumEntryAccumulatorItem *rumGetBAEntry(BuildAccumulator *accum,
-			  OffsetNumber *attnum, Datum *key, RumNullCategory *category,
+extern RumKey *rumGetBAEntry(BuildAccumulator *accum,
+			  OffsetNumber *attnum, Datum *key, RumNullCategory * category,
 			  uint32 *n);
 
 /* rumfast.c */
@@ -733,15 +724,15 @@ typedef struct RumTupleCollector
 	uint32		ntuples;
 	uint32		lentuples;
 	uint32		sumsize;
-} RumTupleCollector;
+}	RumTupleCollector;
 
-extern void rumHeapTupleFastInsert(RumState *rumstate,
-					   RumTupleCollector *collector);
-extern void rumHeapTupleFastCollect(RumState *rumstate,
-						RumTupleCollector *collector,
+extern void rumHeapTupleFastInsert(RumState * rumstate,
+					   RumTupleCollector * collector);
+extern void rumHeapTupleFastCollect(RumState * rumstate,
+						RumTupleCollector * collector,
 						OffsetNumber attnum, Datum value, bool isNull,
 						ItemPointer ht_ctid);
-extern void rumInsertCleanup(RumState *rumstate,
+extern void rumInsertCleanup(RumState * rumstate,
 				 bool vac_delay, IndexBulkDeleteResult *stats);
 
 /* rum_ts_utils.c */
@@ -778,10 +769,10 @@ extern PGDLLIMPORT int RumFuzzySearchLimit;
 static inline char *
 rumDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
 {
-	uint32 blockNumberIncr = 0;
-	uint16 offset = 0;
-	int i;
-	uint8 v;
+	uint32		blockNumberIncr = 0;
+	uint16		offset = 0;
+	int			i;
+	uint8		v;
 
 	i = 0;
 	do
@@ -794,8 +785,8 @@ rumDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
 	}
 	while (v & HIGHBIT);
 
-	Assert((uint64)iptr->ip_blkid.bi_lo + ((uint64)iptr->ip_blkid.bi_hi << 16) +
-				(uint64)blockNumberIncr < ((uint64)1 << 32));
+	Assert((uint64) iptr->ip_blkid.bi_lo + ((uint64) iptr->ip_blkid.bi_hi << 16) +
+		   (uint64) blockNumberIncr < ((uint64) 1 << 32));
 
 	blockNumberIncr += iptr->ip_blkid.bi_lo + (iptr->ip_blkid.bi_hi << 16);
 
@@ -804,7 +795,7 @@ rumDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
 
 	i = 0;
 
-	while(true)
+	while (true)
 	{
 		v = *ptr;
 		ptr++;
@@ -836,18 +827,17 @@ rumDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
  * passed in order to read the first item pointer.
  */
 static inline Pointer
-rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
-	Datum *addInfo, bool *addInfoIsNull, RumState *rumstate)
+rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumKey * item,
+					RumState * rumstate)
 {
 	Form_pg_attribute attr;
-	bool isNull;
+	bool		isNull;
 
-	ptr = rumDataPageLeafReadItemPointer(ptr, iptr, &isNull);
+	ptr = rumDataPageLeafReadItemPointer(ptr, &item->iptr, &isNull);
 
-	Assert(iptr->ip_posid != InvalidOffsetNumber);
+	Assert(item->iptr.ip_posid != InvalidOffsetNumber);
 
-	if (addInfoIsNull)
-		*addInfoIsNull = isNull;
+	item->addInfoIsNull = isNull;
 
 	if (!isNull)
 	{
@@ -856,41 +846,39 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
 		if (attr->attbyval)
 		{
 			/* do not use aligment for pass-by-value types */
-			if (addInfo)
+			union
 			{
-				union {
-					int16	i16;
-					int32	i32;
-				} u;
+				int16		i16;
+				int32		i32;
+			}			u;
 
-				switch(attr->attlen)
-				{
-					case sizeof(char):
-						*addInfo = Int8GetDatum(*ptr);
-						break;
-					case sizeof(int16):
-						memcpy(&u.i16, ptr, sizeof(int16));
-						*addInfo = Int16GetDatum(u.i16);
-						break;
-					case sizeof(int32):
-						memcpy(&u.i32, ptr, sizeof(int32));
-						*addInfo = Int32GetDatum(u.i32);
-						break;
+			switch (attr->attlen)
+			{
+				case sizeof(char):
+					item->addInfo = Int8GetDatum(*ptr);
+					break;
+				case sizeof(int16):
+					memcpy(&u.i16, ptr, sizeof(int16));
+					item->addInfo = Int16GetDatum(u.i16);
+					break;
+				case sizeof(int32):
+					memcpy(&u.i32, ptr, sizeof(int32));
+					item->addInfo = Int32GetDatum(u.i32);
+					break;
 #if SIZEOF_DATUM == 8
-					case sizeof(Datum):
-						memcpy(addInfo, ptr, sizeof(Datum));
-						break;
+				case sizeof(Datum):
+					memcpy(&item->addInfo, ptr, sizeof(Datum));
+					break;
 #endif
-					default:
-						elog(ERROR, "unsupported byval length: %d", (int) (attr->attlen));
-				}
+				default:
+					elog(ERROR, "unsupported byval length: %d",
+						 (int) (attr->attlen));
 			}
 		}
 		else
 		{
 			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen, ptr);
-			if (addInfo)
-				*addInfo = fetch_att(ptr,  attr->attbyval,  attr->attlen);
+			item->addInfo = fetch_att(ptr, attr->attbyval, attr->attlen);
 		}
 
 		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);
@@ -898,10 +886,39 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, ItemPointer iptr,
 	return ptr;
 }
 
+/*
+ * Reads next item pointer from leaf data page.
+ * Replaces current item pointer with the next one. Zero item pointer should be
+ * passed in order to read the first item pointer.
+ */
+static inline Pointer
+rumDataPageLeafReadPointer(Pointer ptr, OffsetNumber attnum, RumKey * item,
+						   RumState * rumstate)
+{
+	Form_pg_attribute attr;
+	bool		isNull;
+
+	ptr = rumDataPageLeafReadItemPointer(ptr, &item->iptr, &isNull);
+
+	Assert(item->iptr.ip_posid != InvalidOffsetNumber);
+
+	if (!isNull)
+	{
+		attr = rumstate->addAttrs[attnum - 1];
+
+		if (!attr->attbyval)
+			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen,
+											  ptr);
+
+		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);
+	}
+	return ptr;
+}
+
 extern Datum FunctionCall10Coll(FmgrInfo *flinfo, Oid collation,
-								Datum arg1, Datum arg2,
-								Datum arg3, Datum arg4, Datum arg5,
-								Datum arg6, Datum arg7, Datum arg8,
-								Datum arg9, Datum arg10);
+				   Datum arg1, Datum arg2,
+				   Datum arg3, Datum arg4, Datum arg5,
+				   Datum arg6, Datum arg7, Datum arg8,
+				   Datum arg9, Datum arg10);
 
 #endif   /* __RUM_H__ */

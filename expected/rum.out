@@ -96,10 +96,10 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *
 	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way');
  rum_ts_distance |                                    t                                     |                               a                               
 -----------------+--------------------------------------------------------------------------+---------------------------------------------------------------
-       0.0607927 | my appreciation of you in a more complimentary way than by sending this  | 'appreci':2 'complimentari':8 'send':12 'way':9
-       0.0607927 | itself. Put on your “specs” and look at the castle, half way up the      | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-       0.0607927 | so well that only a fragment, as it were, gave way. It still hangs as if | 'fragment':6 'gave':10 'hang':14 'still':13 'way':11 'well':2
-       0.0607927 | thinking--“to go or not to go?” We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+         16.4493 | my appreciation of you in a more complimentary way than by sending this  | 'appreci':2 'complimentari':8 'send':12 'way':9
+         16.4493 | itself. Put on your “specs” and look at the castle, half way up the      | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         16.4493 | so well that only a fragment, as it were, gave way. It still hangs as if | 'fragment':6 'gave':10 'hang':14 'still':13 'way':11 'well':2
+         16.4493 | thinking--“to go or not to go?” We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (4 rows)
 
 SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')), *
@@ -108,9 +108,22 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))
 	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)');
  rum_ts_distance |                                  t                                  |                            a                            
 -----------------+---------------------------------------------------------------------+---------------------------------------------------------
-        0.103556 | thinking--“to go or not to go?” We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
-       0.0991032 | itself. Put on your “specs” and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         9.65659 | thinking--“to go or not to go?” We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+         10.0905 | itself. Put on your “specs” and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
 (2 rows)
+
+SELECT
+	a <-> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
+	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	*
+	FROM test_rum
+	ORDER BY a <-> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 3;
+ ?column? | rum_ts_distance |                                    t                                    |                            a                            
+----------+-----------------+-------------------------------------------------------------------------+---------------------------------------------------------
+  9.65659 |         9.65659 | thinking--“to go or not to go?” We are this far on the way. Reached     | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+  10.0905 |         10.0905 | itself. Put on your “specs” and look at the castle, half way up the     | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+    1e+20 |           1e+20 | my appreciation of you in a more complimentary way than by sending this | 'appreci':2 'complimentari':8 'send':12 'way':9
+(3 rows)
 
 INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');
 INSERT INTO test_rum (t) VALUES ('345 qwerty copyright');
@@ -144,13 +157,6 @@ SELECT a FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'bar') ORDER 
               a               
 ------------------------------
  'bar':2,8 'foo':1,3,6 'qq':7
-(1 row)
-
-DELETE FROM test_rum;
-SELECT count(*) from test_rum;
- count 
--------
-     0
 (1 row)
 
 CREATE TABLE tst (i int4, t tsvector);

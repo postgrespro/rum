@@ -30,12 +30,13 @@
 
 typedef struct KeyArray
 {
-	Datum	   *keys;			 /* expansible array of keys */
-	Datum	   *addInfo;		 /* expansible array of additional information */
-	bool	   *addInfoIsNull;   /* expansible array of  NULL flag of additional information */
-	RumNullCategory *categories; /* another expansible array */
-	int32		nvalues;		 /* current number of valid entries */
-	int32		maxvalues;		 /* allocated size of arrays */
+	Datum	   *keys;			/* expansible array of keys */
+	Datum	   *addInfo;		/* expansible array of additional information */
+	bool	   *addInfoIsNull;	/* expansible array of	NULL flag of
+								 * additional information */
+	RumNullCategory *categories;	/* another expansible array */
+	int32		nvalues;		/* current number of valid entries */
+	int32		maxvalues;		/* allocated size of arrays */
 } KeyArray;
 
 
@@ -51,9 +52,9 @@ writeListPage(Relation index, Buffer buffer,
 	Page		page;
 	int32		i,
 				freesize;
-	OffsetNumber		l,
-						off;
-	GenericXLogState   *state;
+	OffsetNumber l,
+				off;
+	GenericXLogState *state;
 
 	state = GenericXLogStart(index);
 
@@ -102,7 +103,7 @@ writeListPage(Relation index, Buffer buffer,
 
 static void
 makeSublist(Relation index, IndexTuple *tuples, int32 ntuples,
-			RumMetaPageData *res)
+			RumMetaPageData * res)
 {
 	Buffer		curBuffer = InvalidBuffer;
 	Buffer		prevBuffer = InvalidBuffer;
@@ -175,7 +176,7 @@ makeSublist(Relation index, IndexTuple *tuples, int32 ntuples,
  * preserving order
  */
 void
-rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
+rumHeapTupleFastInsert(RumState * rumstate, RumTupleCollector * collector)
 {
 	Relation	index = rumstate->index;
 	Buffer		metabuffer;
@@ -338,10 +339,10 @@ rumHeapTupleFastInsert(RumState *rumstate, RumTupleCollector *collector)
 }
 
 static IndexTuple
-RumFastFormTuple(RumState *rumstate,
-			 OffsetNumber attnum, Datum key, RumNullCategory category,
-			 Datum addInfo,
-			 bool addInfoIsNull)
+RumFastFormTuple(RumState * rumstate,
+				 OffsetNumber attnum, Datum key, RumNullCategory category,
+				 Datum addInfo,
+				 bool addInfoIsNull)
 {
 	Datum		datums[3];
 	bool		isnull[3];
@@ -392,11 +393,11 @@ RumFastFormTuple(RumState *rumstate,
 	{
 		ereport(ERROR,
 				(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
-		errmsg("index row size %lu exceeds maximum %lu for index \"%s\"",
-			   (unsigned long) newsize,
-			   (unsigned long) Min(INDEX_SIZE_MASK,
-								   RumMaxItemSize),
-			   RelationGetRelationName(rumstate->index))));
+			errmsg("index row size %lu exceeds maximum %lu for index \"%s\"",
+				   (unsigned long) newsize,
+				   (unsigned long) Min(INDEX_SIZE_MASK,
+									   RumMaxItemSize),
+				   RelationGetRelationName(rumstate->index))));
 		pfree(itup);
 		return NULL;
 	}
@@ -435,8 +436,8 @@ RumFastFormTuple(RumState *rumstate,
  * rumHeapTupleFastInsert.
  */
 void
-rumHeapTupleFastCollect(RumState *rumstate,
-						RumTupleCollector *collector,
+rumHeapTupleFastCollect(RumState * rumstate,
+						RumTupleCollector * collector,
 						OffsetNumber attnum, Datum value, bool isNull,
 						ItemPointer ht_ctid)
 {
@@ -451,7 +452,7 @@ rumHeapTupleFastCollect(RumState *rumstate,
 	 * Extract the key values that need to be inserted in the index
 	 */
 	entries = rumExtractEntries(rumstate, attnum, value, isNull,
-								&nentries, &categories, &addInfo, &addInfoIsNull);
+						   &nentries, &categories, &addInfo, &addInfoIsNull);
 
 	/*
 	 * Allocate/reallocate memory for storing collected tuples
@@ -497,10 +498,10 @@ static bool
 shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		  IndexBulkDeleteResult *stats)
 {
-	Page				metapage;
-	RumMetaPageData	   *metadata;
-	BlockNumber			blknoToDelete;
-	GenericXLogState   *metastate;
+	Page		metapage;
+	RumMetaPageData *metadata;
+	BlockNumber blknoToDelete;
+	GenericXLogState *metastate;
 
 	metastate = GenericXLogStart(index);
 	metapage = GenericXLogRegisterBuffer(metastate, metabuffer,
@@ -515,7 +516,7 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		int64		nDeletedHeapTuples = 0;
 		rumxlogDeleteListPages data;
 		Buffer		buffers[RUM_NDELETE_AT_ONCE];
-		GenericXLogState   *state;
+		GenericXLogState *state;
 
 		data.ndeleted = 0;
 		while (data.ndeleted < RUM_NDELETE_AT_ONCE && blknoToDelete != newHead)
@@ -647,7 +648,8 @@ processPendingPage(BuildAccumulator *accum, KeyArray *ka,
 	{
 		IndexTuple	itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, i));
 		OffsetNumber curattnum;
-		Datum		curkey, addInfo = 0;
+		Datum		curkey,
+					addInfo = 0;
 		bool		addInfoIsNull = true;
 		RumNullCategory curcategory;
 
@@ -657,6 +659,7 @@ processPendingPage(BuildAccumulator *accum, KeyArray *ka,
 		if (OidIsValid(accum->rumstate->addInfoTypeOid[curattnum - 1]))
 		{
 			Form_pg_attribute attr = accum->rumstate->addAttrs[curattnum - 1];
+
 			if (accum->rumstate->oneCol)
 				addInfo = index_getattr(itup, 2,
 					accum->rumstate->tupdesc[curattnum - 1], &addInfoIsNull);
@@ -693,7 +696,7 @@ processPendingPage(BuildAccumulator *accum, KeyArray *ka,
 
 	/* Dump out all remaining keys */
 	rumInsertBAEntries(accum, &heapptr, attrnum,
-					   ka->keys, ka->addInfo, ka->addInfoIsNull, ka->categories, ka->nvalues);
+	  ka->keys, ka->addInfo, ka->addInfoIsNull, ka->categories, ka->nvalues);
 }
 
 /*
@@ -717,7 +720,7 @@ processPendingPage(BuildAccumulator *accum, KeyArray *ka,
  * If stats isn't null, we count deleted pending pages into the counts.
  */
 void
-rumInsertCleanup(RumState *rumstate,
+rumInsertCleanup(RumState * rumstate,
 				 bool vac_delay, IndexBulkDeleteResult *stats)
 {
 	Relation	index = rumstate->index;
@@ -803,7 +806,7 @@ rumInsertCleanup(RumState *rumstate,
 			(RumPageHasFullRow(page) &&
 			 (accum.allocatedMemory >= maintenance_work_mem * 1024L)))
 		{
-			RumEntryAccumulatorItem *list;
+			RumKey	   *items;
 			uint32		nlist;
 			Datum		key;
 			RumNullCategory category;
@@ -824,22 +827,11 @@ rumInsertCleanup(RumState *rumstate,
 			 * list.
 			 */
 			rumBeginBAScan(&accum);
-			while ((list = rumGetBAEntry(&accum,
+			while ((items = rumGetBAEntry(&accum,
 								  &attnum, &key, &category, &nlist)) != NULL)
 			{
-				ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(ItemPointerData) *nlist);
-				Datum *addInfo = (Datum *)palloc(sizeof(Datum) * nlist);
-				bool *addInfoIsNull = (bool *)palloc(sizeof(bool) * nlist);
-				int i;
-
-				for (i = 0; i < nlist; i++)
-				{
-					iptrs[i] = list[i].iptr;
-					addInfo[i] = list[i].addInfo;
-					addInfoIsNull[i] = list[i].addInfoIsNull;
-				}
 				rumEntryInsert(rumstate, attnum, key, category,
-							   iptrs, addInfo, addInfoIsNull, nlist, NULL);
+							   items, nlist, NULL);
 				vacuum_delay_point();
 			}
 
@@ -871,23 +863,11 @@ rumInsertCleanup(RumState *rumstate,
 				processPendingPage(&accum, &datums, page, maxoff + 1);
 
 				rumBeginBAScan(&accum);
-				while ((list = rumGetBAEntry(&accum,
+				while ((items = rumGetBAEntry(&accum,
 								  &attnum, &key, &category, &nlist)) != NULL)
 				{
-					ItemPointerData *iptrs = (ItemPointerData *)palloc(sizeof(ItemPointerData) *nlist);
-					Datum *addInfo = (Datum *)palloc(sizeof(Datum) * nlist);
-					bool *addInfoIsNull = (bool *)palloc(sizeof(bool) * nlist);
-					int i;
-
-					for (i = 0; i < nlist; i++)
-					{
-						iptrs[i] = list[i].iptr;
-						addInfo[i] = list[i].addInfo;
-						addInfoIsNull[i] = list[i].addInfoIsNull;
-					}
-
 					rumEntryInsert(rumstate, attnum, key, category,
-								   iptrs, addInfo, addInfoIsNull, nlist, NULL);
+								   items, nlist, NULL);
 				}
 			}
 
@@ -899,8 +879,8 @@ rumInsertCleanup(RumState *rumstate,
 												 * locking */
 
 			/*
-			 * remove read pages from pending list, at this point all
-			 * content of read pages is in regular structure
+			 * remove read pages from pending list, at this point all content
+			 * of read pages is in regular structure
 			 */
 			if (shiftList(index, metabuffer, blkno, stats))
 			{

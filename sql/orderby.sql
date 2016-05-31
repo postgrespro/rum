@@ -49,8 +49,6 @@ EXPLAIN (costs off)
 SELECT id, d, d |-> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d |-> '2016-05-16 14:21:25' LIMIT 5;
 SELECT id, d, d |-> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d |-> '2016-05-16 14:21:25' LIMIT 5;
 
---to be fixed
---EXPLAIN (costs off)
---SELECT id, d, d <-> '2016-05-16 14:21:25' FROM tsts ORDER BY d <-> '2016-05-16 14:21:25' LIMIT 5;
---SELECT id, d, d <-> '2016-05-16 14:21:25' FROM tsts ORDER BY d <-> '2016-05-16 14:21:25' LIMIT 5;
-
+EXPLAIN (costs off)
+SELECT id, d, d <-> '2016-05-16 14:21:25' FROM tsts ORDER BY d <-> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d, d <-> '2016-05-16 14:21:25' FROM tsts ORDER BY d <-> '2016-05-16 14:21:25' LIMIT 5;

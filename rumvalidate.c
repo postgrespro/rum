@@ -267,7 +267,7 @@ rumvalidate(Oid opclassoid)
 		result = false;
 	}
 	if (!opclassgroup ||
-		(opclassgroup->functionset & (1 << GIN_CONSISTENT_PROC)) == 0) 
+		(opclassgroup->functionset & (1 << GIN_CONSISTENT_PROC)) == 0)
 	{
 		ereport(INFO,
 				(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
