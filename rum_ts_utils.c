@@ -30,11 +30,6 @@ PG_FUNCTION_INFO_V1(rum_tsquery_timestamp_consistent);
 PG_FUNCTION_INFO_V1(rum_tsquery_distance);
 PG_FUNCTION_INFO_V1(rum_ts_distance);
 
-static float calc_rank_pos_and(float *w, bool *check,
-				  Datum *addInfo, bool *addInfoIsNull, int size);
-static float calc_rank_pos_or(float *w, bool *check,
-				 Datum *addInfo, bool *addInfoIsNull, int size);
-
 static int	count_pos(char *ptr, int len);
 static char *decompress_pos(char *ptr, uint16 *pos);
 
@@ -235,33 +230,8 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 	PG_RETURN_BOOL(res);
 }
 
-static float weights[] = {0.1f, 0.2f, 0.4f, 1.0f};
-
-#define wpos(wep)	( w[ WEP_GETWEIGHT(wep) ] )
-/* A dummy WordEntryPos array to use when haspos is false */
-static WordEntryPosVector POSNULL = {
-	1,							/* Number of elements that follow */
-	{0}
-};
-
 #define SIXTHBIT 0x20
 #define LOWERMASK 0x1F
-
-/*
- * Returns a weight of a word collocation
- */
-static float4
-word_distance(int32 w)
-{
-	if (w > 100)
-		return 1e-30f;
-
-	return 1.0 / (1.005 + 0.05 * exp(((float4) w) / 1.5 - 2));
-}
-
-#define WordECompareQueryItem(e,q,p,i,m) \
-	tsCompareString((q) + (i)->distance, (i)->length,	\
-					(e) + (p)->pos, (p)->len, (m))
 
 static int
 compress_pos(char *target, uint16 *pos, int npos)
@@ -335,167 +305,6 @@ count_pos(char *ptr, int len)
 			count++;
 	}
 	return count;
-}
-
-static float
-calc_rank_pos_and(float *w, bool *check, Datum *addInfo, bool *addInfoIsNull, int size)
-{
-	int			i,
-				k,
-				l,
-				p;
-	WordEntryPos post,
-				ct;
-	int32		dimt,
-				lenct,
-				dist;
-	float		res = -1.0;
-	char	   *ptrt,
-			   *ptrc;
-
-	if (size < 2)
-		return calc_rank_pos_or(w, check, addInfo, addInfoIsNull, size);
-
-	for (i = 0; i < size; i++)
-	{
-		if (!check[i])
-			continue;
-
-		if (!addInfoIsNull[i])
-		{
-			dimt = count_pos(VARDATA_ANY(addInfo[i]), VARSIZE_ANY_EXHDR(addInfo[i]));
-			ptrt = (char *) VARDATA_ANY(addInfo[i]);
-		}
-		else
-		{
-			dimt = POSNULL.npos;
-			ptrt = (char *) POSNULL.pos;
-		}
-		for (k = 0; k < i; k++)
-		{
-			if (!addInfoIsNull[k])
-				lenct = count_pos(VARDATA_ANY(addInfo[k]), VARSIZE_ANY_EXHDR(addInfo[k]));
-			else
-				lenct = POSNULL.npos;
-			post = 0;
-			for (l = 0; l < dimt; l++)
-			{
-				if (ptrt == (char *) POSNULL.pos)
-					post = POSNULL.pos[0];
-				else
-					ptrt = decompress_pos(ptrt, &post);
-				ct = 0;
-				if (!addInfoIsNull[k])
-					ptrc = (char *) VARDATA_ANY(addInfo[k]);
-				else
-					ptrc = (char *) POSNULL.pos;
-				for (p = 0; p < lenct; p++)
-				{
-					if (ptrc == (char *) POSNULL.pos)
-						ct = POSNULL.pos[0];
-					else
-						ptrc = decompress_pos(ptrc, &ct);
-					dist = Abs((int) WEP_GETPOS(post) - (int) WEP_GETPOS(ct));
-					if (dist || (dist == 0 && (ptrt == (char *) POSNULL.pos || ptrc == (char *) POSNULL.pos)))
-					{
-						float		curw;
-
-						if (!dist)
-							dist = MAXENTRYPOS;
-						curw = sqrt(wpos(post) * wpos(ct) * word_distance(dist));
-						res = (res < 0) ? curw : 1.0 - (1.0 - res) * (1.0 - curw);
-					}
-				}
-			}
-		}
-
-	}
-	return res;
-}
-
-static float
-calc_rank_pos_or(float *w, bool *check, Datum *addInfo, bool *addInfoIsNull, int size)
-{
-	WordEntryPos post;
-	int32		dimt,
-				j,
-				i;
-	float		res = 0.0;
-	char	   *ptrt;
-
-	for (i = 0; i < size; i++)
-	{
-		float		resj,
-					wjm;
-		int32		jm;
-
-		if (!check[i])
-			continue;
-
-		if (!addInfoIsNull[i])
-		{
-			dimt = count_pos(VARDATA_ANY(addInfo[i]), VARSIZE_ANY_EXHDR(addInfo[i]));
-			ptrt = (char *) VARDATA_ANY(addInfo[i]);
-		}
-		else
-		{
-			dimt = POSNULL.npos;
-			ptrt = (char *) POSNULL.pos;
-		}
-
-		resj = 0.0;
-		wjm = -1.0;
-		jm = 0;
-		post = 0;
-		for (j = 0; j < dimt; j++)
-		{
-			if (ptrt == (char *) POSNULL.pos)
-				post = POSNULL.pos[0];
-			else
-				ptrt = decompress_pos(ptrt, &post);
-			resj = resj + wpos(post) / ((j + 1) * (j + 1));
-			if (wpos(post) > wjm)
-			{
-				wjm = wpos(post);
-				jm = j;
-			}
-		}
-/*
-		limit (sum(i/i^2),i->inf) = pi^2/6
-		resj = sum(wi/i^2),i=1,noccurence,
-		wi - should be sorted desc,
-		don't sort for now, just choose maximum weight. This should be corrected
-		Oleg Bartunov
-*/
-		res = res + (wjm + resj - wjm / ((jm + 1) * (jm + 1))) / 1.64493406685;
-
-	}
-	if (size > 0)
-		res = res / size;
-	return res;
-}
-
-static float
-calc_rank_pos(float *w, bool *check, TSQuery q, Datum *addInfo, bool *addInfoIsNull, int size)
-{
-	QueryItem  *item = GETQUERY(q);
-	float		res = 0.0;
-
-	if (!size || !q->size)
-		return 0.0;
-
-	WEP_SETPOS(POSNULL.pos[0], MAXENTRYPOS - 1);
-
-	/* XXX: What about NOT? */
-	res = (item->type == QI_OPR && (item->qoperator.oper == OP_AND ||
-									item->qoperator.oper == OP_PHRASE)) ?
-		calc_rank_pos_and(w, check, addInfo, addInfoIsNull, size) :
-		calc_rank_pos_or(w, check, addInfo, addInfoIsNull, size);
-
-	if (res < 0)
-		res = 1e-20f;
-
-	return res;
 }
 
 /*
@@ -711,6 +520,141 @@ rum_extract_tsquery(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(entries);
 }
 
+typedef struct RestoreWordEntry
+{
+	char		*word;
+	char		*posptr;
+	int32		npos;
+	int32		wordlen;
+} RestoreWordEntry;
+
+/*
+ * reconstruct partial tsvector from set of index entries
+ */
+static TSVector
+rum_reconstruct_tsvector(bool *check, TSQuery query, int32 nkeys,
+						 int *map_item_operand,
+						 Datum *addInfo, bool *addInfoIsNull)
+{
+	TSVector	tsv;
+	int			cntwords = 0,
+				totalwords = query->size * 4;/* 4 positions per word, estimation */
+	int			i = 0;
+	QueryItem  *item = GETQUERY(query);
+	char	   *operandData = GETOPERAND(query);
+	RestoreWordEntry	*rwe;
+	int			len = 0, totallen;
+	bool	   *visited;
+	WordEntry  *ptr;
+	char	   *str;
+	int			stroff;
+
+
+	rwe = palloc(sizeof(*rwe) * totalwords);
+	visited = palloc0(sizeof(*visited) * nkeys);
+
+	/*
+	 * go through query to collect lexemes and add to them
+	 * positions from addInfo. Here we believe that keys are
+	 * ordered in the same order as in tsvector (see SortAndUniqItems)
+	 */
+	for(i=0; i<query->size; i++)
+	{
+		if (item->type == QI_VAL)
+		{
+			int				keyN = map_item_operand[i];
+
+			if (check[keyN] == true && visited[keyN] == false)
+			{
+				/*
+				 * entries could be repeated in tsquery, do not visit them twice
+				 * or more
+				 */
+				visited[keyN] = true;
+
+				while (cntwords + 1 >= totalwords)
+				{
+					totalwords *= 2;
+					rwe = repalloc(rwe, sizeof(*rwe) * totalwords);
+				}
+
+				rwe[cntwords].word = operandData + item->qoperand.distance;
+				rwe[cntwords].wordlen = item->qoperand.length;
+
+				len += item->qoperand.length;
+
+				if (addInfoIsNull[keyN] == false)
+				{
+					bytea	*positions = DatumGetByteaP(addInfo[keyN]);
+
+					rwe[cntwords].npos = count_pos(VARDATA_ANY(positions),
+												   VARSIZE_ANY_EXHDR(positions));
+					rwe[cntwords].posptr = VARDATA_ANY(positions);
+
+					len = SHORTALIGN(len);
+					len += sizeof(uint16) +
+								rwe[cntwords].npos * sizeof(WordEntryPos);
+				}
+				else
+				{
+					rwe[cntwords].npos = 0;
+				}
+
+				cntwords++;
+			}
+		}
+		item++;
+	}
+
+	totallen = CALCDATASIZE(cntwords, len);
+	tsv = palloc(totallen);
+	SET_VARSIZE(tsv, totallen);
+	tsv->size = cntwords;
+
+	ptr = ARRPTR(tsv);
+	str = STRPTR(tsv);
+	stroff = 0;
+
+	for (i=0; i<cntwords; i++)
+	{
+		ptr->len = rwe[i].wordlen;
+		ptr->pos = stroff;
+		memcpy(str + stroff, rwe[i].word, ptr->len);
+		stroff += ptr->len;
+
+		if (rwe[i].npos)
+		{
+			WordEntryPos	*wptr,
+							post = 0;
+			int				j;
+
+			ptr->haspos = 1;
+
+			stroff = SHORTALIGN(stroff);
+			*(uint16 *) (str + stroff) = rwe[i].npos;
+			wptr = POSDATAPTR(tsv, ptr);
+
+			for (j=0; j<rwe[i].npos; j++)
+			{
+				rwe[i].posptr = decompress_pos(rwe[i].posptr, &post);
+				wptr[j] = post;
+			}
+			stroff += sizeof(uint16) + rwe[i].npos * sizeof(WordEntryPos);
+		}
+		else
+		{
+			ptr->haspos = 0;
+		}
+
+		ptr++;
+	}
+
+	pfree(rwe);
+	pfree(visited);
+
+	return tsv;
+}
+
 Datum
 rum_tsquery_distance(PG_FUNCTION_ARGS)
 {
@@ -719,15 +663,27 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 	/* StrategyNumber strategy = PG_GETARG_UINT16(1); */
 	TSQuery		query = PG_GETARG_TSQUERY(2);
 	int32		nkeys = PG_GETARG_INT32(3);
-	Pointer    *extra_data = (Pointer *) PG_GETARG_POINTER(4);
+	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
 	float8		res;
+	int		   *map_item_operand = (int *) (extra_data[0]);
+	TSVector	tsv;
 
-	res = 1.0 / (float8) calc_rank_pos(weights, check, query,
-									   addInfo, addInfoIsNull, nkeys);
+	tsv = rum_reconstruct_tsvector(check, query, nkeys, map_item_operand,
+								   addInfo, addInfoIsNull);
 
-	PG_RETURN_FLOAT8(res);
+	res = DatumGetFloat4(DirectFunctionCall2Coll(ts_rank_tt,
+												 PG_GET_COLLATION(),
+												 TSVectorGetDatum(tsv),
+												 TSQueryGetDatum(query)));
+
+	pfree(tsv);
+
+	if (res == 0)
+		PG_RETURN_FLOAT8(get_float8_infinity());
+	else
+		PG_RETURN_FLOAT8(1.0 / res);
 }
 
 Datum
