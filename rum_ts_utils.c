@@ -520,14 +520,6 @@ rum_extract_tsquery(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(entries);
 }
 
-typedef struct RestoreWordEntry
-{
-	char		*word;
-	char		*posptr;
-	int32		npos;
-	int32		wordlen;
-} RestoreWordEntry;
-
 /*
  * reconstruct partial tsvector from set of index entries
  */
@@ -540,7 +532,13 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 	int			i = 0;
 	QueryItem  *item = GETQUERY(query);
 	char	   *operandData = GETOPERAND(query);
-	RestoreWordEntry	*rwe;
+	struct
+	{
+		char		*word;
+		char		*posptr;
+		int32		npos;
+		int32		wordlen;
+	} *restoredWordEntry;
 	int			len = 0, totallen;
 	bool	   *visited;
 	WordEntry  *ptr;
@@ -548,7 +546,7 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 	int			stroff;
 
 
-	rwe = palloc(sizeof(*rwe) * query->size);
+	restoredWordEntry = palloc(sizeof(*restoredWordEntry) * query->size);
 	visited = palloc0(sizeof(*visited) * query->size);
 
 	/*
@@ -570,8 +568,8 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 				 */
 				visited[keyN] = true;
 
-				rwe[cntwords].word = operandData + item->qoperand.distance;
-				rwe[cntwords].wordlen = item->qoperand.length;
+				restoredWordEntry[cntwords].word = operandData + item->qoperand.distance;
+				restoredWordEntry[cntwords].wordlen = item->qoperand.length;
 
 				len += item->qoperand.length;
 
@@ -579,17 +577,17 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 				{
 					bytea	*positions = DatumGetByteaP(addInfo[keyN]);
 
-					rwe[cntwords].npos = count_pos(VARDATA_ANY(positions),
+					restoredWordEntry[cntwords].npos = count_pos(VARDATA_ANY(positions),
 												   VARSIZE_ANY_EXHDR(positions));
-					rwe[cntwords].posptr = VARDATA_ANY(positions);
+					restoredWordEntry[cntwords].posptr = VARDATA_ANY(positions);
 
 					len = SHORTALIGN(len);
 					len += sizeof(uint16) +
-								rwe[cntwords].npos * sizeof(WordEntryPos);
+								restoredWordEntry[cntwords].npos * sizeof(WordEntryPos);
 				}
 				else
 				{
-					rwe[cntwords].npos = 0;
+					restoredWordEntry[cntwords].npos = 0;
 				}
 
 				cntwords++;
@@ -609,12 +607,12 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 
 	for (i=0; i<cntwords; i++)
 	{
-		ptr->len = rwe[i].wordlen;
+		ptr->len = restoredWordEntry[i].wordlen;
 		ptr->pos = stroff;
-		memcpy(str + stroff, rwe[i].word, ptr->len);
+		memcpy(str + stroff, restoredWordEntry[i].word, ptr->len);
 		stroff += ptr->len;
 
-		if (rwe[i].npos)
+		if (restoredWordEntry[i].npos)
 		{
 			WordEntryPos	*wptr,
 							post = 0;
@@ -623,15 +621,15 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 			ptr->haspos = 1;
 
 			stroff = SHORTALIGN(stroff);
-			*(uint16 *) (str + stroff) = rwe[i].npos;
+			*(uint16 *) (str + stroff) = restoredWordEntry[i].npos;
 			wptr = POSDATAPTR(tsv, ptr);
 
-			for (j=0; j<rwe[i].npos; j++)
+			for (j=0; j<restoredWordEntry[i].npos; j++)
 			{
-				rwe[i].posptr = decompress_pos(rwe[i].posptr, &post);
+				restoredWordEntry[i].posptr = decompress_pos(restoredWordEntry[i].posptr, &post);
 				wptr[j] = post;
 			}
-			stroff += sizeof(uint16) + rwe[i].npos * sizeof(WordEntryPos);
+			stroff += sizeof(uint16) + restoredWordEntry[i].npos * sizeof(WordEntryPos);
 		}
 		else
 		{
@@ -641,7 +639,7 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 		ptr++;
 	}
 
-	pfree(rwe);
+	pfree(restoredWordEntry);
 	pfree(visited);
 
 	return tsv;
