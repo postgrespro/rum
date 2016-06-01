@@ -868,6 +868,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
 	{
 		ItemPointerSetInvalid(&entry->curItem.iptr);
 		entry->isFinished = TRUE;
+		LockBuffer(entry->stack->buffer, RUM_UNLOCK);
 		return;
 	}
 
