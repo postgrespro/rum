@@ -1069,7 +1069,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry)
 		} while (entry->isFinished == FALSE &&
 				 entry->reduceResult == TRUE &&
 				 dropItem(entry));
-		if (entry->stack)
+		if (entry->stack && entry->isFinished)
 		{
 			entry->isFinished = FALSE;
 			entryGetNextItemList(rumstate, entry);
