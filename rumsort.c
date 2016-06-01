@@ -3846,7 +3846,14 @@ comparetup_rum(const SortTuple *a, const SortTuple *b, Tuplesortstate *state)
 {
 	RumSortItem *i1,
 			   *i2;
+	float8		v1 = DatumGetFloat8(a->datum1);
+	float8		v2 = DatumGetFloat8(b->datum1);
 	int			i;
+
+	if (v1 < v2)
+		return -1;
+	else if (v1 > v2)
+		return 1;
 
 	i1 = (RumSortItem *) a->tuple;
 	i2 = (RumSortItem *) b->tuple;
