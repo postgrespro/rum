@@ -624,6 +624,7 @@ typedef struct RumScanEntryData
 	bool		preValue;
 	uint32		predictNumberResult;
 	RumPostingTreeScan *gdi;
+	RumBtreeStack *stack;
 }	RumScanEntryData;
 
 typedef struct

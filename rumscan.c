@@ -272,6 +272,8 @@ freeScanKeys(RumScanOpaque so)
 			if (entry->buffer != InvalidBuffer)
 				ReleaseBuffer(entry->buffer);
 		}
+		if (entry->stack)
+			freeRumBtreeStack(entry->stack);
 		if (entry->list)
 			pfree(entry->list);
 		if (entry->matchIterator)
