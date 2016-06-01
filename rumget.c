@@ -462,7 +462,7 @@ restartScanEntry:
 
 	if (entry->isPartialMatch ||
 		(entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
-		 entry->searchMode != GIN_SEARCH_MODE_EVERYTHING))
+		 !entry->scanWithAddInfo))
 	{
 		/*
 		 * btreeEntry.findItem locates the first item >= given search key.
@@ -500,7 +500,7 @@ restartScanEntry:
 	}
 	else if (btreeEntry.findItem(&btreeEntry, stackEntry) ||
 			 (entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
-			  entry->searchMode == GIN_SEARCH_MODE_EVERYTHING))
+			  entry->scanWithAddInfo))
 	{
 		IndexTuple	itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, stackEntry->off));
 
@@ -572,7 +572,7 @@ restartScanEntry:
 		}
 
 		if (entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
-			entry->searchMode == GIN_SEARCH_MODE_EVERYTHING)
+			entry->scanWithAddInfo)
 			entry->stack = stackEntry;
 	}
 
@@ -850,7 +850,6 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
 		pfree(entry->list);
 		entry->list = NULL;
 		entry->nlist = 0;
-		entry->nalloc = 0;
 	}
 	entry->matchBitmap = NULL;
 	entry->matchResult = NULL;
@@ -2551,10 +2550,18 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 	}
 
 	item = rum_tuplesort_getrum(so->sortstate, true, &should_free);
-	if (item)
+	while (item)
 	{
 		uint32		i,
 					j = 0;
+
+		if (rumCompareItemPointers(&scan->xs_ctup.t_self, &item->iptr) == 0)
+		{
+			if (should_free)
+				pfree(item);
+			item = rum_tuplesort_getrum(so->sortstate, true, &should_free);
+			continue;
+		}
 
 		scan->xs_ctup.t_self = item->iptr;
 		scan->xs_recheck = item->recheck;
@@ -2574,8 +2581,6 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 			pfree(item);
 		PG_RETURN_BOOL(true);
 	}
-	else
-	{
-		PG_RETURN_BOOL(false);
-	}
+
+	PG_RETURN_BOOL(false);
 }

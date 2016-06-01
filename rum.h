@@ -612,11 +612,14 @@ typedef struct RumScanEntryData
 	TBMIterator *matchIterator;
 	TBMIterateResult *matchResult;
 
+	/* for full-scan query with order-by */
+	RumBtreeStack *stack;
+	bool		scanWithAddInfo;
+
 	/* used for Posting list and one page in Posting tree */
 	RumKey	   *list;
 	MemoryContext context;
 	uint32		nlist;
-	uint32		nalloc;
 	OffsetNumber offset;
 
 	bool		isFinished;
@@ -624,7 +627,6 @@ typedef struct RumScanEntryData
 	bool		preValue;
 	uint32		predictNumberResult;
 	RumPostingTreeScan *gdi;
-	RumBtreeStack *stack;
 }	RumScanEntryData;
 
 typedef struct

@@ -111,9 +111,10 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->matchBitmap = NULL;
 	scanEntry->matchIterator = NULL;
 	scanEntry->matchResult = NULL;
+	scanEntry->stack = NULL;
+	scanEntry->scanWithAddInfo = false;
 	scanEntry->list = NULL;
 	scanEntry->nlist = 0;
-	scanEntry->nalloc = 0;
 	scanEntry->offset = InvalidOffsetNumber;
 	scanEntry->isFinished = false;
 	scanEntry->reduceResult = false;
@@ -390,6 +391,7 @@ rumNewScanKey(IndexScanDesc scan)
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	int			i;
 	bool		hasNullQuery = false;
+	bool		checkEmptyEntry = false;
 	MemoryContext oldCtx;
 
 	/*
@@ -433,6 +435,7 @@ rumNewScanKey(IndexScanDesc scan)
 					   GIN_SEARCH_MODE_EVERYTHING,
 					   (Datum) 0, 0,
 					   NULL, NULL, NULL, NULL, false);
+		checkEmptyEntry = true;
 	}
 
 	for (i = 0; i < scan->numberOfOrderBys; i++)
@@ -440,6 +443,16 @@ rumNewScanKey(IndexScanDesc scan)
 		initScanKey(so, &scan->orderByData[i], &hasNullQuery);
 		if (so->isVoidRes)
 			break;
+	}
+
+	/*
+	 * If there are order-by keys, mark empty entry for scan with add info.
+	 * If so->nkeys > 1 then there are order-by keys.
+	 */
+	if (checkEmptyEntry && so->nkeys > 1)
+	{
+		Assert(so->totalentries > 0);
+		so->entries[0]->scanWithAddInfo = true;
 	}
 
 	if (scan->numberOfOrderBys > 0)
