@@ -524,28 +524,30 @@ rum_extract_tsquery(PG_FUNCTION_ARGS)
  * reconstruct partial tsvector from set of index entries
  */
 static TSVector
-rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
+rum_reconstruct_tsvector(bool *check, int32 nkeys, TSQuery query,
+						 int *map_item_operand,
 						 Datum *addInfo, bool *addInfoIsNull)
 {
 	TSVector	tsv;
-	int			cntwords = 0;
+	int			nWords = 0, currentWord = 0;
 	int			i = 0;
 	QueryItem  *item = GETQUERY(query);
 	char	   *operandData = GETOPERAND(query);
-	struct
-	{
-		char		*word;
-		char		*posptr;
-		int32		npos;
-		int32		wordlen;
-	} *restoredWordEntry;
 	int			len = 0, totallen;
 	WordEntry  *ptr;
 	char	   *str;
 	int			stroff;
 
+	for(i=0; i<nkeys; i++)
+		if (check[i])
+			nWords++;
 
-	restoredWordEntry = palloc(sizeof(*restoredWordEntry) * query->size);
+	totallen = CALCDATASIZE(nWords, nWords * 16 * sizeof(uint16)); /* estimation */
+	tsv = palloc(totallen);
+	tsv->size = nWords;
+
+	str = STRPTR(tsv);
+	stroff = 0;
 
 	/*
 	 * go through query to collect lexemes and add to them
@@ -560,84 +562,77 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 
 			if (check[keyN] == true)
 			{
+				int		npos = 0;
+				bytea	*positions;
+
 				/*
 				 * entries could be repeated in tsquery, do not visit them twice
 				 * or more. Modifying of check array (entryRes) is safe
 				 */
 				check[keyN] = false;
 
-				restoredWordEntry[cntwords].word = operandData + item->qoperand.distance;
-				restoredWordEntry[cntwords].wordlen = item->qoperand.length;
-
 				len += item->qoperand.length;
 
 				if (addInfoIsNull[keyN] == false)
 				{
-					bytea	*positions = DatumGetByteaP(addInfo[keyN]);
+					positions = DatumGetByteaP(addInfo[keyN]);
 
-					restoredWordEntry[cntwords].npos = count_pos(VARDATA_ANY(positions),
-												   VARSIZE_ANY_EXHDR(positions));
-					restoredWordEntry[cntwords].posptr = VARDATA_ANY(positions);
+					npos = count_pos(VARDATA_ANY(positions),
+									 VARSIZE_ANY_EXHDR(positions));
 
 					len = SHORTALIGN(len);
-					len += sizeof(uint16) +
-								restoredWordEntry[cntwords].npos * sizeof(WordEntryPos);
+					len += sizeof(uint16) + npos * sizeof(WordEntryPos);
+				}
+
+				while(CALCDATASIZE(nWords, len) > totallen)
+				{
+					totallen *= 2;
+					tsv = repalloc(tsv, totallen);
+					str = STRPTR(tsv);
+				}
+
+				ptr = ARRPTR(tsv) + currentWord;
+
+				ptr->len = item->qoperand.length;
+				ptr->pos = stroff;
+				memcpy(str + stroff, operandData + item->qoperand.distance, ptr->len);
+				stroff += ptr->len;
+
+				if (npos)
+				{
+					WordEntryPos	*wptr,
+									posv = 0;
+					int				j;
+					char			*posptr = VARDATA_ANY(positions);
+
+					ptr->haspos = 1;
+
+					stroff = SHORTALIGN(stroff);
+					*(uint16 *) (str + stroff) = npos;
+					wptr = POSDATAPTR(tsv, ptr);
+
+					for (j=0; j<npos; j++)
+					{
+						posptr = decompress_pos(posptr, &posv);
+						wptr[j] = posv;
+					}
+					stroff += sizeof(uint16) + npos * sizeof(WordEntryPos);
 				}
 				else
 				{
-					restoredWordEntry[cntwords].npos = 0;
+					ptr->haspos = 0;
 				}
 
-				cntwords++;
+				currentWord++;
 			}
 		}
+
 		item++;
 	}
 
-	totallen = CALCDATASIZE(cntwords, len);
-	tsv = palloc(totallen);
+	Assert(nWords == currentWord);
+	totallen = CALCDATASIZE(nWords, len);
 	SET_VARSIZE(tsv, totallen);
-	tsv->size = cntwords;
-
-	ptr = ARRPTR(tsv);
-	str = STRPTR(tsv);
-	stroff = 0;
-
-	for (i=0; i<cntwords; i++)
-	{
-		ptr->len = restoredWordEntry[i].wordlen;
-		ptr->pos = stroff;
-		memcpy(str + stroff, restoredWordEntry[i].word, ptr->len);
-		stroff += ptr->len;
-
-		if (restoredWordEntry[i].npos)
-		{
-			WordEntryPos	*wptr,
-							post = 0;
-			int				j;
-
-			ptr->haspos = 1;
-
-			stroff = SHORTALIGN(stroff);
-			*(uint16 *) (str + stroff) = restoredWordEntry[i].npos;
-			wptr = POSDATAPTR(tsv, ptr);
-
-			for (j=0; j<restoredWordEntry[i].npos; j++)
-			{
-				restoredWordEntry[i].posptr = decompress_pos(restoredWordEntry[i].posptr, &post);
-				wptr[j] = post;
-			}
-			stroff += sizeof(uint16) + restoredWordEntry[i].npos * sizeof(WordEntryPos);
-		}
-		else
-		{
-			ptr->haspos = 0;
-		}
-
-		ptr++;
-	}
-
-	pfree(restoredWordEntry);
 
 	return tsv;
 }
@@ -649,7 +644,7 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 
 	/* StrategyNumber strategy = PG_GETARG_UINT16(1); */
 	TSQuery		query = PG_GETARG_TSQUERY(2);
-	/* int32		nkeys = PG_GETARG_INT32(3); */
+	int32		nkeys = PG_GETARG_INT32(3);
 	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
@@ -657,7 +652,7 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 	int		   *map_item_operand = (int *) (extra_data[0]);
 	TSVector	tsv;
 
-	tsv = rum_reconstruct_tsvector(check, query, map_item_operand,
+	tsv = rum_reconstruct_tsvector(check, nkeys, query, map_item_operand,
 								   addInfo, addInfoIsNull);
 
 	res = DatumGetFloat4(DirectFunctionCall2Coll(ts_rank_tt,
