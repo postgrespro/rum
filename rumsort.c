@@ -3868,20 +3868,21 @@ comparetup_rum(const SortTuple *a, const SortTuple *b, Tuplesortstate *state)
 	/*
 	 * If key values are equal, we sort on ItemPointer.
 	 */
-	{
-		BlockNumber blk1 = ItemPointerGetBlockNumber(&i1->iptr);
-		BlockNumber blk2 = ItemPointerGetBlockNumber(&i2->iptr);
+	if (i1->iptr.ip_blkid.bi_hi < i2->iptr.ip_blkid.bi_hi)
+		return -1;
+	else if (i1->iptr.ip_blkid.bi_hi > i2->iptr.ip_blkid.bi_hi)
+		return 1;
 
-		if (blk1 != blk2)
-			return (blk1 < blk2) ? -1 : 1;
-	}
-	{
-		OffsetNumber pos1 = ItemPointerGetOffsetNumber(&i1->iptr);
-		OffsetNumber pos2 = ItemPointerGetOffsetNumber(&i2->iptr);
+	if (i1->iptr.ip_blkid.bi_lo < i2->iptr.ip_blkid.bi_lo)
+		return -1;
+	else if (i1->iptr.ip_blkid.bi_lo > i2->iptr.ip_blkid.bi_lo)
+		return 1;
 
-		if (pos1 != pos2)
-			return (pos1 < pos2) ? -1 : 1;
-	}
+	if (i1->iptr.ip_posid < i2->iptr.ip_posid)
+		return -1;
+	else if (i1->iptr.ip_posid > i2->iptr.ip_posid)
+		return 1;
+
 	return 0;
 }
 
