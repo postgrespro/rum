@@ -89,7 +89,7 @@ extern Tuplesortstate *rum_tuplesort_begin_datum(Oid datumType,
 						  bool nullsFirstFlag,
 						  int workMem, bool randomAccess);
 extern Tuplesortstate *rum_tuplesort_begin_rum(int workMem,
-						int nKeys, bool randomAccess);
+						int nKeys, bool randomAccess, bool compareItemPointer);
 
 extern void rum_tuplesort_set_bound(Tuplesortstate *state, int64 bound);
 

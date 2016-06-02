@@ -2534,7 +2534,10 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 		so->tbm = NULL;
 		so->entriesIncrIndex = -1;
 		so->firstCall = false;
-		so->sortstate = rum_tuplesort_begin_rum(work_mem, so->norderbys, false);
+		so->sortstate = rum_tuplesort_begin_rum(work_mem, so->norderbys, false,
+												so->totalentries > 0 &&
+												so->entries[0]->queryCategory == RUM_CAT_EMPTY_QUERY &&
+												so->entries[0]->scanWithAddInfo);
 
 		scanPendingInsert(scan);
 

@@ -405,6 +405,9 @@ struct Tuplesortstate
 
 	bool		reverse;
 
+	/* Do we need ItemPointer comparison in comparetup_rum()? */
+	bool		compareItemPointer;
+
 	/*
 	 * Resource snapshot for time of sort start.
 	 */
@@ -1124,7 +1127,8 @@ rum_tuplesort_begin_index_hash(Relation heapRel,
 }
 
 Tuplesortstate *
-rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess)
+rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess,
+						bool compareItemPointer)
 {
 	Tuplesortstate *state = rum_tuplesort_begin_common(workMem, randomAccess);
 	MemoryContext oldcontext;
@@ -1152,6 +1156,7 @@ rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess)
 	state->readtup = readtup_rum;
 	state->reversedirection = reversedirection_rum;
 	state->reverse = false;
+	state->compareItemPointer = compareItemPointer;
 
 	MemoryContextSwitchTo(oldcontext);
 
@@ -3864,6 +3869,9 @@ comparetup_rum(const SortTuple *a, const SortTuple *b, Tuplesortstate *state)
 		else if (i1->data[i] > i2->data[i])
 			return 1;
 	}
+
+	if (!state->compareItemPointer)
+		return 0;
 
 	/*
 	 * If key values are equal, we sort on ItemPointer.
