@@ -540,14 +540,12 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 		int32		wordlen;
 	} *restoredWordEntry;
 	int			len = 0, totallen;
-	bool	   *visited;
 	WordEntry  *ptr;
 	char	   *str;
 	int			stroff;
 
 
 	restoredWordEntry = palloc(sizeof(*restoredWordEntry) * query->size);
-	visited = palloc0(sizeof(*visited) * query->size);
 
 	/*
 	 * go through query to collect lexemes and add to them
@@ -560,13 +558,13 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 		{
 			int	keyN = map_item_operand[i];
 
-			if (check[keyN] == true && visited[keyN] == false)
+			if (check[keyN] == true)
 			{
 				/*
 				 * entries could be repeated in tsquery, do not visit them twice
-				 * or more
+				 * or more. Modifying of check array (entryRes) is safe
 				 */
-				visited[keyN] = true;
+				check[keyN] = false;
 
 				restoredWordEntry[cntwords].word = operandData + item->qoperand.distance;
 				restoredWordEntry[cntwords].wordlen = item->qoperand.length;
@@ -640,7 +638,6 @@ rum_reconstruct_tsvector(bool *check, TSQuery query, int *map_item_operand,
 	}
 
 	pfree(restoredWordEntry);
-	pfree(visited);
 
 	return tsv;
 }
