@@ -68,7 +68,7 @@ typedef struct
 	DocRepresentation *end;
 } Extention;
 
-static float weights[] = {0.1f, 0.2f, 0.4f, 1.0f};
+static float weights[] = {1.0/0.1f, 1.0/0.2f, 1.0/0.4f, 1.0/1.0f};
 
 /* A dummy WordEntryPos array to use when haspos is false */
 static WordEntryPosVector POSNULL = {
@@ -702,11 +702,9 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
 	int			len = qr->query->size * 4,
 				cur = 0;
 	DocRepresentation *doc;
-	char	   *operand;
 	char	   *ptrt;
 
 	doc = (DocRepresentation *) palloc(sizeof(DocRepresentation) * len);
-	operand = GETOPERAND(qr->query);
 
 	for (i = 0; i < qr->query->size; i++)
 	{
@@ -726,10 +724,7 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
 			ptrt = (char *) VARDATA_ANY(addInfo[keyN]);
 		}
 		else
-		{
-			dimt = POSNULL.npos;
-			ptrt = (char *) POSNULL.pos;
-		}
+			continue;
 
 		while (cur + dimt >= len)
 		{
@@ -754,12 +749,9 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
 
 				for (k = 0; k < qr->query->size; k++)
 				{
-					QueryOperand *kptr = &item[k].qoperand;
-					QueryOperand *iptr = &item[i].qoperand;
-
 					if (k == i ||
-						(item[k].type == QI_VAL &&
-						 compareQueryOperand(&kptr, &iptr, operand) == 0))
+						(item[k].type == QI_VAL && map_item_operand[i] ==
+						 map_item_operand[k]))
 					{
 						/*
 						 * if k == i, we've already checked above that
@@ -767,7 +759,6 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
 						 */
 						doc[cur].item[doc[cur].nitem] = item + k;
 						doc[cur].nitem++;
-						QR_SET_OPERAND_EXISTS(qr, item + k);
 					}
 				}
 			}
@@ -963,7 +954,6 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 	int32		i;
 	Extention	ext;
 	double		Wdoc = 0.0;
-	double		invws[lengthof(weights)];
 	double		SumDist = 0.0,
 				PrevExtPos = 0.0,
 				CurExtPos = 0.0;
@@ -974,16 +964,6 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 	int		   *cover_lengths = (int *)palloc(0);
 	double	   *cover_ranks = (double *)palloc(0);
 	int			ncovers = 0;
-
-	for (i = 0; i < lengthof(weights); i++)
-	{
-		invws[i] = ((double) ((arrdata[i] >= 0) ? arrdata[i] : weights[i]));
-		if (invws[i] > 1.0)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("weight out of range")));
-		invws[i] = 1.0 / invws[i];
-	}
 
 	MemSet(&ext, 0, sizeof(Extention));
 	while (Cover(doc, doclen, qr, &ext))
@@ -1000,7 +980,7 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 
 		while (ptr <= ext.end)
 		{
-			InvSum += invws[ptr->wclass];
+			InvSum += arrdata[ptr->wclass];
 			/* SK: Quick and dirty hash key. Hope collisions will be not too frequent. */
 			new_cover_key = new_cover_key << 1;
 			new_cover_key += (int)(uintptr_t)ptr->item;
