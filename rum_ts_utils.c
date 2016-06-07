@@ -717,6 +717,12 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
 		if (!check[keyN])
 			continue;
 
+		/*
+		 * entries could be repeated in tsquery, do not visit them twice
+		 * or more. Modifying of check array (entryRes) is safe
+		 */
+		check[keyN] = false;
+
 		if (!addInfoIsNull[keyN])
 		{
 			dimt = count_pos(VARDATA_ANY(addInfo[keyN]),
