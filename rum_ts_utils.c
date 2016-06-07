@@ -49,6 +49,7 @@ typedef struct
 {
 	QueryItem **item;
 	int16		nitem;
+	QueryItem  *item_first;
 	int32		keyn;
 	uint8		wclass;
 	int32		pos;
@@ -711,7 +712,6 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
 				   Datum *addInfo, bool *addInfoIsNull, uint32 *doclen)
 {
 	QueryItem  *item = GETQUERY(qr->query);
-	WordEntryPos post;
 	int32		dimt,
 				j,
 				i;
@@ -724,7 +724,8 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
 
 	for (i = 0; i < qr->query->size; i++)
 	{
-		int keyN;
+		int			keyN;
+		WordEntryPos post = 0;
 
 		if (item[i].type != QI_VAL)
 			continue;
@@ -756,12 +757,10 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
 
 		for (j = 0; j < dimt; j++)
 		{
-			if (ptrt == (char *) POSNULL.pos)
-				post = POSNULL.pos[0];
-			else
-				ptrt = decompress_pos(ptrt, &post);
+			ptrt = decompress_pos(ptrt, &post);
 
 			doc[cur].item = NULL;
+			doc[cur].item_first = item + i;
 			doc[cur].keyn = keyN;
 			doc[cur].pos = WEP_GETPOS(post);
 			doc[cur].wclass = WEP_GETWEIGHT(post);
@@ -980,7 +979,10 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 			InvSum += arrdata[ptr->wclass];
 			/* SK: Quick and dirty hash key. Hope collisions will be not too frequent. */
 			new_cover_key = new_cover_key << 1;
-			new_cover_key += (int)(uintptr_t)ptr->item;
+			if (ptr->item != NULL)
+				new_cover_key += (int)(uintptr_t)ptr->item;
+			else
+				new_cover_key += (int)(uintptr_t)ptr->item_first;
 			ptr++;
 		}
 
