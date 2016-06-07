@@ -49,6 +49,7 @@ typedef struct
 {
 	QueryItem **item;
 	int16		nitem;
+	int32		keyn;
 	uint8		wclass;
 	int32		pos;
 } DocRepresentation;
@@ -608,9 +609,10 @@ checkcondition_QueryOperand(void *checkval, QueryOperand *val,
 
 static bool
 Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
-	  Extention *ext)
+	  int *map_item_operand, Extention *ext)
 {
 	DocRepresentation *ptr;
+	QueryItem  *item = GETQUERY(qr->query);
 	int			lastpos = ext->pos;
 	int			i;
 	bool		found = false;
@@ -630,10 +632,16 @@ Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
 	/* find upper bound of cover from current position, move up */
 	while (ptr - doc < len)
 	{
-		for (i = 0; i < ptr->nitem; i++)
+		if (ptr->item != NULL)
 		{
-			if (ptr->item[i]->type == QI_VAL)
+			for (i = 0; i < ptr->nitem; i++)
 				QR_SET_OPERAND_EXISTS(qr, ptr->item[i]);
+		}
+		else
+		{
+			for (i = 0; i < qr->query->size; i++)
+				if (ptr->keyn == map_item_operand[i])
+					QR_SET_OPERAND_EXISTS(qr, item + i);
 		}
 		if (TS_execute(GETQUERY(qr->query), (void *) qr, false,
 					   checkcondition_QueryOperand))
@@ -660,9 +668,17 @@ Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
 	/* find lower bound of cover from found upper bound, move down */
 	while (ptr >= doc + ext->pos)
 	{
-		for (i = 0; i < ptr->nitem; i++)
-			if (ptr->item[i]->type == QI_VAL)
+		if (ptr->item != NULL)
+		{
+			for (i = 0; i < ptr->nitem; i++)
 				QR_SET_OPERAND_EXISTS(qr, ptr->item[i]);
+		}
+		else
+		{
+			for (i = 0; i < qr->query->size; i++)
+				if (ptr->keyn == map_item_operand[i])
+					QR_SET_OPERAND_EXISTS(qr, item + i);
+		}
 		if (TS_execute(GETQUERY(qr->query), (void *) qr, true,
 					   checkcondition_QueryOperand))
 		{
@@ -687,7 +703,7 @@ Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
 	}
 
 	ext->pos++;
-	return Cover(doc, len, qr, ext);
+	return Cover(doc, len, qr, map_item_operand, ext);
 }
 
 static DocRepresentation *
@@ -745,34 +761,8 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
 			else
 				ptrt = decompress_pos(ptrt, &post);
 
-			if (j == 0)
-			{
-				int			k;
-
-				doc[cur].nitem = 0;
-				doc[cur].item = (QueryItem **) palloc(sizeof(QueryItem *) *
-													  qr->query->size);
-
-				for (k = 0; k < qr->query->size; k++)
-				{
-					if (k == i ||
-						(item[k].type == QI_VAL && map_item_operand[i] ==
-						 map_item_operand[k]))
-					{
-						/*
-						 * if k == i, we've already checked above that
-						 * it's type == Q_VAL
-						 */
-						doc[cur].item[doc[cur].nitem] = item + k;
-						doc[cur].nitem++;
-					}
-				}
-			}
-			else
-			{
-				doc[cur].nitem = doc[cur - 1].nitem;
-				doc[cur].item = doc[cur - 1].item;
-			}
+			doc[cur].item = NULL;
+			doc[cur].keyn = keyN;
 			doc[cur].pos = WEP_GETPOS(post);
 			doc[cur].wclass = WEP_GETWEIGHT(post);
 			cur++;
@@ -932,6 +922,7 @@ get_docrep(TSVector txt, QueryRepresentation *qr, uint32 *doclen)
 					doc[cur].nitem = doc[cur - 1].nitem;
 					doc[cur].item = doc[cur - 1].item;
 				}
+				doc[cur].keyn = -1;
 				doc[cur].pos = WEP_GETPOS(post[j]);
 				doc[cur].wclass = WEP_GETWEIGHT(post[j]);
 				cur++;
@@ -955,7 +946,7 @@ get_docrep(TSVector txt, QueryRepresentation *qr, uint32 *doclen)
 
 static double
 calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
-				QueryRepresentation *qr, int method)
+				QueryRepresentation *qr, int *map_item_operand, int method)
 {
 	int32		i;
 	Extention	ext;
@@ -972,7 +963,7 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 	int			ncovers = 0;
 
 	MemSet(&ext, 0, sizeof(Extention));
-	while (Cover(doc, doclen, qr, &ext))
+	while (Cover(doc, doclen, qr, map_item_operand, &ext))
 	{
 		double		Cpos = 0.0;
 		double		InvSum = 0.0;
@@ -1091,7 +1082,8 @@ calc_score_addinfo(float4 *arrdata, bool *check, TSQuery query,
 		return 0.0;
 	}
 
-	Wdoc = calc_score_docr(arrdata, doc, doclen, &qr, DEF_NORM_METHOD);
+	Wdoc = calc_score_docr(arrdata, doc, doclen, &qr, map_item_operand,
+						   DEF_NORM_METHOD);
 
 	pfree(doc);
 	pfree(qr.operandexist);
@@ -1118,7 +1110,7 @@ calc_score(float4 *arrdata, TSVector txt, TSQuery query, int method)
 		return 0.0;
 	}
 
-	Wdoc = calc_score_docr(arrdata, doc, doclen, &qr, method);
+	Wdoc = calc_score_docr(arrdata, doc, doclen, &qr, NULL, method);
 
 	if ((method & RANK_NORM_LOGLENGTH) && txt->size > 0)
 		Wdoc /= log((double) (count_length(txt) + 1));
