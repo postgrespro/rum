@@ -47,10 +47,21 @@ typedef struct
 
 typedef struct
 {
-	QueryItem **item;
-	int16		nitem;
-	QueryItem  *item_first;
-	int32		keyn;
+	union
+	{
+		/* Used in rum_ts_distance() */
+		struct
+		{
+			QueryItem **item;
+			int16		nitem;
+		} item;
+		/* Used in rum_tsquery_distance() */
+		struct
+		{
+			QueryItem  *item_first;
+			int32		keyn;
+		} key;
+	} data;
 	uint8		wclass;
 	int32		pos;
 } DocRepresentation;
@@ -58,7 +69,11 @@ typedef struct
 typedef struct
 {
 	TSQuery		query;
+	/* Used in rum_tsquery_distance() */
+	int		   *map_item_operand;
+
 	bool	   *operandexist;
+	int			lenght;
 } QueryRepresentation;
 
 typedef struct
@@ -605,15 +620,21 @@ checkcondition_QueryOperand(void *checkval, QueryOperand *val,
 {
 	QueryRepresentation *qr = (QueryRepresentation *) checkval;
 
+	/* Check for rum_tsquery_distance() */
+	if (qr->map_item_operand != NULL)
+	{
+		int		i = (QueryItem *) val - GETQUERY(qr->query);
+		return qr->operandexist[qr->map_item_operand[i]];
+	}
+
 	return QR_GET_OPERAND_EXISTS(qr, val);
 }
 
 static bool
 Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
-	  int *map_item_operand, Extention *ext)
+	  Extention *ext)
 {
 	DocRepresentation *ptr;
-	QueryItem  *item = GETQUERY(qr->query);
 	int			lastpos = ext->pos;
 	int			i;
 	bool		found = false;
@@ -624,7 +645,7 @@ Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
 	 */
 	check_stack_depth();
 
-	memset(qr->operandexist, 0, sizeof(bool) * qr->query->size);
+	memset(qr->operandexist, 0, sizeof(bool) * qr->lenght);
 
 	ext->p = 0x7fffffff;
 	ext->q = 0;
@@ -633,16 +654,14 @@ Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
 	/* find upper bound of cover from current position, move up */
 	while (ptr - doc < len)
 	{
-		if (ptr->item != NULL)
+		if (qr->map_item_operand != NULL)
 		{
-			for (i = 0; i < ptr->nitem; i++)
-				QR_SET_OPERAND_EXISTS(qr, ptr->item[i]);
+			qr->operandexist[ptr->data.key.keyn] = true;
 		}
 		else
 		{
-			for (i = 0; i < qr->query->size; i++)
-				if (ptr->keyn == map_item_operand[i])
-					QR_SET_OPERAND_EXISTS(qr, item + i);
+			for (i = 0; i < ptr->data.item.nitem; i++)
+				QR_SET_OPERAND_EXISTS(qr, ptr->data.item.item[i]);
 		}
 		if (TS_execute(GETQUERY(qr->query), (void *) qr, false,
 					   checkcondition_QueryOperand))
@@ -662,23 +681,21 @@ Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
 	if (!found)
 		return false;
 
-	memset(qr->operandexist, 0, sizeof(bool) * qr->query->size);
+	memset(qr->operandexist, 0, sizeof(bool) * qr->lenght);
 
 	ptr = doc + lastpos;
 
 	/* find lower bound of cover from found upper bound, move down */
 	while (ptr >= doc + ext->pos)
 	{
-		if (ptr->item != NULL)
+		if (qr->map_item_operand != NULL)
 		{
-			for (i = 0; i < ptr->nitem; i++)
-				QR_SET_OPERAND_EXISTS(qr, ptr->item[i]);
+			qr->operandexist[ptr->data.key.keyn] = true;
 		}
 		else
 		{
-			for (i = 0; i < qr->query->size; i++)
-				if (ptr->keyn == map_item_operand[i])
-					QR_SET_OPERAND_EXISTS(qr, item + i);
+			for (i = 0; i < ptr->data.item.nitem; i++)
+				QR_SET_OPERAND_EXISTS(qr, ptr->data.item.item[i]);
 		}
 		if (TS_execute(GETQUERY(qr->query), (void *) qr, true,
 					   checkcondition_QueryOperand))
@@ -704,11 +721,11 @@ Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
 	}
 
 	ext->pos++;
-	return Cover(doc, len, qr, map_item_operand, ext);
+	return Cover(doc, len, qr, ext);
 }
 
 static DocRepresentation *
-get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
+get_docrep_addinfo(bool *check, QueryRepresentation *qr,
 				   Datum *addInfo, bool *addInfoIsNull, uint32 *doclen)
 {
 	QueryItem  *item = GETQUERY(qr->query);
@@ -730,7 +747,7 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
 		if (item[i].type != QI_VAL)
 			continue;
 
-		keyN = map_item_operand[i];
+		keyN = qr->map_item_operand[i];
 		if (!check[keyN])
 			continue;
 
@@ -759,9 +776,8 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr, int *map_item_operand,
 		{
 			ptrt = decompress_pos(ptrt, &post);
 
-			doc[cur].item = NULL;
-			doc[cur].item_first = item + i;
-			doc[cur].keyn = keyN;
+			doc[cur].data.key.item_first = item + i;
+			doc[cur].data.key.keyn = keyN;
 			doc[cur].pos = WEP_GETPOS(post);
 			doc[cur].wclass = WEP_GETWEIGHT(post);
 			cur++;
@@ -894,8 +910,9 @@ get_docrep(TSVector txt, QueryRepresentation *qr, uint32 *doclen)
 				{
 					int			k;
 
-					doc[cur].nitem = 0;
-					doc[cur].item = (QueryItem **) palloc(sizeof(QueryItem *) * qr->query->size);
+					doc[cur].data.item.nitem = 0;
+					doc[cur].data.item.item = (QueryItem **) palloc(
+								sizeof(QueryItem *) * qr->query->size);
 
 					for (k = 0; k < qr->query->size; k++)
 					{
@@ -910,18 +927,18 @@ get_docrep(TSVector txt, QueryRepresentation *qr, uint32 *doclen)
 							 * if k == i, we've already checked above that
 							 * it's type == Q_VAL
 							 */
-							doc[cur].item[doc[cur].nitem] = item + k;
-							doc[cur].nitem++;
+							doc[cur].data.item.item[doc[cur].data.item.nitem] =
+									item + k;
+							doc[cur].data.item.nitem++;
 							QR_SET_OPERAND_EXISTS(qr, item + k);
 						}
 					}
 				}
 				else
 				{
-					doc[cur].nitem = doc[cur - 1].nitem;
-					doc[cur].item = doc[cur - 1].item;
+					doc[cur].data.item.nitem = doc[cur - 1].data.item.nitem;
+					doc[cur].data.item.item = doc[cur - 1].data.item.item;
 				}
-				doc[cur].keyn = -1;
 				doc[cur].pos = WEP_GETPOS(post[j]);
 				doc[cur].wclass = WEP_GETWEIGHT(post[j]);
 				cur++;
@@ -945,7 +962,7 @@ get_docrep(TSVector txt, QueryRepresentation *qr, uint32 *doclen)
 
 static double
 calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
-				QueryRepresentation *qr, int *map_item_operand, int method)
+				QueryRepresentation *qr, int method)
 {
 	int32		i;
 	Extention	ext;
@@ -962,7 +979,7 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 	int			ncovers = 0;
 
 	MemSet(&ext, 0, sizeof(Extention));
-	while (Cover(doc, doclen, qr, map_item_operand, &ext))
+	while (Cover(doc, doclen, qr, &ext))
 	{
 		double		Cpos = 0.0;
 		double		InvSum = 0.0;
@@ -971,7 +988,6 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 		/* Added by SK */
 		int			new_cover_idx = 0;
 		int			new_cover_key = 0;
-		QueryItem  *item = GETQUERY(qr->query);
 		int			nitems = 0;
 
 		while (ptr <= ext.end)
@@ -979,10 +995,12 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 			InvSum += arrdata[ptr->wclass];
 			/* SK: Quick and dirty hash key. Hope collisions will be not too frequent. */
 			new_cover_key = new_cover_key << 1;
-			if (ptr->item != NULL)
-				new_cover_key += (int)(uintptr_t)ptr->item;
+			/* For rum_ts_distance() */
+			if (qr->map_item_operand == NULL)
+				new_cover_key += (int)(uintptr_t)ptr->data.item.item;
+			/* For rum_tsquery_distance() */
 			else
-				new_cover_key += (int)(uintptr_t)ptr->item_first;
+				new_cover_key += (int)(uintptr_t)ptr->data.key.item_first;
 			ptr++;
 		}
 
@@ -1013,10 +1031,9 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 		cover_keys[new_cover_idx] = new_cover_key;
 
 		/* Compute the number of query terms in the cover */
-		for (i = 0; i < qr->query->size; i++)
-			if (item[i].type == QI_VAL &&
-				QR_GET_OPERAND_EXISTS(qr, &item[i]))
-				nitems ++;
+		for (i = 0; i < qr->lenght; i++)
+			if (qr->operandexist[i])
+				nitems++;
 
 		Cpos = ((double) (ext.end - ext.begin + 1)) / InvSum;
 
@@ -1066,7 +1083,8 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 
 static float4
 calc_score_addinfo(float4 *arrdata, bool *check, TSQuery query,
-				   int *map_item_operand, Datum *addInfo, bool *addInfoIsNull)
+				   int *map_item_operand, Datum *addInfo, bool *addInfoIsNull,
+				   int nkeys)
 {
 	DocRepresentation *doc;
 	uint32		doclen = 0;
@@ -1074,18 +1092,18 @@ calc_score_addinfo(float4 *arrdata, bool *check, TSQuery query,
 	QueryRepresentation qr;
 
 	qr.query = query;
-	qr.operandexist = (bool *) palloc0(sizeof(bool) * query->size);
+	qr.map_item_operand = map_item_operand;
+	qr.operandexist = (bool *) palloc0(sizeof(bool) * nkeys);
+	qr.lenght = nkeys;
 
-	doc = get_docrep_addinfo(check, &qr, map_item_operand,
-							 addInfo, addInfoIsNull, &doclen);
+	doc = get_docrep_addinfo(check, &qr, addInfo, addInfoIsNull, &doclen);
 	if (!doc)
 	{
 		pfree(qr.operandexist);
 		return 0.0;
 	}
 
-	Wdoc = calc_score_docr(arrdata, doc, doclen, &qr, map_item_operand,
-						   DEF_NORM_METHOD);
+	Wdoc = calc_score_docr(arrdata, doc, doclen, &qr, DEF_NORM_METHOD);
 
 	pfree(doc);
 	pfree(qr.operandexist);
@@ -1103,7 +1121,9 @@ calc_score(float4 *arrdata, TSVector txt, TSQuery query, int method)
 	QueryRepresentation qr;
 
 	qr.query = query;
+	qr.map_item_operand = NULL;
 	qr.operandexist = (bool *) palloc0(sizeof(bool) * query->size);
+	qr.lenght = query->size;
 
 	doc = get_docrep(txt, &qr, &doclen);
 	if (!doc)
@@ -1112,7 +1132,7 @@ calc_score(float4 *arrdata, TSVector txt, TSQuery query, int method)
 		return 0.0;
 	}
 
-	Wdoc = calc_score_docr(arrdata, doc, doclen, &qr, NULL, method);
+	Wdoc = calc_score_docr(arrdata, doc, doclen, &qr, method);
 
 	if ((method & RANK_NORM_LOGLENGTH) && txt->size > 0)
 		Wdoc /= log((double) (count_length(txt) + 1));
@@ -1142,6 +1162,7 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
 
 	TSQuery		query = PG_GETARG_TSQUERY(2);
+	int			nkeys = PG_GETARG_INT32(3);
 	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
@@ -1149,7 +1170,7 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 	int		   *map_item_operand = (int *) (extra_data[0]);
 
 	res = calc_score_addinfo(weights, check, query, map_item_operand,
-							 addInfo, addInfoIsNull);
+							 addInfo, addInfoIsNull, nkeys);
 
 	PG_FREE_IF_COPY(query, 2);
 	if (res == 0)
