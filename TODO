@@ -1,0 +1,3 @@
+1. with naturalOrder=true make scan the rest to be consistent with seqscan
+2. add leftlink to data page to privide backward scan on index (<=| op)
+

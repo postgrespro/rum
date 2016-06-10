@@ -47,11 +47,10 @@ rumCombineData(RBNode *existing, const RBNode *newdata, void *arg)
 	 * because anyway list isn't right ordered and code below could not check
 	 * it correctly
 	 */
-	if (eo->shouldSort == FALSE)
+	if (accum->rumstate->useAlternativeOrder == false && eo->shouldSort == false)
 	{
 		int			res;
 
-		/* FIXME RumKey */
 		res = rumCompareItemPointers(&eo->list[eo->count - 1].iptr,
 									 &en->list->iptr);
 		Assert(res != 0);

@@ -501,7 +501,7 @@ rumHeapTupleBulkInsert(RumBuildState * buildstate, OffsetNumber attnum,
 	MemoryContextSwitchTo(oldCtx);
 	for (i = 0; i < nentries; i++)
 	{
-		if (!addInfoIsNull[i])
+		if (attr && !addInfoIsNull[i])
 		{
 			addInfo[i] = datumCopy(addInfo[i], attr->attbyval, attr->attlen);
 		}

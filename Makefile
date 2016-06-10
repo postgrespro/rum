@@ -11,7 +11,7 @@ EXTENSION = rum
 DATA = rum--1.0.sql
 PGFILEDESC = "RUM index access method"
 
-REGRESS = rum ruminv timestamp orderby
+REGRESS = rum ruminv timestamp orderby altorder
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config

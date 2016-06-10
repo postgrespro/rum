@@ -107,7 +107,7 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->attnum = attnum;
 
 	scanEntry->buffer = InvalidBuffer;
-	RumItemSetMin(&scanEntry->curItem);
+	RumItemSetMin(&scanEntry->curRumKey);
 	scanEntry->matchBitmap = NULL;
 	scanEntry->matchIterator = NULL;
 	scanEntry->matchResult = NULL;
@@ -118,6 +118,8 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->offset = InvalidOffsetNumber;
 	scanEntry->isFinished = false;
 	scanEntry->reduceResult = false;
+	scanEntry->useMarkAddInfo = false;
+	ItemPointerSetMin(&scanEntry->markAddInfo.iptr);
 
 	/* Add it to so's array */
 	if (so->totalentries >= so->allocentries)
@@ -161,7 +163,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	key->attnum = attnum;
 	key->useAddToColumn = false;
 
-	ItemPointerSetMin(&key->curItem);
+	RumItemSetMin(&key->curItem);
 	key->curItemMatches = false;
 	key->recheckCurItem = false;
 	key->isFinished = false;
@@ -385,6 +387,39 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 				   (skey->sk_flags & SK_ORDER_BY) ? true : false);
 }
 
+static void
+fillMarkAddInfo(RumScanOpaque so, RumScanKey orderKey)
+{
+	int i;
+
+	for(i=0; i<so->nkeys; i++)
+	{
+		RumScanKey	scanKey = so->keys + i;
+
+		if (scanKey->orderBy)
+			continue;
+
+		if (scanKey->attnum == so->rumstate.attrnAddToColumn &&
+			orderKey->attnum == so->rumstate.attrnAddToColumn &&
+			orderKey->strategy == FROM_STRATEGY /* FIXME teodor */)
+		{
+			int j;
+
+			for(j=0; j<scanKey->nentries; j++)
+			{
+				RumScanEntry	scanEntry = scanKey->scanEntry[j];
+
+				if (scanEntry->useMarkAddInfo)
+					elog(ERROR,"could not order by more than one operator");
+				scanEntry->useMarkAddInfo = true;
+				scanEntry->markAddInfo.addInfoIsNull = false;
+				scanEntry->markAddInfo.addInfo = orderKey->queryValues[0];
+			}
+			so->naturalOrder = true;
+		}
+	}
+}
+
 void
 rumNewScanKey(IndexScanDesc scan)
 {
@@ -393,6 +428,8 @@ rumNewScanKey(IndexScanDesc scan)
 	bool		hasNullQuery = false;
 	bool		checkEmptyEntry = false;
 	MemoryContext oldCtx;
+
+	so->naturalOrder = false;
 
 	/*
 	 * Allocate all the scan key information in the key context. (If
@@ -443,6 +480,18 @@ rumNewScanKey(IndexScanDesc scan)
 		initScanKey(so, &scan->orderByData[i], &hasNullQuery);
 		if (so->isVoidRes)
 			break;
+	}
+
+	/*
+	 * Fill markAddInfo if possible
+	 */
+	for (i = 0; so->rumstate.useAlternativeOrder && i < so->nkeys; i++)
+	{
+		RumScanKey  key = so->keys + i;
+
+		if (key->orderBy && key->useAddToColumn &&
+			key->attnum == so->rumstate.attrnAddToColumn)
+			fillMarkAddInfo(so, key);
 	}
 
 	/*
