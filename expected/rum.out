@@ -108,8 +108,8 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
  rum_ts_distance |                                  t                                  |                            a                            
 -----------------+---------------------------------------------------------------------+---------------------------------------------------------
-         9.65659 | thinking--“to go or not to go?” We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
-         10.0905 | itself. Put on your “specs” and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         8.22467 | itself. Put on your “specs” and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         57.5727 | thinking--“to go or not to go?” We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (2 rows)
 
 SELECT
@@ -120,8 +120,8 @@ SELECT
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
  ?column? | rum_ts_distance |                                  t                                  |                            a                            
 ----------+-----------------+---------------------------------------------------------------------+---------------------------------------------------------
-  9.65659 |         9.65659 | thinking--“to go or not to go?” We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
-  10.0905 |         10.0905 | itself. Put on your “specs” and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+  8.22467 |         8.22467 | itself. Put on your “specs” and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+  57.5727 |         57.5727 | thinking--“to go or not to go?” We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (2 rows)
 
 INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');

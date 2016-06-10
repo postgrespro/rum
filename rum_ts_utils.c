@@ -1,7 +1,7 @@
 /*-------------------------------------------------------------------------
  *
  * rum_ts_utils.c
- *		various support functions
+ *		various text-search functions
  *
  * Portions Copyright (c) 2015-2016, Postgres Professional
  * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
@@ -12,6 +12,7 @@
 #include "postgres.h"
 
 #include "catalog/pg_type.h"
+#include "miscadmin.h"
 #include "tsearch/ts_type.h"
 #include "tsearch/ts_utils.h"
 #include "utils/array.h"
@@ -43,6 +44,66 @@ typedef struct
 	bool	   *addInfoIsNull;
 	bool		notPhrase;
 }	RumChkVal;
+
+typedef struct
+{
+	union
+	{
+		/* Used in rum_ts_distance() */
+		struct
+		{
+			QueryItem **item;
+			int16		nitem;
+		} item;
+		/* Used in rum_tsquery_distance() */
+		struct
+		{
+			QueryItem  *item_first;
+			int32		keyn;
+		} key;
+	} data;
+	uint8		wclass;
+	int32		pos;
+} DocRepresentation;
+
+typedef struct
+{
+	TSQuery		query;
+	/* Used in rum_tsquery_distance() */
+	int		   *map_item_operand;
+
+	bool	   *operandexist;
+	int			lenght;
+} QueryRepresentation;
+
+typedef struct
+{
+	int			pos;
+	int			p;
+	int			q;
+	DocRepresentation *begin;
+	DocRepresentation *end;
+} Extention;
+
+static float weights[] = {1.0/0.1f, 1.0/0.2f, 1.0/0.4f, 1.0/1.0f};
+
+/* A dummy WordEntryPos array to use when haspos is false */
+static WordEntryPosVector POSNULL = {
+	1,							/* Number of elements that follow */
+	{0}
+};
+
+#define RANK_NO_NORM			0x00
+#define RANK_NORM_LOGLENGTH		0x01
+#define RANK_NORM_LENGTH		0x02
+#define RANK_NORM_EXTDIST		0x04
+#define RANK_NORM_UNIQ			0x08
+#define RANK_NORM_LOGUNIQ		0x10
+#define RANK_NORM_RDIVRPLUS1	0x20
+#define DEF_NORM_METHOD			RANK_NO_NORM
+
+#define QR_GET_OPERAND_EXISTS(q, v)		( (q)->operandexist[ ((QueryItem*)(v)) - GETQUERY((q)->query) ] )
+#define QR_SET_OPERAND_EXISTS(q, v)  QR_GET_OPERAND_EXISTS(q,v) = true
 
 static bool
 pre_checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
@@ -307,6 +368,28 @@ count_pos(char *ptr, int len)
 	return count;
 }
 
+static uint32
+count_length(TSVector t)
+{
+	WordEntry  *ptr = ARRPTR(t),
+			   *end = (WordEntry *) STRPTR(t);
+	uint32		len = 0;
+
+	while (ptr < end)
+	{
+		uint32		clen = POSDATALEN(t, ptr);
+
+		if (clen == 0)
+			len += 1;
+		else
+			len += clen;
+
+		ptr++;
+	}
+
+	return len;
+}
+
 /*
  * sort QueryOperands by (length, word)
  */
@@ -520,121 +603,557 @@ rum_extract_tsquery(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(entries);
 }
 
-/*
- * reconstruct partial tsvector from set of index entries
- */
-static TSVector
-rum_reconstruct_tsvector(bool *check, int32 nkeys, TSQuery query,
-						 int *map_item_operand,
-						 Datum *addInfo, bool *addInfoIsNull)
+static int
+compareDocR(const void *va, const void *vb)
 {
-	TSVector	tsv;
-	int			nWords = 0, currentWord = 0;
-	int			i = 0;
-	QueryItem  *item = GETQUERY(query);
-	char	   *operandData = GETOPERAND(query);
-	int			len = 0, totallen;
-	WordEntry  *ptr;
-	char	   *str;
-	int			stroff;
+	DocRepresentation *a = (DocRepresentation *) va;
+	DocRepresentation *b = (DocRepresentation *) vb;
 
-	for(i=0; i<nkeys; i++)
-		if (check[i])
-			nWords++;
+	if (a->pos == b->pos)
+		return 0;
+	return (a->pos > b->pos) ? 1 : -1;
+}
 
-	totallen = CALCDATASIZE(nWords, nWords * 16 * sizeof(uint16)); /* estimation */
-	tsv = palloc(totallen);
-	tsv->size = nWords;
+static bool
+checkcondition_QueryOperand(void *checkval, QueryOperand *val,
+							ExecPhraseData *data)
+{
+	QueryRepresentation *qr = (QueryRepresentation *) checkval;
 
-	str = STRPTR(tsv);
-	stroff = 0;
+	/* Check for rum_tsquery_distance() */
+	if (qr->map_item_operand != NULL)
+	{
+		int		i = (QueryItem *) val - GETQUERY(qr->query);
+		return qr->operandexist[qr->map_item_operand[i]];
+	}
+
+	return QR_GET_OPERAND_EXISTS(qr, val);
+}
+
+static bool
+Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
+	  Extention *ext)
+{
+	DocRepresentation *ptr;
+	int			lastpos = ext->pos;
+	int			i;
+	bool		found = false;
 
 	/*
-	 * go through query to collect lexemes and add to them
-	 * positions from addInfo. Here we believe that keys are
-	 * ordered in the same order as in tsvector (see SortAndUniqItems)
+	 * since this function recurses, it could be driven to stack overflow.
+	 * (though any decent compiler will optimize away the tail-recursion.
 	 */
-	for(i=0; i<query->size; i++)
+	check_stack_depth();
+
+	memset(qr->operandexist, 0, sizeof(bool) * qr->lenght);
+
+	ext->p = 0x7fffffff;
+	ext->q = 0;
+	ptr = doc + ext->pos;
+
+	/* find upper bound of cover from current position, move up */
+	while (ptr - doc < len)
 	{
-		if (item->type == QI_VAL)
+		if (qr->map_item_operand != NULL)
 		{
-			int	keyN = map_item_operand[i];
-
-			if (check[keyN] == true)
+			qr->operandexist[ptr->data.key.keyn] = true;
+		}
+		else
+		{
+			for (i = 0; i < ptr->data.item.nitem; i++)
+				QR_SET_OPERAND_EXISTS(qr, ptr->data.item.item[i]);
+		}
+		if (TS_execute(GETQUERY(qr->query), (void *) qr, false,
+					   checkcondition_QueryOperand))
+		{
+			if (ptr->pos > ext->q)
 			{
-				int		npos = 0;
-				bytea	*positions;
+				ext->q = ptr->pos;
+				ext->end = ptr;
+				lastpos = ptr - doc;
+				found = true;
+			}
+			break;
+		}
+		ptr++;
+	}
 
-				/*
-				 * entries could be repeated in tsquery, do not visit them twice
-				 * or more. Modifying of check array (entryRes) is safe
-				 */
-				check[keyN] = false;
+	if (!found)
+		return false;
 
-				len += item->qoperand.length;
+	memset(qr->operandexist, 0, sizeof(bool) * qr->lenght);
 
-				if (addInfoIsNull[keyN] == false)
+	ptr = doc + lastpos;
+
+	/* find lower bound of cover from found upper bound, move down */
+	while (ptr >= doc + ext->pos)
+	{
+		if (qr->map_item_operand != NULL)
+		{
+			qr->operandexist[ptr->data.key.keyn] = true;
+		}
+		else
+		{
+			for (i = 0; i < ptr->data.item.nitem; i++)
+				QR_SET_OPERAND_EXISTS(qr, ptr->data.item.item[i]);
+		}
+		if (TS_execute(GETQUERY(qr->query), (void *) qr, true,
+					   checkcondition_QueryOperand))
+		{
+			if (ptr->pos < ext->p)
+			{
+				ext->begin = ptr;
+				ext->p = ptr->pos;
+			}
+			break;
+		}
+		ptr--;
+	}
+
+	if (ext->p <= ext->q)
+	{
+		/*
+		 * set position for next try to next lexeme after begining of founded
+		 * cover
+		 */
+		ext->pos = (ptr - doc) + 1;
+		return true;
+	}
+
+	ext->pos++;
+	return Cover(doc, len, qr, ext);
+}
+
+static DocRepresentation *
+get_docrep_addinfo(bool *check, QueryRepresentation *qr,
+				   Datum *addInfo, bool *addInfoIsNull, uint32 *doclen)
+{
+	QueryItem  *item = GETQUERY(qr->query);
+	int32		dimt,
+				j,
+				i;
+	int			len = qr->query->size * 4,
+				cur = 0;
+	DocRepresentation *doc;
+	char	   *ptrt;
+
+	doc = (DocRepresentation *) palloc(sizeof(DocRepresentation) * len);
+
+	for (i = 0; i < qr->query->size; i++)
+	{
+		int			keyN;
+		WordEntryPos post = 0;
+
+		if (item[i].type != QI_VAL)
+			continue;
+
+		keyN = qr->map_item_operand[i];
+		if (!check[keyN])
+			continue;
+
+		/*
+		 * entries could be repeated in tsquery, do not visit them twice
+		 * or more. Modifying of check array (entryRes) is safe
+		 */
+		check[keyN] = false;
+
+		if (!addInfoIsNull[keyN])
+		{
+			dimt = count_pos(VARDATA_ANY(addInfo[keyN]),
+							 VARSIZE_ANY_EXHDR(addInfo[keyN]));
+			ptrt = (char *) VARDATA_ANY(addInfo[keyN]);
+		}
+		else
+			continue;
+
+		while (cur + dimt >= len)
+		{
+			len *= 2;
+			doc = (DocRepresentation *) repalloc(doc, sizeof(DocRepresentation) * len);
+		}
+
+		for (j = 0; j < dimt; j++)
+		{
+			ptrt = decompress_pos(ptrt, &post);
+
+			doc[cur].data.key.item_first = item + i;
+			doc[cur].data.key.keyn = keyN;
+			doc[cur].pos = WEP_GETPOS(post);
+			doc[cur].wclass = WEP_GETWEIGHT(post);
+			cur++;
+		}
+	}
+
+	*doclen = cur;
+
+	if (cur > 0)
+	{
+		qsort((void *) doc, cur, sizeof(DocRepresentation), compareDocR);
+		return doc;
+	}
+
+	pfree(doc);
+	return NULL;
+}
+
+#define WordECompareQueryItem(e,q,p,i,m)				\
+	tsCompareString((q) + (i)->distance, (i)->length,	\
+					(e) + (p)->pos, (p)->len, (m))
+
+/*
+ * Returns a pointer to a WordEntry's array corresponding to 'item' from
+ * tsvector 't'. 'q' is the TSQuery containing 'item'.
+ * Returns NULL if not found.
+ */
+static WordEntry *
+find_wordentry(TSVector t, TSQuery q, QueryOperand *item, int32 *nitem)
+{
+	WordEntry  *StopLow = ARRPTR(t);
+	WordEntry  *StopHigh = (WordEntry *) STRPTR(t);
+	WordEntry  *StopMiddle = StopHigh;
+	int			difference;
+
+	*nitem = 0;
+
+	/* Loop invariant: StopLow <= item < StopHigh */
+	while (StopLow < StopHigh)
+	{
+		StopMiddle = StopLow + (StopHigh - StopLow) / 2;
+		difference = WordECompareQueryItem(STRPTR(t), GETOPERAND(q), StopMiddle, item, false);
+		if (difference == 0)
+		{
+			StopHigh = StopMiddle;
+			*nitem = 1;
+			break;
+		}
+		else if (difference > 0)
+			StopLow = StopMiddle + 1;
+		else
+			StopHigh = StopMiddle;
+	}
+
+	if (item->prefix == true)
+	{
+		if (StopLow >= StopHigh)
+			StopMiddle = StopHigh;
+
+		*nitem = 0;
+
+		while (StopMiddle < (WordEntry *) STRPTR(t) &&
+			   WordECompareQueryItem(STRPTR(t), GETOPERAND(q), StopMiddle, item, true) == 0)
+		{
+			(*nitem)++;
+			StopMiddle++;
+		}
+	}
+
+	return (*nitem > 0) ? StopHigh : NULL;
+}
+
+static DocRepresentation *
+get_docrep(TSVector txt, QueryRepresentation *qr, uint32 *doclen)
+{
+	QueryItem  *item = GETQUERY(qr->query);
+	WordEntry  *entry,
+			   *firstentry;
+	WordEntryPos *post;
+	int32		dimt,
+				j,
+				i,
+				nitem;
+	int			len = qr->query->size * 4,
+				cur = 0;
+	DocRepresentation *doc;
+	char	   *operand;
+
+	doc = (DocRepresentation *) palloc(sizeof(DocRepresentation) * len);
+	operand = GETOPERAND(qr->query);
+
+	for (i = 0; i < qr->query->size; i++)
+	{
+		QueryOperand *curoperand;
+
+		if (item[i].type != QI_VAL)
+			continue;
+
+		curoperand = &item[i].qoperand;
+
+		if (QR_GET_OPERAND_EXISTS(qr, &item[i]))
+			continue;
+
+		firstentry = entry = find_wordentry(txt, qr->query, curoperand, &nitem);
+		if (!entry)
+			continue;
+
+		while (entry - firstentry < nitem)
+		{
+			if (entry->haspos)
+			{
+				dimt = POSDATALEN(txt, entry);
+				post = POSDATAPTR(txt, entry);
+			}
+			else
+			{
+				dimt = POSNULL.npos;
+				post = POSNULL.pos;
+			}
+
+			while (cur + dimt >= len)
+			{
+				len *= 2;
+				doc = (DocRepresentation *) repalloc(doc, sizeof(DocRepresentation) * len);
+			}
+
+			for (j = 0; j < dimt; j++)
+			{
+				if (j == 0)
 				{
-					positions = DatumGetByteaP(addInfo[keyN]);
+					int			k;
 
-					npos = count_pos(VARDATA_ANY(positions),
-									 VARSIZE_ANY_EXHDR(positions));
+					doc[cur].data.item.nitem = 0;
+					doc[cur].data.item.item = (QueryItem **) palloc(
+								sizeof(QueryItem *) * qr->query->size);
 
-					len = SHORTALIGN(len);
-					len += sizeof(uint16) + npos * sizeof(WordEntryPos);
-				}
-
-				while(CALCDATASIZE(nWords, len) > totallen)
-				{
-					totallen *= 2;
-					tsv = repalloc(tsv, totallen);
-					str = STRPTR(tsv);
-				}
-
-				ptr = ARRPTR(tsv) + currentWord;
-
-				ptr->len = item->qoperand.length;
-				ptr->pos = stroff;
-				memcpy(str + stroff, operandData + item->qoperand.distance, ptr->len);
-				stroff += ptr->len;
-
-				if (npos)
-				{
-					WordEntryPos	*wptr,
-									posv = 0;
-					int				j;
-					char			*posptr = VARDATA_ANY(positions);
-
-					ptr->haspos = 1;
-
-					stroff = SHORTALIGN(stroff);
-					*(uint16 *) (str + stroff) = npos;
-					wptr = POSDATAPTR(tsv, ptr);
-
-					for (j=0; j<npos; j++)
+					for (k = 0; k < qr->query->size; k++)
 					{
-						posptr = decompress_pos(posptr, &posv);
-						wptr[j] = posv;
+						QueryOperand *kptr = &item[k].qoperand;
+						QueryOperand *iptr = &item[i].qoperand;
+
+						if (k == i ||
+							(item[k].type == QI_VAL &&
+							 compareQueryOperand(&kptr, &iptr, operand) == 0))
+						{
+							/*
+							 * if k == i, we've already checked above that
+							 * it's type == Q_VAL
+							 */
+							doc[cur].data.item.item[doc[cur].data.item.nitem] =
+									item + k;
+							doc[cur].data.item.nitem++;
+							QR_SET_OPERAND_EXISTS(qr, item + k);
+						}
 					}
-					stroff += sizeof(uint16) + npos * sizeof(WordEntryPos);
 				}
 				else
 				{
-					ptr->haspos = 0;
+					doc[cur].data.item.nitem = doc[cur - 1].data.item.nitem;
+					doc[cur].data.item.item = doc[cur - 1].data.item.item;
 				}
-
-				currentWord++;
+				doc[cur].pos = WEP_GETPOS(post[j]);
+				doc[cur].wclass = WEP_GETWEIGHT(post[j]);
+				cur++;
 			}
-		}
 
-		item++;
+			entry++;
+		}
 	}
 
-	Assert(nWords == currentWord);
-	totallen = CALCDATASIZE(nWords, len);
-	SET_VARSIZE(tsv, totallen);
+	*doclen = cur;
 
-	return tsv;
+	if (cur > 0)
+	{
+		qsort((void *) doc, cur, sizeof(DocRepresentation), compareDocR);
+		return doc;
+	}
+
+	pfree(doc);
+	return NULL;
+}
+
+static double
+calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
+				QueryRepresentation *qr, int method)
+{
+	int32		i;
+	Extention	ext;
+	double		Wdoc = 0.0;
+	double		SumDist = 0.0,
+				PrevExtPos = 0.0,
+				CurExtPos = 0.0;
+	int			NExtent = 0;
+
+	/* Added by SK */
+	int		   *cover_keys = (int *)palloc(0);
+	int		   *cover_lengths = (int *)palloc(0);
+	double	   *cover_ranks = (double *)palloc(0);
+	int			ncovers = 0;
+
+	MemSet(&ext, 0, sizeof(Extention));
+	while (Cover(doc, doclen, qr, &ext))
+	{
+		double		Cpos = 0.0;
+		double		InvSum = 0.0;
+		int			nNoise;
+		DocRepresentation *ptr = ext.begin;
+		/* Added by SK */
+		int			new_cover_idx = 0;
+		int			new_cover_key = 0;
+		int			nitems = 0;
+
+		while (ptr <= ext.end)
+		{
+			InvSum += arrdata[ptr->wclass];
+			/* SK: Quick and dirty hash key. Hope collisions will be not too frequent. */
+			new_cover_key = new_cover_key << 1;
+			/* For rum_ts_distance() */
+			if (qr->map_item_operand == NULL)
+				new_cover_key += (int)(uintptr_t)ptr->data.item.item;
+			/* For rum_tsquery_distance() */
+			else
+				new_cover_key += (int)(uintptr_t)ptr->data.key.item_first;
+			ptr++;
+		}
+
+		/* Added by SK */
+		/* TODO: use binary tree?.. */
+		while(new_cover_idx < ncovers)
+		{
+			if(new_cover_key == cover_keys[new_cover_idx])
+				break;
+			new_cover_idx ++;
+		}
+
+		if(new_cover_idx == ncovers)
+		{
+			cover_keys = (int *) repalloc(cover_keys, sizeof(int) *
+										  (ncovers + 1));
+			cover_lengths = (int *) repalloc(cover_lengths, sizeof(int) *
+											 (ncovers + 1));
+			cover_ranks = (double *) repalloc(cover_ranks, sizeof(double) *
+											  (ncovers + 1));
+
+			cover_lengths[ncovers] = 0;
+			cover_ranks[ncovers] = 0;
+
+			ncovers ++;
+		}
+
+		cover_keys[new_cover_idx] = new_cover_key;
+
+		/* Compute the number of query terms in the cover */
+		for (i = 0; i < qr->lenght; i++)
+			if (qr->operandexist[i])
+				nitems++;
+
+		Cpos = ((double) (ext.end - ext.begin + 1)) / InvSum;
+
+		if (nitems > 0)
+			Cpos *= nitems;
+
+		/*
+		 * if doc are big enough then ext.q may be equal to ext.p due to limit
+		 * of posional information. In this case we approximate number of
+		 * noise word as half cover's length
+		 */
+		nNoise = (ext.q - ext.p) - (ext.end - ext.begin);
+		if (nNoise < 0)
+			nNoise = (ext.end - ext.begin) / 2;
+		/* SK: Wdoc += Cpos / ((double) (1 + nNoise)); */
+		cover_lengths[new_cover_idx] ++;
+		cover_ranks[new_cover_idx] += Cpos / ((double) (1 + nNoise))
+			/ cover_lengths[new_cover_idx] / cover_lengths[new_cover_idx]
+				/ 1.64493406685;
+
+		CurExtPos = ((double) (ext.q + ext.p)) / 2.0;
+		if (NExtent > 0 && CurExtPos > PrevExtPos		/* prevent devision by
+														 * zero in a case of
+				multiple lexize */ )
+			SumDist += 1.0 / (CurExtPos - PrevExtPos);
+
+		PrevExtPos = CurExtPos;
+		NExtent++;
+	}
+
+	/* Added by SK */
+	for(i = 0; i < ncovers; i++)
+		Wdoc += cover_ranks[i];
+
+	if ((method & RANK_NORM_EXTDIST) && NExtent > 0 && SumDist > 0)
+		Wdoc /= ((double) NExtent) / SumDist;
+
+	if (method & RANK_NORM_RDIVRPLUS1)
+		Wdoc /= (Wdoc + 1);
+
+	pfree(cover_keys);
+	pfree(cover_lengths);
+	pfree(cover_ranks);
+
+	return (float4) Wdoc;
+}
+
+static float4
+calc_score_addinfo(float4 *arrdata, bool *check, TSQuery query,
+				   int *map_item_operand, Datum *addInfo, bool *addInfoIsNull,
+				   int nkeys)
+{
+	DocRepresentation *doc;
+	uint32		doclen = 0;
+	double		Wdoc = 0.0;
+	QueryRepresentation qr;
+
+	qr.query = query;
+	qr.map_item_operand = map_item_operand;
+	qr.operandexist = (bool *) palloc0(sizeof(bool) * nkeys);
+	qr.lenght = nkeys;
+
+	doc = get_docrep_addinfo(check, &qr, addInfo, addInfoIsNull, &doclen);
+	if (!doc)
+	{
+		pfree(qr.operandexist);
+		return 0.0;
+	}
+
+	Wdoc = calc_score_docr(arrdata, doc, doclen, &qr, DEF_NORM_METHOD);
+
+	pfree(doc);
+	pfree(qr.operandexist);
+
+	return (float4) Wdoc;
+}
+
+static float4
+calc_score(float4 *arrdata, TSVector txt, TSQuery query, int method)
+{
+	DocRepresentation *doc;
+	uint32		len,
+				doclen = 0;
+	double		Wdoc = 0.0;
+	QueryRepresentation qr;
+
+	qr.query = query;
+	qr.map_item_operand = NULL;
+	qr.operandexist = (bool *) palloc0(sizeof(bool) * query->size);
+	qr.lenght = query->size;
+
+	doc = get_docrep(txt, &qr, &doclen);
+	if (!doc)
+	{
+		pfree(qr.operandexist);
+		return 0.0;
+	}
+
+	Wdoc = calc_score_docr(arrdata, doc, doclen, &qr, method);
+
+	if ((method & RANK_NORM_LOGLENGTH) && txt->size > 0)
+		Wdoc /= log((double) (count_length(txt) + 1));
+
+	if (method & RANK_NORM_LENGTH)
+	{
+		len = count_length(txt);
+		if (len > 0)
+			Wdoc /= (double) len;
+	}
+
+	if ((method & RANK_NORM_UNIQ) && txt->size > 0)
+		Wdoc /= (double) (txt->size);
+
+	if ((method & RANK_NORM_LOGUNIQ) && txt->size > 0)
+		Wdoc /= log((double) (txt->size + 1)) / log(2.0);
+
+	pfree(doc);
+	pfree(qr.operandexist);
+
+	return (float4) Wdoc;
 }
 
 Datum
@@ -642,26 +1161,18 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 {
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
 
-	/* StrategyNumber strategy = PG_GETARG_UINT16(1); */
 	TSQuery		query = PG_GETARG_TSQUERY(2);
-	int32		nkeys = PG_GETARG_INT32(3);
+	int			nkeys = PG_GETARG_INT32(3);
 	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
 	float8		res;
 	int		   *map_item_operand = (int *) (extra_data[0]);
-	TSVector	tsv;
 
-	tsv = rum_reconstruct_tsvector(check, nkeys, query, map_item_operand,
-								   addInfo, addInfoIsNull);
+	res = calc_score_addinfo(weights, check, query, map_item_operand,
+							 addInfo, addInfoIsNull, nkeys);
 
-	res = DatumGetFloat4(DirectFunctionCall2Coll(ts_rank_tt,
-												 PG_GET_COLLATION(),
-												 TSVectorGetDatum(tsv),
-												 TSQueryGetDatum(query)));
-
-	pfree(tsv);
-
+	PG_FREE_IF_COPY(query, 2);
 	if (res == 0)
 		PG_RETURN_FLOAT8(get_float8_infinity());
 	else
@@ -671,15 +1182,18 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 Datum
 rum_ts_distance(PG_FUNCTION_ARGS)
 {
-	float4		r = DatumGetFloat4(DirectFunctionCall2Coll(ts_rank_tt,
-														   PG_GET_COLLATION(),
-														   PG_GETARG_DATUM(0),
-														PG_GETARG_DATUM(1)));
+	TSVector	txt = PG_GETARG_TSVECTOR(0);
+	TSQuery		query = PG_GETARG_TSQUERY(1);
+	float4		res;
 
-	if (r == 0)
+	res = calc_score(weights, txt, query, DEF_NORM_METHOD);
+
+	PG_FREE_IF_COPY(txt, 0);
+	PG_FREE_IF_COPY(query, 1);
+	if (res == 0)
 		PG_RETURN_FLOAT4(get_float4_infinity());
 	else
-		PG_RETURN_FLOAT4(1.0 / r);
+		PG_RETURN_FLOAT4(1.0 / res);
 }
 
 Datum
