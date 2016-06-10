@@ -1,3 +1,6 @@
 1. with naturalOrder=true make scan the rest to be consistent with seqscan
 2. add leftlink to data page to privide backward scan on index (<=| op)
+3. Compression of ItemPointer for use_alternative_order
+4. Compression addInfo
+5. Remove FROM_STRATEGY ugly magick 
 
