@@ -317,9 +317,10 @@ rumCompareItemPointers(const ItemPointerData *a, const ItemPointerData *b)
 }
 
 int
-compareRumKey(RumState * state, const RumKey * a, const RumKey * b)
+compareRumKey(RumState * state, const AttrNumber attno,
+			  const RumKey * a, const RumKey * b)
 {
-	if (state->useAlternativeOrder)
+	if (state->useAlternativeOrder && attno == state->attrnAddToColumn)
 	{
 		/* assume NULL is less than any real value */
 		if (a->addInfoIsNull == false && b->addInfoIsNull == false)
@@ -357,7 +358,7 @@ compareRumKey(RumState * state, const RumKey * a, const RumKey * b)
  * Caller is responsible that there is enough space at *dst.
  */
 uint32
-rumMergeItemPointers(RumState * rumstate, RumKey * dst,
+rumMergeItemPointers(RumState * rumstate, AttrNumber attno, RumKey * dst,
 					 RumKey * a, uint32 na, RumKey * b, uint32 nb)
 {
 	RumKey	   *dptr = dst;
@@ -368,7 +369,7 @@ rumMergeItemPointers(RumState * rumstate, RumKey * dst,
 	{
 		int			cmp;
 
-		cmp = compareRumKey(rumstate, aptr, bptr);
+		cmp = compareRumKey(rumstate, attno, aptr, bptr);
 
 		if (cmp > 0)
 		{
@@ -412,6 +413,7 @@ dataIsMoveRight(RumBtree btree, Page page)
 		return false;
 
 	res = compareRumKey(btree->rumstate,
+						btree->entryAttnum,
 						&btree->items[btree->curitem],
 						RumDataPageGetRightBound(page));
 
@@ -465,6 +467,7 @@ dataLocateItem(RumBtree btree, RumBtreeStack * stack)
 		else
 		{
 			result = compareRumKey(btree->rumstate,
+								   btree->entryAttnum,
 								   &btree->items[btree->curitem],
 								   &pitem->key);
 		}
@@ -545,7 +548,8 @@ findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
 			RumKey	k;
 
 			convertIndexToKey(index, &k);
-			cmp = compareRumKey(btree->rumstate, &k,
+			cmp = compareRumKey(btree->rumstate,
+								btree->entryAttnum, &k,
 								&btree->items[btree->curitem]);
 
 		}
@@ -577,7 +581,7 @@ findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
 		ptr = rumDataPageLeafRead(ptr, btree->entryAttnum, &item,
 								  btree->rumstate);
 
-		cmp = compareRumKey(btree->rumstate,
+		cmp = compareRumKey(btree->rumstate, btree->entryAttnum,
 							&btree->items[btree->curitem], &item);
 
 		if (cmp == 0)
@@ -888,8 +892,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 
 			ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
 								   &btree->items[j], &iptr, btree->rumstate);
-			freespace = RumDataPageFreeSpacePre(page, ptr);
-			Assert(freespace >= 0);
+			Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 
 			iptr = btree->items[j].iptr;
 			btree->curitem++;
@@ -906,8 +909,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum, &copy_item,
 											 &iptr, btree->rumstate);
 
-				freespace = RumDataPageFreeSpacePre(page, ptr);
-				Assert(freespace >= 0);
+				Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 
 				iptr = copy_item.iptr;
 			}
@@ -976,8 +978,6 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	RumKey		item;
 	int			totalCount = 0;
 	int			maxItemIndex = btree->curitem;
-	int			freespace;
-
 	static char lpageCopy[BLCKSZ];
 
 	dataPrepareData(btree, newlPage, off);
@@ -1084,8 +1084,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 				ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
 											 &btree->items[btree->curitem],
 											 &prevIptr, btree->rumstate);
-				freespace = RumDataPageFreeSpacePre(page, ptr);
-				Assert(freespace >= 0);
+				Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 
 				prevIptr = btree->items[btree->curitem].iptr;
 				btree->curitem++;
@@ -1100,8 +1099,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		curIptr = item;
 		ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum, &item,
 									 &prevIptr, btree->rumstate);
-		freespace = RumDataPageFreeSpacePre(page, ptr);
-		Assert(freespace >= 0);
+		Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 
 		prevIptr = item.iptr;
 
@@ -1115,8 +1113,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 			curIptr = btree->items[btree->curitem];
 			ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
 				  &btree->items[btree->curitem], &prevIptr, btree->rumstate);
-			freespace = RumDataPageFreeSpacePre(page, ptr);
-			Assert(freespace >= 0);
+			Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 
 			prevIptr = btree->items[btree->curitem].iptr;
 			btree->curitem++;

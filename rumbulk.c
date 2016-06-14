@@ -260,10 +260,12 @@ qsortCompareItemPointers(const void *a, const void *b)
 	return res;
 }
 
+static AttrNumber AttrNumberQsort = 0;
+
 static int
 qsortCompareRumKey(const void *a, const void *b, void *arg)
 {
-	return compareRumKey(arg, a, b);
+	return compareRumKey(arg, AttrNumberQsort, a, b);
 }
 
 /* Prepare to read out the rbtree contents using rumGetBAEntry */
@@ -301,6 +303,8 @@ rumGetBAEntry(BuildAccumulator *accum,
 
 	if (entry->count > 1)
 	{
+		AttrNumberQsort = entry->attnum;
+
 		if (accum->rumstate->useAlternativeOrder &&
 			entry->attnum == accum->rumstate->attrnAddToColumn)
 			qsort_arg(list, entry->count, sizeof(RumKey),

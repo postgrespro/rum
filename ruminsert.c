@@ -254,7 +254,7 @@ addItemPointersToLeafTuple(RumState * rumstate,
 
 	rumReadTuple(rumstate, attnum, old, oldItems);
 
-	newNPosting = rumMergeItemPointers(rumstate, newItems,
+	newNPosting = rumMergeItemPointers(rumstate, attnum, newItems,
 									   items, nitem, oldItems, oldNPosting);
 
 

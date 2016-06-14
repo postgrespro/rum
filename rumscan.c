@@ -104,7 +104,8 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->extra_data = extra_data;
 	scanEntry->strategy = strategy;
 	scanEntry->searchMode = searchMode;
-	scanEntry->attnum = attnum;
+	scanEntry->forceUseBitmap = false;
+	scanEntry->attnum = scanEntry->attnumOrig = attnum;
 
 	scanEntry->buffer = InvalidBuffer;
 	RumItemSetMin(&scanEntry->curRumKey);
@@ -121,15 +122,6 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->useMarkAddInfo = false;
 	ItemPointerSetMin(&scanEntry->markAddInfo.iptr);
 
-	/* Add it to so's array */
-	if (so->totalentries >= so->allocentries)
-	{
-		so->allocentries *= 2;
-		so->entries = (RumScanEntry *)
-			repalloc(so->entries, so->allocentries * sizeof(RumScanEntry));
-	}
-	so->entries[so->totalentries++] = scanEntry;
-
 	return scanEntry;
 }
 
@@ -144,11 +136,12 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 			   bool *partial_matches, Pointer *extra_data,
 			   bool orderBy)
 {
-	RumScanKey	key = &(so->keys[so->nkeys++]);
+	RumScanKey	key = palloc0(sizeof(*key));
 	RumState   *rumstate = &so->rumstate;
 	uint32		nUserQueryValues = nQueryValues;
 	uint32		i;
 
+	so->keys[so->nkeys++] = key;
 	/* Non-default search modes add one "hidden" entry to each key */
 	if (searchMode != GIN_SEARCH_MODE_DEFAULT)
 		nQueryValues++;
@@ -160,13 +153,16 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	key->extra_data = extra_data;
 	key->strategy = strategy;
 	key->searchMode = searchMode;
-	key->attnum = attnum;
+	key->attnum = key->attnumOrig = attnum;
 	key->useAddToColumn = false;
 
 	RumItemSetMin(&key->curItem);
 	key->curItemMatches = false;
 	key->recheckCurItem = false;
 	key->isFinished = false;
+
+	key->addInfoKeys = NULL;
+	key->addInfoNKeys = 0;
 
 	if (key->orderBy && key->attnum == rumstate->attrnOrderByColumn)
 	{
@@ -257,13 +253,13 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 }
 
 static void
-freeScanKeys(RumScanOpaque so)
+freeScanEntries(RumScanEntry *entries, uint32 nentries)
 {
 	uint32		i;
 
-	for (i = 0; i < so->totalentries; i++)
+	for (i = 0; i < nentries; i++)
 	{
-		RumScanEntry entry = so->entries[i];
+		RumScanEntry entry = entries[i];
 
 		if (entry->gdi)
 		{
@@ -285,6 +281,12 @@ freeScanKeys(RumScanOpaque so)
 			tbm_free(entry->matchBitmap);
 		pfree(entry);
 	}
+}
+
+static void
+freeScanKeys(RumScanOpaque so)
+{
+	freeScanEntries(so->entries, so->totalentries);
 
 	MemoryContextReset(so->keyCtx);
 	so->keys = NULL;
@@ -394,7 +396,7 @@ fillMarkAddInfo(RumScanOpaque so, RumScanKey orderKey)
 
 	for(i=0; i<so->nkeys; i++)
 	{
-		RumScanKey	scanKey = so->keys + i;
+		RumScanKey	scanKey = so->keys[i];
 
 		if (scanKey->orderBy)
 			continue;
@@ -428,6 +430,11 @@ rumNewScanKey(IndexScanDesc scan)
 	bool		hasNullQuery = false;
 	bool		checkEmptyEntry = false;
 	MemoryContext oldCtx;
+	enum {
+		haofNone = 0x00,
+		haofHasAddOnRestriction = 0x01,
+		haofHasAddToRestriction = 0x02
+	}		hasAddOnFilter = haofNone;
 
 	so->naturalOrder = false;
 
@@ -439,17 +446,10 @@ rumNewScanKey(IndexScanDesc scan)
 	oldCtx = MemoryContextSwitchTo(so->keyCtx);
 
 	/* if no scan keys provided, allocate extra EVERYTHING RumScanKey */
-	so->keys = (RumScanKey)
+	so->keys = (RumScanKey*)
 		palloc((Max(scan->numberOfKeys, 1) + scan->numberOfOrderBys) *
-			   sizeof(RumScanKeyData));
+			   sizeof(*so->keys));
 	so->nkeys = 0;
-
-	/* initialize expansible array of RumScanEntry pointers */
-	so->totalentries = 0;
-	so->allocentries = 32;
-	so->entries = (RumScanEntry *)
-		palloc0(so->allocentries * sizeof(RumScanEntry));
-	so->sortedEntries = NULL;
 
 	so->isVoidRes = false;
 
@@ -487,11 +487,98 @@ rumNewScanKey(IndexScanDesc scan)
 	 */
 	for (i = 0; so->rumstate.useAlternativeOrder && i < so->nkeys; i++)
 	{
-		RumScanKey  key = so->keys + i;
+		RumScanKey  key = so->keys[i];
 
 		if (key->orderBy && key->useAddToColumn &&
 			key->attnum == so->rumstate.attrnAddToColumn)
 			fillMarkAddInfo(so, key);
+		if (key->orderBy == false)
+		{
+			if (key->attnumOrig == so->rumstate.attrnAddToColumn)
+				hasAddOnFilter |= haofHasAddToRestriction;
+			if (key->attnumOrig == so->rumstate.attrnOrderByColumn)
+				 hasAddOnFilter |= haofHasAddOnRestriction;
+		}
+	}
+
+	if ((hasAddOnFilter & haofHasAddToRestriction) &&
+		(hasAddOnFilter & haofHasAddOnRestriction))
+	{
+		RumScanKey *keys = palloc(sizeof(*keys) * so->nkeys);
+		int			nkeys = 0;
+#ifdef ADD_INFO_FILTER
+		RumScanKey	addToKey = NULL;
+#endif
+
+		for(i=0; i<so->nkeys; i++)
+		{
+			RumScanKey  key = so->keys[i];
+
+#ifndef ADD_INFO_FILTER
+			if (key->orderBy == false &&
+				key->attnumOrig == so->rumstate.attrnAddToColumn)
+			{
+				int j;
+
+				for(j = 0; j<key->nentries; j++)
+					key->scanEntry[j]->forceUseBitmap = true;
+
+				keys[nkeys++] = key;
+			}
+#else
+			if (key->orderBy == false &&
+				key->attnumOrig == so->rumstate.attrnOrderByColumn)
+			{
+				for(j=0; addToKey == NULL && j<so->nkeys; j++)
+					if (so->keys[j]->orderBy == false &&
+						so->keys[j]->attnumOrig == so->rumstate.attrnAddToColumn)
+					{
+						addToKey = so->keys[j];
+
+						addToKey->addInfoKeys =
+							palloc(sizeof(*addToKey->addInfoKeys) * so->nkeys);
+					}
+
+				if (addToKey == NULL)
+					elog(ERROR,"could not find add_to column");
+
+				addToKey->addInfoKeys[ addToKey->addInfoNKeys++ ] = key;
+			}
+#endif
+			else
+			{
+				keys[nkeys++] = key;
+			}
+		}
+
+		pfree(so->keys);
+		so->keys = keys;
+		so->nkeys = nkeys;
+	}
+
+
+	/* initialize expansible array of RumScanEntry pointers */
+	so->totalentries = 0;
+	so->allocentries = 32;
+	so->entries = (RumScanEntry *)
+		palloc(so->allocentries * sizeof(RumScanEntry));
+	so->sortedEntries = NULL;
+
+	for(i = 0; i<so->nkeys; i++)
+	{
+		RumScanKey  key = so->keys[i];
+
+		/* Add it to so's array */
+		while (so->totalentries + key->nentries >= so->allocentries)
+		{
+			so->allocentries *= 2;
+			so->entries = (RumScanEntry *)
+				repalloc(so->entries, so->allocentries * sizeof(RumScanEntry));
+		}
+
+		memcpy(so->entries + so->totalentries,
+			   key->scanEntry, sizeof(*key->scanEntry) * key->nentries);
+		so->totalentries += key->nentries;
 	}
 
 	/*

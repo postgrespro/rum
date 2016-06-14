@@ -461,15 +461,16 @@ typedef struct RumBtreeData
 
 	BlockNumber rightblkno;
 
+	AttrNumber	entryAttnum;
+
 	/* Entry options */
-	OffsetNumber entryAttnum;
 	Datum		entryKey;
 	RumNullCategory entryCategory;
 	IndexTuple	entry;
 	bool		isDelete;
 
 	/* Data (posting tree) options */
-	RumKey	   *items;
+	RumKey		*items;
 
 	uint32		nitem;
 	uint32		curitem;
@@ -502,14 +503,17 @@ extern void checkLeafDataPage(RumState * rumstate, AttrNumber attrnum, Page page
 
 /* rumdatapage.c */
 extern int	rumCompareItemPointers(const ItemPointerData *a, const ItemPointerData *b);
-extern int	compareRumKey(RumState * state, const RumKey * a, const RumKey * b);
+extern int	compareRumKey(RumState * state, const AttrNumber attno,
+						  const RumKey * a, const RumKey * b);
 extern void convertIndexToKey(RumDataLeafItemIndex *src, RumKey *dst);
 extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
 					   RumKey * item, ItemPointer prev, RumState * rumstate);
 extern Size rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
 			RumKey * item, ItemPointer prev, RumState * rumstate, Size size);
-extern uint32 rumMergeItemPointers(RumState * rumstate, RumKey * dst,
-					 RumKey * a, uint32 na, RumKey * b, uint32 nb);
+extern uint32 rumMergeItemPointers(RumState * rumstate, AttrNumber attno,
+								   RumKey * dst,
+								   RumKey * a, uint32 na,
+								   RumKey * b, uint32 nb);
 extern void RumDataPageAddItem(Page page, void *data, OffsetNumber offset);
 extern void RumPageDeletePostingItem(Page page, OffsetNumber offset);
 
@@ -579,6 +583,7 @@ typedef struct RumScanKeyData
 	StrategyNumber strategy;
 	int32		searchMode;
 	OffsetNumber attnum;
+	OffsetNumber attnumOrig;
 
 	/*
 	 * Match status data.  curItem is the TID most recently tested (could be a
@@ -593,6 +598,9 @@ typedef struct RumScanKeyData
 	bool		recheckCurItem;
 	bool		isFinished;
 	bool		orderBy;
+
+	RumScanKey	*addInfoKeys;
+	int			addInfoNKeys;
 }	RumScanKeyData;
 
 typedef struct RumScanEntryData
@@ -605,6 +613,7 @@ typedef struct RumScanEntryData
 	StrategyNumber strategy;
 	int32		searchMode;
 	OffsetNumber attnum;
+	OffsetNumber attnumOrig;
 
 	/* Current page in posting tree */
 	Buffer		buffer;
@@ -613,6 +622,7 @@ typedef struct RumScanEntryData
 	RumKey		curRumKey;
 
 	/* for a partial-match or full-scan query, we accumulate all TIDs here */
+	bool		forceUseBitmap;
 	TIDBitmap  *matchBitmap;
 	TBMIterator *matchIterator;
 	TBMIterateResult *matchResult;
@@ -651,7 +661,7 @@ typedef struct RumScanOpaqueData
 	MemoryContext keyCtx;		/* used to hold key and entry data */
 	RumState	rumstate;
 
-	RumScanKey	keys;			/* one per scan qualifier expr */
+	RumScanKey	*keys;			/* one per scan qualifier expr */
 	uint32		nkeys;
 	int			norderbys;
 
