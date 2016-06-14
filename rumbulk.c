@@ -182,7 +182,8 @@ rumInsertBAEntry(BuildAccumulator *accum,
 		 * by setting shouldSort we prevent incorrect comparison in
 		 * rumCombineData()
 		 */
-		ea->shouldSort = accum->rumstate->useAlternativeOrder;
+		ea->shouldSort = (accum->rumstate->useAlternativeOrder &&
+						  attnum == accum->rumstate->attrnAddToColumn);
 		ea->list = (RumKey *) palloc(sizeof(RumKey) * DEF_NPTR);
 		ea->list[0].iptr = *heapptr;
 		ea->list[0].addInfo = addInfo;
@@ -300,7 +301,8 @@ rumGetBAEntry(BuildAccumulator *accum,
 
 	if (entry->count > 1)
 	{
-		if (accum->rumstate->useAlternativeOrder)
+		if (accum->rumstate->useAlternativeOrder &&
+			entry->attnum == accum->rumstate->attrnAddToColumn)
 			qsort_arg(list, entry->count, sizeof(RumKey),
 					  qsortCompareRumKey, accum->rumstate);
 		else if (entry->shouldSort)
