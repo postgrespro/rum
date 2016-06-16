@@ -975,6 +975,6 @@ extern Datum FunctionCall10Coll(FmgrInfo *flinfo, Oid collation,
 				   Datum arg6, Datum arg7, Datum arg8,
 				   Datum arg9, Datum arg10);
 
-#define FROM_STRATEGY		(22)
+#define FROM_STRATEGY		(21)
 
 #endif   /* __RUM_H__ */

@@ -54,14 +54,16 @@ rum_timestamp_extract_query(PG_FUNCTION_ARGS)
 
 	switch (strategy)
 	{
-		case BTLessStrategyNumber:
-		case BTLessEqualStrategyNumber:
-			entries[0] = TimestampGetDatum(DT_NOBEGIN); /* leftmost */
-			*ptr_partialmatch = true;
-			break;
 		case BTGreaterEqualStrategyNumber:
 		case BTGreaterStrategyNumber:
+			entries[0] = TimestampGetDatum(DT_NOEND); /* leftmost */
 			*ptr_partialmatch = true;
+			break;
+
+		case BTLessStrategyNumber:
+		case BTLessEqualStrategyNumber:
+			*ptr_partialmatch = true;
+
 		case BTEqualStrategyNumber:
 		case RUM_TMST_DISTANCE:
 		case RUM_TMST_LEFT_DISTANCE:
@@ -75,6 +77,20 @@ rum_timestamp_extract_query(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(entries);
 }
 
+PG_FUNCTION_INFO_V1(rum_timestamp_cmp);
+Datum
+rum_timestamp_cmp(PG_FUNCTION_ARGS)
+{
+	Datum		a = PG_GETARG_DATUM(0);
+	Datum		b = PG_GETARG_DATUM(1);
+	int32		cmp;
+
+	cmp = -DatumGetInt32(DirectFunctionCall2Coll(timestamp_cmp,
+												PG_GET_COLLATION(),
+												a, b));
+	PG_RETURN_INT32(cmp);
+}
+
 PG_FUNCTION_INFO_V1(rum_timestamp_compare_prefix);
 Datum
 rum_timestamp_compare_prefix(PG_FUNCTION_ARGS)
@@ -85,22 +101,22 @@ rum_timestamp_compare_prefix(PG_FUNCTION_ARGS)
 	int32		res,
 				cmp;
 
-	cmp = DatumGetInt32(DirectFunctionCall2Coll(timestamp_cmp,
+	cmp = DatumGetInt32(DirectFunctionCall2Coll(rum_timestamp_cmp,
 												PG_GET_COLLATION(),
-								   (data->strategy == BTLessStrategyNumber ||
-								 data->strategy == BTLessEqualStrategyNumber)
+								   (data->strategy == BTGreaterStrategyNumber ||
+								 data->strategy == BTGreaterEqualStrategyNumber)
 												? data->datum : a, b));
 
 	switch (data->strategy)
 	{
-		case BTLessStrategyNumber:
+		case BTGreaterStrategyNumber:
 			/* If original datum > indexed one then return match */
 			if (cmp > 0)
 				res = 0;
 			else
 				res = 1;
 			break;
-		case BTLessEqualStrategyNumber:
+		case BTGreaterEqualStrategyNumber:
 			/* The same except equality */
 			if (cmp >= 0)
 				res = 0;
@@ -113,14 +129,14 @@ rum_timestamp_compare_prefix(PG_FUNCTION_ARGS)
 			else
 				res = 0;
 			break;
-		case BTGreaterEqualStrategyNumber:
+		case BTLessEqualStrategyNumber:
 			/* If original datum <= indexed one then return match */
 			if (cmp <= 0)
 				res = 0;
 			else
 				res = 1;
 			break;
-		case BTGreaterStrategyNumber:
+		case BTLessStrategyNumber:
 			/* If original datum <= indexed one then return match */
 			/* If original datum == indexed one then continue scan */
 			if (cmp < 0)
