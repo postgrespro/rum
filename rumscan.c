@@ -556,7 +556,6 @@ rumNewScanKey(IndexScanDesc scan)
 		so->nkeys = nkeys;
 	}
 
-
 	/* initialize expansible array of RumScanEntry pointers */
 	so->totalentries = 0;
 	so->allocentries = 32;

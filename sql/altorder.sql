@@ -27,6 +27,8 @@ SELECT id, d, d |=> '2016-05-16 14:21:25' FROM atsts WHERE t @@ 'wr&qh' ORDER BY
 SELECT count(*) FROM atsts WHERE d < '2016-05-16 14:21:25';
 SELECT count(*) FROM atsts WHERE d > '2016-05-16 14:21:25';
 
+SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
+SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
 
 RESET enable_indexscan;
 RESET enable_indexonlyscan;
@@ -63,3 +65,11 @@ SELECT id, d, d |=> '2016-05-16 14:21:25' FROM atsts WHERE t @@ 'wr&qh' ORDER BY
 EXPLAIN (costs off)
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM atsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM atsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+
+EXPLAIN (costs off)
+SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
+SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
+EXPLAIN (costs off)
+SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
+SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
+
