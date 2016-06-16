@@ -50,13 +50,13 @@ _PG_init(void)
 
 	rum_relopt_kind = add_reloption_kind();
 
-	add_string_reloption(rum_relopt_kind, "orderby",
-						 "Column name to order by operation",
+	add_string_reloption(rum_relopt_kind, "attach",
+						 "Column name to attach as additional info",
 						 NULL, NULL);
-	add_string_reloption(rum_relopt_kind, "addto",
+	add_string_reloption(rum_relopt_kind, "to",
 						 "Column name to add a order by column",
 						 NULL, NULL);
-	add_bool_reloption(rum_relopt_kind, "use_alternative_order",
+	add_bool_reloption(rum_relopt_kind, "order_by_attach",
 			  "Use (addinfo, itempointer) order instead of just itempointer",
 					   false);
 }
@@ -785,9 +785,9 @@ rumoptions(Datum reloptions, bool validate)
 	int			numoptions;
 	static const relopt_parse_elt tab[] = {
 		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(RumOptions, useFastUpdate)},
-		{"orderby", RELOPT_TYPE_STRING, offsetof(RumOptions, orderByColumn)},
-		{"addto", RELOPT_TYPE_STRING, offsetof(RumOptions, addToColumn)},
-		{"use_alternative_order", RELOPT_TYPE_BOOL, offsetof(RumOptions, useAlternativeOrder)}
+		{"attach", RELOPT_TYPE_STRING, offsetof(RumOptions, orderByColumn)},
+		{"to", RELOPT_TYPE_STRING, offsetof(RumOptions, addToColumn)},
+		{"order_by_attach", RELOPT_TYPE_BOOL, offsetof(RumOptions, useAlternativeOrder)}
 	};
 
 	options = parseRelOptions(reloptions, validate, rum_relopt_kind,

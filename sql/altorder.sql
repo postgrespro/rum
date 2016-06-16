@@ -3,7 +3,7 @@ CREATE TABLE atsts (id int, t tsvector, d timestamp);
 \copy atsts from 'data/tsts.data'
 
 CREATE INDEX atsts_idx ON atsts USING rum (t rum_tsvector_timestamp_ops, d)
-	WITH (orderby = 'd', addto = 't', use_alternative_order='t');
+	WITH (attach = 'd', to = 't', order_by_attach='t');
 
 
 INSERT INTO atsts VALUES (-1, 't1 t2',  '2016-05-02 02:24:22.326724'); 
