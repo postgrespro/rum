@@ -436,7 +436,7 @@ rumNewScanKey(IndexScanDesc scan)
 		haofHasAddToRestriction = 0x02
 	}		hasAddOnFilter = haofNone;
 
-	so->naturalOrder = false;
+	so->naturalOrder = (scan->numberOfOrderBys > 0) ? false : true;
 
 	/*
 	 * Allocate all the scan key information in the key context. (If
