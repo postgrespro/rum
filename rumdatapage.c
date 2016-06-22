@@ -749,7 +749,7 @@ RumPageDeletePostingItem(Page page, OffsetNumber offset)
 }
 
 /*
- * checks space to install new value,
+ * checks space to install at least one new value,
  * item pointer never deletes!
  */
 static bool
@@ -762,8 +762,6 @@ dataIsEnoughSpace(RumBtree btree, Buffer buf, OffsetNumber off)
 
 	if (RumPageIsLeaf(page))
 	{
-		int			n,
-					j;
 		ItemPointerData iptr = {{0, 0}, 0};
 		Size		size = 0;
 
@@ -772,24 +770,8 @@ dataIsEnoughSpace(RumBtree btree, Buffer buf, OffsetNumber off)
 		 * encoding from zero item pointer. Also use worst case assumption
 		 * about alignment.
 		 */
-		n = RumPageGetOpaque(page)->maxoff;
-
-		if (RumPageRightMost(page) && off > n)
-		{
-			for (j = btree->curitem; j < btree->nitem; j++)
-			{
-				size = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
-												   &btree->items[j],
-				 (j == btree->curitem) ? (&iptr) : &btree->items[j - 1].iptr,
-												   btree->rumstate, size);
-			}
-		}
-		else
-		{
-			j = btree->curitem;
-			size = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
-							 &btree->items[j], &iptr, btree->rumstate, size);
-		}
+		size = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
+				 btree->items + btree->curitem, &iptr, btree->rumstate, 0);
 		size += MAXIMUM_ALIGNOF;
 
 		if (RumPageGetOpaque(page)->freespace >= size)
@@ -840,16 +822,16 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 
 	if (RumPageIsLeaf(page))
 	{
-		int			i = 0,
-					j,
-					max_j;
 		Pointer		ptr = RumDataPageGetData(page),
-					copy_ptr = NULL;
+					copyPtr = NULL;
 		ItemPointerData iptr = {{0, 0}, 0};
-		RumKey		copy_item;
+		RumKey		copyItem;
+		bool		copyItemEmpty = true;
 		char		pageCopy[BLCKSZ];
 		int			maxoff = RumPageGetOpaque(page)->maxoff;
-		int			freespace;
+		int			freespace,
+					insertCount = 0;
+		bool		stopAppend = false;
 
 		/*
 		 * We're going to prevent var-byte re-encoding of whole page. Find
@@ -857,69 +839,110 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 		 */
 		findInLeafPage(btree, page, &off, &iptr, &ptr);
 
-		freespace = RumDataPageFreeSpacePre(page, ptr);
-		Assert(freespace >= 0);
-
 		if (off <= maxoff)
 		{
 			/*
 			 * Read next item-pointer with additional information: we'll have
 			 * to re-encode it. Copy previous part of page.
 			 */
-			memcpy(pageCopy, page, BLCKSZ);
-			copy_ptr = pageCopy + (ptr - page);
-			copy_item.iptr = iptr;
+			memcpy(pageCopy + (ptr - page), ptr, BLCKSZ - (ptr - page));
+			copyPtr = pageCopy + (ptr - page);
+			copyItem.iptr = iptr;
 		}
 
-		/* Check how many items we're going to add */
-		if (RumPageRightMost(page) && off > maxoff)
-			max_j = btree->nitem;
-		else
-			max_j = btree->curitem + 1;
+		freespace = RumPageGetOpaque(page)->freespace;
 
-		/* Place items to the page while we have enough of space */
-		i = 0;
-		for (j = btree->curitem; j < max_j; j++)
+		/*
+		 * We are execute a merge join over old page and new items, but we
+		 * should stop inserting of new items if free space of page is ended
+		 * to put all old items back
+		 */
+		while(42)
 		{
-			Pointer		ptr2;
+			int cmp;
 
-			ptr2 = page + rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
-					   &btree->items[j], &iptr, btree->rumstate, ptr - page);
-
-			freespace = RumDataPageFreeSpacePre(page, ptr2);
-			if (freespace < 0)
-				break;
-
-			ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
-								   &btree->items[j], &iptr, btree->rumstate);
-			Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
-
-			iptr = btree->items[j].iptr;
-			btree->curitem++;
-			i++;
-		}
-
-		/* Place rest of the page back */
-		if (off <= maxoff)
-		{
-			for (j = off; j <= maxoff; j++)
+			/* get next item to copy if we pushed it on previous loop */
+			if (copyItemEmpty == true && off <= maxoff)
 			{
-				copy_ptr = rumDataPageLeafRead(copy_ptr, btree->entryAttnum,
-											   &copy_item, btree->rumstate);
-				ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum, &copy_item,
+				copyPtr = rumDataPageLeafRead(copyPtr, btree->entryAttnum,
+											  &copyItem, btree->rumstate);
+				copyItemEmpty = false;
+			}
+
+			if (off <= maxoff && btree->curitem < btree->nitem)
+			{
+				if (stopAppend)
+					cmp = -1; /* force copy */
+				else
+					cmp = compareRumKey(btree->rumstate, btree->entryAttnum,
+										&copyItem,
+										btree->items + btree->curitem);
+			}
+			else if (btree->curitem < btree->nitem)
+			{
+				/* we copied all old items but we have to add more new items */
+				if (stopAppend)
+					 /* there is no free space on page */
+					break;
+				else
+					/* force insertion of new item */
+					cmp = 1;
+			}
+			else if (off <= maxoff)
+			{
+				/* force copy, we believe that all old items could be placed */
+				cmp = -1;
+			}
+			else
+			{
+				break;
+			}
+
+			if (cmp <= 0)
+			{
+				ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
+											 &copyItem,
 											 &iptr, btree->rumstate);
 
-				Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
+				iptr = copyItem.iptr;
+				off++;
+				copyItemEmpty = true;
 
-				iptr = copy_item.iptr;
+				if (cmp == 0)
+				{
+					btree->curitem++;
+					insertCount++;
+				}
 			}
+			else /* if (cmp > 0) */
+			{
+				int	newItemSize;
+
+				newItemSize = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
+										btree->items + btree->curitem, &iptr,
+										btree->rumstate, 0);
+
+				if (newItemSize <= freespace)
+				{
+					ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
+												 btree->items + btree->curitem,
+												 &iptr, btree->rumstate);
+					iptr = btree->items[btree->curitem].iptr;
+					btree->curitem++;
+					freespace -= newItemSize;
+					insertCount++;
+				}
+				else
+				{
+					stopAppend = true;
+				}
+			}
+
+			Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 		}
 
-		RumPageGetOpaque(page)->maxoff += i;
-
-		freespace = RumDataPageFreeSpacePre(page, ptr);
-		if (freespace < 0)
-			elog(ERROR, "Not enough of space in leaf page!");
+		Assert(insertCount > 0);
+		RumPageGetOpaque(page)->maxoff += insertCount;
 
 		/* Update indexes in the end of page */
 		updateItemIndexes(page, btree->entryAttnum, btree->rumstate);
