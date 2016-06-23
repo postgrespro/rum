@@ -376,9 +376,11 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 	/* this loop crawls up the stack until the insertion is complete */
 	for (;;)
 	{
-		BlockNumber savedRightLink;
+		BlockNumber savedLeftLink,
+					savedRightLink;
 
 		page = BufferGetPage(stack->buffer);
+		savedLeftLink = RumPageGetOpaque(page)->leftlink;
 		savedRightLink = RumPageGetOpaque(page)->rightlink;
 
 		if (btree->isEnoughSpace(btree, stack->buffer, stack->off))
@@ -436,6 +438,8 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 												  GENERIC_XLOG_FULL_IMAGE);
 
 				RumPageGetOpaque(rpage)->rightlink = InvalidBlockNumber;
+				RumPageGetOpaque(newlpage)->leftlink = InvalidBlockNumber;
+				RumPageGetOpaque(rpage)->leftlink = BufferGetBlockNumber(lbuffer);
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
 
 				RumInitPage(page, RumPageGetOpaque(newlpage)->flags & ~RUM_LEAF,
@@ -480,6 +484,8 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 											lpage, rpage, stack->off);
 
 				RumPageGetOpaque(rpage)->rightlink = savedRightLink;
+				RumPageGetOpaque(newlpage)->leftlink = savedLeftLink;
+				RumPageGetOpaque(rpage)->leftlink = BufferGetBlockNumber(stack->buffer);
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
 
 				PageRestoreTempPage(newlpage, lpage);

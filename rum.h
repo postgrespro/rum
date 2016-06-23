@@ -34,6 +34,7 @@
  */
 typedef struct RumPageOpaqueData
 {
+	BlockNumber leftlink;		/* prev page if any */
 	BlockNumber rightlink;		/* next page if any */
 	OffsetNumber maxoff;		/* number entries on RUM_DATA page: number of
 								 * heap ItemPointers on RUM_DATA|RUM_LEAF page

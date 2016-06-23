@@ -305,18 +305,41 @@ rumVacuumPostingTreeLeaves(RumVacuumState * gvs, OffsetNumber attnum,
 /*
  * Delete a posting tree page.
  */
-static void
-rumDeletePage(RumVacuumState * gvs, BlockNumber deleteBlkno, BlockNumber leftBlkno,
+static bool
+rumDeletePage(RumVacuumState * gvs, BlockNumber deleteBlkno,
 			  BlockNumber parentBlkno, OffsetNumber myoff, bool isParentRoot)
 {
+	BlockNumber	leftBlkno,
+				rightBlkno;
 	Buffer		dBuffer;
-	Buffer		lBuffer;
+	Buffer		lBuffer,
+				rBuffer;
 	Buffer		pBuffer;
 	Page		lPage,
 				dPage,
+				rPage,
 				parentPage;
-	BlockNumber rightlink;
 	GenericXLogState *state;
+
+restart:
+
+	dBuffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, deleteBlkno,
+								 RBM_NORMAL, gvs->strategy);
+
+	LockBuffer(dBuffer, RUM_EXCLUSIVE);
+
+	dPage = BufferGetPage(dBuffer);
+	leftBlkno = RumPageGetOpaque(dPage)->leftlink;
+	rightBlkno = RumPageGetOpaque(dPage)->rightlink;
+
+	/* do not remove left/right most pages */
+	if (leftBlkno == InvalidBlockNumber || rightBlkno == InvalidBlockNumber)
+	{
+		UnlockReleaseBuffer(dBuffer);
+		return false;
+	}
+
+	LockBuffer(dBuffer, RUM_UNLOCK);
 
 	state = GenericXLogStart(gvs->index);
 
@@ -326,23 +349,44 @@ rumDeletePage(RumVacuumState * gvs, BlockNumber deleteBlkno, BlockNumber leftBlk
 	 */
 	lBuffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, leftBlkno,
 								 RBM_NORMAL, gvs->strategy);
-	dBuffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, deleteBlkno,
+	rBuffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, rightBlkno,
 								 RBM_NORMAL, gvs->strategy);
 	pBuffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, parentBlkno,
 								 RBM_NORMAL, gvs->strategy);
 
 	LockBuffer(lBuffer, RUM_EXCLUSIVE);
 	LockBuffer(dBuffer, RUM_EXCLUSIVE);
+	LockBuffer(rBuffer, RUM_EXCLUSIVE);
 	if (!isParentRoot)			/* parent is already locked by
 								 * LockBufferForCleanup() */
 		LockBuffer(pBuffer, RUM_EXCLUSIVE);
 
-	/* Unlink the page by changing left sibling's rightlink */
 	dPage = GenericXLogRegisterBuffer(state, dBuffer, 0);
-	rightlink = RumPageGetOpaque(dPage)->rightlink;
-
 	lPage = GenericXLogRegisterBuffer(state, lBuffer, 0);
-	RumPageGetOpaque(lPage)->rightlink = rightlink;
+	rPage = GenericXLogRegisterBuffer(state, rBuffer, 0);
+
+	/*
+	 * last chance to check
+	 */
+	if (!(RumPageGetOpaque(lPage)->rightlink == deleteBlkno &&
+		  RumPageGetOpaque(rPage)->leftlink == deleteBlkno &&
+		  RumPageGetOpaque(dPage)->maxoff < FirstOffsetNumber))
+	{
+		if (!isParentRoot)
+			LockBuffer(pBuffer, RUM_UNLOCK);
+		ReleaseBuffer(pBuffer);
+		UnlockReleaseBuffer(lBuffer);
+		UnlockReleaseBuffer(dBuffer);
+		UnlockReleaseBuffer(rBuffer);
+
+		if (RumPageGetOpaque(dPage)->maxoff >= FirstOffsetNumber)
+			return false;
+
+		goto restart;
+	}
+
+	RumPageGetOpaque(lPage)->rightlink = rightBlkno;
+	RumPageGetOpaque(rPage)->leftlink = leftBlkno;
 
 	/* Delete downlink from parent */
 	parentPage = GenericXLogRegisterBuffer(state, pBuffer, 0);
@@ -357,7 +401,7 @@ rumDeletePage(RumVacuumState * gvs, BlockNumber deleteBlkno, BlockNumber leftBlk
 	RumPageDeletePostingItem(parentPage, myoff);
 
 	/*
-	 * we shouldn't change rightlink field to save workability of running
+	 * we shouldn't change left/right link field to save workability of running
 	 * search scan
 	 */
 	RumPageGetOpaque(dPage)->flags = RUM_DELETED;
@@ -369,8 +413,11 @@ rumDeletePage(RumVacuumState * gvs, BlockNumber deleteBlkno, BlockNumber leftBlk
 	ReleaseBuffer(pBuffer);
 	UnlockReleaseBuffer(lBuffer);
 	UnlockReleaseBuffer(dBuffer);
+	UnlockReleaseBuffer(rBuffer);
 
 	gvs->result->pages_deleted++;
+
+	return true;
 }
 
 typedef struct DataPageDeleteStack
@@ -379,7 +426,6 @@ typedef struct DataPageDeleteStack
 	struct DataPageDeleteStack *parent;
 
 	BlockNumber blkno;			/* current block number */
-	BlockNumber leftBlkno;		/* rightest non-deleted page on left */
 	bool		isRoot;
 } DataPageDeleteStack;
 
@@ -387,12 +433,13 @@ typedef struct DataPageDeleteStack
  * scans posting tree and deletes empty pages
  */
 static bool
-rumScanToDelete(RumVacuumState * gvs, BlockNumber blkno, bool isRoot, DataPageDeleteStack *parent, OffsetNumber myoff)
+rumScanToDelete(RumVacuumState * gvs, BlockNumber blkno, bool isRoot,
+				DataPageDeleteStack *parent, OffsetNumber myoff)
 {
 	DataPageDeleteStack *me;
 	Buffer		buffer;
 	Page		page;
-	bool		meDelete = FALSE;
+	bool		meDelete = false;
 
 	if (isRoot)
 	{
@@ -405,7 +452,6 @@ rumScanToDelete(RumVacuumState * gvs, BlockNumber blkno, bool isRoot, DataPageDe
 			me = (DataPageDeleteStack *) palloc0(sizeof(DataPageDeleteStack));
 			me->parent = parent;
 			parent->child = me;
-			me->leftBlkno = InvalidBlockNumber;
 		}
 		else
 			me = parent->child;
@@ -431,21 +477,10 @@ rumScanToDelete(RumVacuumState * gvs, BlockNumber blkno, bool isRoot, DataPageDe
 		}
 	}
 
-	if (RumPageGetOpaque(page)->maxoff < FirstOffsetNumber)
-	{
-		/* we never delete the left- or rightmost branch */
-		if (me->leftBlkno != InvalidBlockNumber && !RumPageRightMost(page))
-		{
-			Assert(!isRoot);
-			rumDeletePage(gvs, blkno, me->leftBlkno, me->parent->blkno, myoff, me->parent->isRoot);
-			meDelete = TRUE;
-		}
-	}
+	if (RumPageGetOpaque(page)->maxoff < FirstOffsetNumber && !isRoot)
+		meDelete = rumDeletePage(gvs, blkno, me->parent->blkno, myoff, me->parent->isRoot);
 
 	ReleaseBuffer(buffer);
-
-	if (!meDelete)
-		me->leftBlkno = blkno;
 
 	return meDelete;
 }
@@ -465,7 +500,6 @@ rumVacuumPostingTree(RumVacuumState * gvs, OffsetNumber attnum, BlockNumber root
 	}
 
 	memset(&root, 0, sizeof(DataPageDeleteStack));
-	root.leftBlkno = InvalidBlockNumber;
 	root.isRoot = TRUE;
 
 	vacuum_delay_point();

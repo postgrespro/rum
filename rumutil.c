@@ -481,6 +481,7 @@ RumInitPage(Page page, uint32 f, Size pageSize)
 	opaque = RumPageGetOpaque(page);
 	memset(opaque, 0, sizeof(RumPageOpaqueData));
 	opaque->flags = f;
+	opaque->leftlink = InvalidBlockNumber;
 	opaque->rightlink = InvalidBlockNumber;
 }
 
