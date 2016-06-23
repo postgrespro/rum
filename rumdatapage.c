@@ -916,17 +916,25 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 			}
 			else /* if (cmp > 0) */
 			{
-				int	newItemSize;
+				int		newItemSize,
+						aligmentSize = ptr - (char*)MAXALIGN_DOWN(ptr);
+#ifdef USE_ASSERT_CHECKING
+				char	*oldptr = ptr;
+#endif
 
 				newItemSize = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
 										btree->items + btree->curitem, &iptr,
-										btree->rumstate, 0);
+										btree->rumstate, aligmentSize);
+
+				newItemSize -= aligmentSize;
 
 				if (newItemSize <= freespace)
 				{
 					ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
 												 btree->items + btree->curitem,
 												 &iptr, btree->rumstate);
+
+					Assert(ptr - oldptr == newItemSize);
 					iptr = btree->items[btree->curitem].iptr;
 					btree->curitem++;
 					freespace -= newItemSize;
