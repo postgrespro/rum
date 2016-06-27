@@ -2239,7 +2239,7 @@ collectMatchesForHeapRow(IndexScanDesc scan, pendingPosition *pos)
 						else
 						{
 							key->entryRes[j] = true;
-							if (OidIsValid(so->rumstate.addInfoTypeOid[i]))
+							if (OidIsValid(so->rumstate.rumConfig[i].addInfoTypeOid))
 								key->addInfo[j] = index_getattr(itup,
 												 so->rumstate.oneCol ? 2 : 3,
 										   so->rumstate.tupdesc[attrnum - 1],

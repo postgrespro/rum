@@ -656,7 +656,7 @@ processPendingPage(BuildAccumulator *accum, KeyArray *ka,
 		/* Check for change of heap TID or attnum */
 		curattnum = rumtuple_get_attrnum(accum->rumstate, itup);
 
-		if (OidIsValid(accum->rumstate->addInfoTypeOid[curattnum - 1]))
+		if (OidIsValid(accum->rumstate->rumConfig[curattnum - 1].addInfoTypeOid))
 		{
 			Form_pg_attribute attr = accum->rumstate->addAttrs[curattnum - 1];
 

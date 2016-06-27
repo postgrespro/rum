@@ -16,6 +16,7 @@
 #include "access/generic_xlog.h"
 #include "access/gin.h"
 #include "access/itup.h"
+#include "access/sdir.h"
 #include "lib/rbtree.h"
 #include "storage/bufmgr.h"
 
@@ -321,6 +322,17 @@ typedef struct RumOptions
 #define RUM_SHARE	BUFFER_LOCK_SHARE
 #define RUM_EXCLUSIVE  BUFFER_LOCK_EXCLUSIVE
 
+#define MAX_STRATEGIES	(8)
+typedef struct RumConfig
+{
+	Oid			addInfoTypeOid;
+
+	struct {
+		StrategyNumber	strategy;
+		ScanDirection	direction;
+	}		strategyInfo[MAX_STRATEGIES];
+}	RumConfig;
+
 /*
  * RumState: working data structure describing the index being worked on
  */
@@ -345,7 +357,7 @@ typedef struct RumState
 	 */
 	TupleDesc	origTupdesc;
 	TupleDesc	tupdesc[INDEX_MAX_KEYS];
-	Oid			addInfoTypeOid[INDEX_MAX_KEYS];
+	RumConfig	rumConfig[INDEX_MAX_KEYS];
 	Form_pg_attribute addAttrs[INDEX_MAX_KEYS];
 
 	/*
@@ -370,11 +382,6 @@ typedef struct RumState
 	/* Collations to pass to the support functions */
 	Oid			supportCollation[INDEX_MAX_KEYS];
 }	RumState;
-
-typedef struct RumConfig
-{
-	Oid			addInfoTypeOid;
-}	RumConfig;
 
 /* XLog stuff */
 
@@ -599,6 +606,7 @@ typedef struct RumScanKeyData
 	bool		recheckCurItem;
 	bool		isFinished;
 	bool		orderBy;
+	ScanDirection	scanDirection;
 
 	RumScanKey	*addInfoKeys;
 	int			addInfoNKeys;
@@ -638,6 +646,7 @@ typedef struct RumScanEntryData
 	uint32		nlist;
 	OffsetNumber offset;
 
+	ScanDirection	scanDirection;
 	bool		isFinished;
 	bool		reduceResult;
 	bool		preValue;

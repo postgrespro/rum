@@ -120,6 +120,7 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->isFinished = false;
 	scanEntry->reduceResult = false;
 	scanEntry->useMarkAddInfo = false;
+	scanEntry->scanDirection = NoMovementScanDirection;
 	ItemPointerSetMin(&scanEntry->markAddInfo.iptr);
 
 	return scanEntry;
@@ -155,6 +156,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	key->searchMode = searchMode;
 	key->attnum = key->attnumOrig = attnum;
 	key->useAddToColumn = false;
+	key->scanDirection = NoMovementScanDirection;
 
 	RumItemSetMin(&key->curItem);
 	key->curItemMatches = false;

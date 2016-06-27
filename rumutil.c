@@ -176,9 +176,9 @@ initRumState(RumState * state, Relation index)
 
 	for (i = 0; i < origTupdesc->natts; i++)
 	{
-		RumConfig	rumConfig;
+		RumConfig	*rumConfig = state->rumConfig + i;
 
-		rumConfig.addInfoTypeOid = InvalidOid;
+		rumConfig->addInfoTypeOid = InvalidOid;
 
 		if (index_getprocid(index, i + 1, RUM_CONFIG_PROC) != InvalidOid)
 		{
@@ -186,36 +186,32 @@ initRumState(RumState * state, Relation index)
 						   index_getprocinfo(index, i + 1, RUM_CONFIG_PROC),
 						   CurrentMemoryContext);
 
-			FunctionCall1(&state->configFn[i], PointerGetDatum(&rumConfig));
+			FunctionCall1(&state->configFn[i], PointerGetDatum(rumConfig));
 		}
 
 		if (state->attrnAddToColumn == i + 1)
 		{
-			if (OidIsValid(rumConfig.addInfoTypeOid))
+			if (OidIsValid(rumConfig->addInfoTypeOid))
 				elog(ERROR, "AddTo could should not have AddInfo");
 
-			state->addInfoTypeOid[i] = origTupdesc->attrs[
+			rumConfig->addInfoTypeOid = origTupdesc->attrs[
 									state->attrnOrderByColumn - 1]->atttypid;
-		}
-		else
-		{
-			state->addInfoTypeOid[i] = rumConfig.addInfoTypeOid;
 		}
 
 		if (state->oneCol)
 		{
 			state->tupdesc[i] = CreateTemplateTupleDesc(
-						OidIsValid(state->addInfoTypeOid[i]) ? 2 : 1, false);
+						OidIsValid(rumConfig->addInfoTypeOid) ? 2 : 1, false);
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 1, NULL,
 							   origTupdesc->attrs[i]->atttypid,
 							   origTupdesc->attrs[i]->atttypmod,
 							   origTupdesc->attrs[i]->attndims);
 			TupleDescInitEntryCollation(state->tupdesc[i], (AttrNumber) 1,
 										origTupdesc->attrs[i]->attcollation);
-			if (OidIsValid(state->addInfoTypeOid[i]))
+			if (OidIsValid(rumConfig->addInfoTypeOid))
 			{
 				TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 2, NULL,
-								   state->addInfoTypeOid[i], -1, 0);
+								   rumConfig->addInfoTypeOid, -1, 0);
 				state->addAttrs[i] = state->tupdesc[i]->attrs[1];
 			}
 			else
@@ -226,7 +222,7 @@ initRumState(RumState * state, Relation index)
 		else
 		{
 			state->tupdesc[i] = CreateTemplateTupleDesc(
-						OidIsValid(state->addInfoTypeOid[i]) ? 3 : 2, false);
+						OidIsValid(rumConfig->addInfoTypeOid) ? 3 : 2, false);
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 1, NULL,
 							   INT2OID, -1, 0);
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 2, NULL,
@@ -235,10 +231,10 @@ initRumState(RumState * state, Relation index)
 							   origTupdesc->attrs[i]->attndims);
 			TupleDescInitEntryCollation(state->tupdesc[i], (AttrNumber) 2,
 										origTupdesc->attrs[i]->attcollation);
-			if (OidIsValid(state->addInfoTypeOid[i]))
+			if (OidIsValid(rumConfig->addInfoTypeOid))
 			{
 				TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 3, NULL,
-								   state->addInfoTypeOid[i], -1, 0);
+								   rumConfig->addInfoTypeOid, -1, 0);
 				state->addAttrs[i] = state->tupdesc[i]->attrs[2];
 			}
 			else
