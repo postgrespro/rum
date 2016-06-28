@@ -87,7 +87,7 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <2> fgr');
  count 
 -------
-     2
+     1
 (1 row)
 
 SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *

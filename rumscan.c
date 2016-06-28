@@ -391,6 +391,23 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 				   (skey->sk_flags & SK_ORDER_BY) ? true : false);
 }
 
+static ScanDirection
+lookupScanDirection(RumState *state, AttrNumber attno, StrategyNumber strategy)
+{
+	int			i;
+	RumConfig	*rumConfig = state->rumConfig + attno - 1;
+
+	for(i = 0; rumConfig->strategyInfo[i].strategy != InvalidStrategy &&
+			   i < MAX_STRATEGIES; i++)
+	{
+		if (rumConfig->strategyInfo[i].strategy == strategy)
+			return rumConfig->strategyInfo[i].direction;
+
+	}
+
+	return NoMovementScanDirection;
+}
+
 static void
 fillMarkAddInfo(RumScanOpaque so, RumScanKey orderKey)
 {
@@ -405,7 +422,8 @@ fillMarkAddInfo(RumScanOpaque so, RumScanKey orderKey)
 
 		if (scanKey->attnum == so->rumstate.attrnAddToColumn &&
 			orderKey->attnum == so->rumstate.attrnAddToColumn &&
-			orderKey->strategy == FROM_STRATEGY /* FIXME teodor */)
+			lookupScanDirection(&so->rumstate, orderKey->attnumOrig,
+								orderKey->strategy) == ForwardScanDirection)
 		{
 			int j;
 

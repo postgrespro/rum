@@ -629,5 +629,7 @@ ruminv_tsquery_config(PG_FUNCTION_ARGS)
 	RumConfig  *config = (RumConfig *) PG_GETARG_POINTER(0);
 
 	config->addInfoTypeOid = BYTEAOID;
+	config->strategyInfo[0].strategy = InvalidStrategy;
+
 	PG_RETURN_VOID();
 }

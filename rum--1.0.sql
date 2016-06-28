@@ -119,6 +119,11 @@ RETURNS int4
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
 
+CREATE FUNCTION rum_timestamp_config(internal)
+RETURNS void
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
 CREATE FUNCTION rum_timestamp_extract_query(timestamp,internal,smallint,internal,internal,internal,internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
@@ -148,6 +153,7 @@ AS
 	FUNCTION        3 rum_timestamp_extract_query(timestamp,internal,smallint,internal,internal,internal,internal),
 	FUNCTION        4 rum_timestamp_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal),
 	FUNCTION        5 rum_timestamp_compare_prefix(timestamp,timestamp,smallint,internal),
+    FUNCTION        6 rum_timestamp_config(internal),
 	-- support to timestamp disttance in rum_tsvector_timestamp_ops
 	FUNCTION		9 rum_timestamp_outer_distance(timestamp, timestamp, smallint),
 	OPERATOR		20		<=> (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,

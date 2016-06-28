@@ -3,6 +3,7 @@
 #include <limits.h>
 
 #include "access/stratnum.h"
+#include "rum.h"
 #include "utils/builtins.h"
 #include "utils/timestamp.h"
 
@@ -270,3 +271,20 @@ rum_timestamp_outer_distance(PG_FUNCTION_ARGS)
 
 	PG_RETURN_DATUM(diff);
 }
+
+PG_FUNCTION_INFO_V1(rum_timestamp_config);
+Datum
+rum_timestamp_config(PG_FUNCTION_ARGS)
+{
+	RumConfig  *config = (RumConfig *) PG_GETARG_POINTER(0);
+
+	config->addInfoTypeOid = InvalidOid;
+
+	config->strategyInfo[0].strategy = RUM_TMST_LEFT_DISTANCE;
+	config->strategyInfo[0].direction = ForwardScanDirection;
+
+	config->strategyInfo[1].strategy = InvalidStrategy;
+
+	PG_RETURN_VOID();
+}
+
