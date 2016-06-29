@@ -755,25 +755,6 @@ extern RumKey *rumGetBAEntry(BuildAccumulator *accum,
 			  OffsetNumber *attnum, Datum *key, RumNullCategory * category,
 			  uint32 *n);
 
-/* rumfast.c */
-
-typedef struct RumTupleCollector
-{
-	IndexTuple *tuples;
-	uint32		ntuples;
-	uint32		lentuples;
-	uint32		sumsize;
-}	RumTupleCollector;
-
-extern void rumHeapTupleFastInsert(RumState * rumstate,
-					   RumTupleCollector * collector);
-extern void rumHeapTupleFastCollect(RumState * rumstate,
-						RumTupleCollector * collector,
-						OffsetNumber attnum, Datum value, bool isNull,
-						ItemPointer ht_ctid);
-extern void rumInsertCleanup(RumState * rumstate,
-				 bool vac_delay, IndexBulkDeleteResult *stats);
-
 /* rum_ts_utils.c */
 #define RUM_CONFIG_PROC				6
 #define RUM_PRE_CONSISTENT_PROC		7

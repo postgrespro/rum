@@ -774,30 +774,10 @@ ruminsert(Relation index, Datum *values, bool *isnull,
 		outerAddInfoIsNull = isnull[rumstate.attrnOrderByColumn - 1];
 	}
 
-#ifdef NOT_USED
-	if (RumGetUseFastUpdate(index))
-	{
-		RumTupleCollector collector;
-
-		memset(&collector, 0, sizeof(RumTupleCollector));
-
-		for (i = 0; i < rumstate.origTupdesc->natts; i++)
-			rumHeapTupleFastCollect(&rumstate, &collector,
-									(OffsetNumber) (i + 1),
-									values[i], isnull[i],
-									ht_ctid);
-
-		rumHeapTupleFastInsert(&rumstate, &collector);
-	}
-	else
-#endif
-	{
-		for (i = 0; i < rumstate.origTupdesc->natts; i++)
-			rumHeapTupleInsert(&rumstate, (OffsetNumber) (i + 1),
-							   values[i], isnull[i],
-							   ht_ctid,
-							   outerAddInfo, outerAddInfoIsNull);
-	}
+	for (i = 0; i < rumstate.origTupdesc->natts; i++)
+		rumHeapTupleInsert(&rumstate, (OffsetNumber) (i + 1),
+						   values[i], isnull[i], ht_ctid,
+						   outerAddInfo, outerAddInfoIsNull);
 
 	MemoryContextSwitchTo(oldCtx);
 	MemoryContextDelete(insertCtx);

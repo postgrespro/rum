@@ -3,7 +3,7 @@
 MODULE_big = rum
 OBJS = rumsort.o rum_ts_utils.o rumtsquery.o \
 	rumbtree.o rumbulk.o rumdatapage.o \
-	rumentrypage.o rumfast.o rumget.o ruminsert.o \
+	rumentrypage.o rumget.o ruminsert.o \
 	rumscan.o rumutil.o rumvacuum.o rumvalidate.o \
 	rum_timestamp.o $(WIN32RES)
 

@@ -632,12 +632,8 @@ rumbulkdelete(IndexVacuumInfo *info,
 
 	/* first time through? */
 	if (stats == NULL)
-	{
 		/* Yes, so initialize stats to zeroes */
 		stats = (IndexBulkDeleteResult *) palloc0(sizeof(IndexBulkDeleteResult));
-		/* and cleanup any pending inserts */
-		rumInsertCleanup(&gvs.rumstate, true, stats);
-	}
 
 	/* we'll re-count the tuples each time */
 	stats->num_index_tuples = 0;
@@ -736,7 +732,6 @@ rumvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 	BlockNumber npages,
 				blkno;
 	BlockNumber totFreePages;
-	RumState	rumstate;
 	GinStatsData idxStat;
 
 	/*
@@ -744,25 +739,14 @@ rumvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 	 * Otherwise, an ANALYZE-only call is a no-op.
 	 */
 	if (info->analyze_only)
-	{
-		if (IsAutoVacuumWorkerProcess())
-		{
-			initRumState(&rumstate, index);
-			rumInsertCleanup(&rumstate, true, stats);
-		}
 		return stats;
-	}
 
 	/*
 	 * Set up all-zero stats and cleanup pending inserts if rumbulkdelete
 	 * wasn't called
 	 */
 	if (stats == NULL)
-	{
 		stats = (IndexBulkDeleteResult *) palloc0(sizeof(IndexBulkDeleteResult));
-		initRumState(&rumstate, index);
-		rumInsertCleanup(&rumstate, true, stats);
-	}
 
 	memset(&idxStat, 0, sizeof(idxStat));
 
