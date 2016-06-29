@@ -355,7 +355,13 @@ restart:
 								 RBM_NORMAL, gvs->strategy);
 
 	LockBuffer(lBuffer, RUM_EXCLUSIVE);
-	LockBuffer(dBuffer, RUM_EXCLUSIVE);
+	if (ConditionalLockBufferForCleanup(dBuffer) == false)
+	{
+		UnlockReleaseBuffer(lBuffer);
+		ReleaseBuffer(dBuffer);
+		ReleaseBuffer(rBuffer);
+		goto restart;
+	}
 	LockBuffer(rBuffer, RUM_EXCLUSIVE);
 	if (!isParentRoot)			/* parent is already locked by
 								 * LockBufferForCleanup() */

@@ -120,8 +120,8 @@ callConsistentFn(RumState * rumstate, RumScanKey key)
  */
 static bool
 findItemInPostingPage(Page page, RumKey	*item, OffsetNumber *off,
-					  OffsetNumber attno,
-					  OffsetNumber attnum, RumState * rumstate)
+					  OffsetNumber attno, OffsetNumber attnum,
+					  ScanDirection scanDirection, RumState * rumstate)
 {
 	OffsetNumber maxoff = RumPageGetOpaque(page)->maxoff;
 	int			res;
@@ -144,8 +144,17 @@ findItemInPostingPage(Page page, RumKey	*item, OffsetNumber *off,
 		ptr = rumDataPageLeafRead(ptr, attnum, &iter_item, rumstate);
 		res = compareRumKey(rumstate, attno, item, &iter_item);
 
-		if (res <= 0)
+		if (res == 0)
+		{
 			return true;
+		}
+		else if (res < 0)
+		{
+			if (ScanDirectionIsBackward(scanDirection) &&
+				*off > FirstOffsetNumber)
+				(*off)--;
+			return true;
+		}
 	}
 
 	return false;
@@ -167,7 +176,8 @@ moveRightIfItNeeded(RumBtreeData * btree, RumBtreeStack * stack)
 		if (RumPageRightMost(page))
 			return false;		/* no more pages */
 
-		stack->buffer = rumStepRight(stack->buffer, btree->index, RUM_SHARE);
+		stack->buffer = rumStep(stack->buffer, btree->index, RUM_SHARE,
+								ForwardScanDirection);
 		stack->blkno = BufferGetBlockNumber(stack->buffer);
 		stack->off = FirstOffsetNumber;
 	}
@@ -187,8 +197,10 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 	Buffer		buffer;
 	Page		page;
 
+	Assert(ScanDirectionIsForward(scanEntry->scanDirection));
 	/* Descend to the leftmost leaf page */
-	gdi = rumPrepareScanPostingTree(index, rootPostingTree, TRUE, attnum, rumstate);
+	gdi = rumPrepareScanPostingTree(index, rootPostingTree, TRUE,
+									ForwardScanDirection, attnum, rumstate);
 
 	buffer = rumScanBeginPostingTree(gdi, NULL);
 	IncrBufferRefCount(buffer); /* prevent unpin in freeRumBtreeStack */
@@ -228,7 +240,7 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 		if (RumPageRightMost(page))
 			break;				/* no more pages */
 
-		buffer = rumStepRight(buffer, index, RUM_SHARE);
+		buffer = rumStep(buffer, index, RUM_SHARE, ForwardScanDirection);
 	}
 
 	UnlockReleaseBuffer(buffer);
@@ -564,14 +576,15 @@ restartScanEntry:
 			 */
 			LockBuffer(stackEntry->buffer, RUM_UNLOCK);
 			needUnlock = FALSE;
-			gdi = rumPrepareScanPostingTree(rumstate->index, rootPostingTree, TRUE, entry->attnum, rumstate);
+			gdi = rumPrepareScanPostingTree(rumstate->index, rootPostingTree, TRUE,
+											entry->scanDirection, entry->attnum, rumstate);
 
 			entry->buffer = rumScanBeginPostingTree(gdi, entry->useMarkAddInfo ?
 													&entry->markAddInfo : NULL);
 
 			entry->gdi = gdi;
 			entry->context = AllocSetContextCreate(CurrentMemoryContext,
-												   "GiST temporary context",
+												   "RUM entry temporary context",
 												   ALLOCSET_DEFAULT_MINSIZE,
 												   ALLOCSET_DEFAULT_INITSIZE,
 												   ALLOCSET_DEFAULT_MAXSIZE);
@@ -801,7 +814,11 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 			 * It's needed to go by right link. During that we should refind
 			 * first ItemPointer greater that stored
 			 */
-			if (RumPageRightMost(page))
+			if ((ScanDirectionIsForward(entry->scanDirection) && RumPageRightMost(page))
+				||
+				(ScanDirectionIsBackward(entry->scanDirection) && RumPageLeftMost(page)))
+
+
 			{
 				UnlockReleaseBuffer(entry->buffer);
 				ItemPointerSetInvalid(&entry->curRumKey.iptr);
@@ -812,9 +829,8 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 				return;
 			}
 
-			entry->buffer = rumStepRight(entry->buffer,
-										 rumstate->index,
-										 RUM_SHARE);
+			entry->buffer = rumStep(entry->buffer, rumstate->index,
+									RUM_SHARE, entry->scanDirection);
 			entry->gdi->stack->buffer = entry->buffer;
 			entry->gdi->stack->blkno = BufferGetBlockNumber(entry->buffer);
 			page = BufferGetPage(entry->buffer);
@@ -822,7 +838,8 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 			entry->offset = InvalidOffsetNumber;
 			if (!ItemPointerIsValid(&entry->curRumKey.iptr) ||
 			findItemInPostingPage(page, &entry->curRumKey, &entry->offset,
-								  entry->attnumOrig, entry->attnum, rumstate))
+								  entry->attnumOrig, entry->attnum,
+								  entry->scanDirection, rumstate))
 			{
 				OffsetNumber maxoff,
 							i;
@@ -960,12 +977,13 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
 		LockBuffer(entry->stack->buffer, RUM_UNLOCK);
 		needUnlock = false;
 		gdi = rumPrepareScanPostingTree(rumstate->index,
-						rootPostingTree, TRUE, entry->attnumOrig, rumstate);
+						rootPostingTree, TRUE, entry->scanDirection,
+						entry->attnumOrig, rumstate);
 
 		entry->buffer = rumScanBeginPostingTree(gdi, NULL);
 		entry->gdi = gdi;
 		entry->context = AllocSetContextCreate(CurrentMemoryContext,
-											   "GiST temporary context",
+											   "RUM entry temporary context",
 											   ALLOCSET_DEFAULT_MINSIZE,
 											   ALLOCSET_DEFAULT_INITSIZE,
 											   ALLOCSET_DEFAULT_MAXSIZE);
@@ -1652,34 +1670,21 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumKey * item)
 		return;
 	}
 
-	/* At last try to traverse by right links */
+	/* At last try to traverse by direction */
 	for (;;)
 	{
-		/*
-		 * It's needed to go by right link. During that we should refind first
-		 * ItemPointer greater that stored
-		 */
-		BlockNumber blkno;
+		entry->buffer = rumStep(entry->buffer, rumstate->index,
+								RUM_SHARE, entry->scanDirection);
+		entry->gdi->stack->buffer = entry->buffer;
 
-		blkno = RumPageGetOpaque(page)->rightlink;
-
-		LockBuffer(entry->buffer, RUM_UNLOCK);
-		if (blkno == InvalidBlockNumber)
+		if (entry->buffer == InvalidBuffer)
 		{
-			ReleaseBuffer(entry->buffer);
 			ItemPointerSetInvalid(&entry->curRumKey.iptr);
-			entry->buffer = InvalidBuffer;
-			entry->gdi->stack->buffer = InvalidBuffer;
 			entry->isFinished = TRUE;
 			return;
 		}
 
-		entry->buffer = ReleaseAndReadBuffer(entry->buffer,
-											 rumstate->index,
-											 blkno);
-		entry->gdi->stack->buffer = entry->buffer;
-		entry->gdi->stack->blkno = blkno;
-		LockBuffer(entry->buffer, RUM_SHARE);
+		entry->gdi->stack->blkno = BufferGetBlockNumber(entry->buffer);
 		page = BufferGetPage(entry->buffer);
 
 		if (scanPage(rumstate, entry, item,

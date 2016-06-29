@@ -15,6 +15,9 @@
 
 #include "rum.h"
 
+static BlockNumber dataGetLeftMostPage(RumBtree btree, Page page);
+static BlockNumber dataGetRightMostPage(RumBtree btree, Page page);
+
 /* Does datatype allow packing into the 1-byte-header varlena format? */
 #define TYPE_IS_PACKABLE(typlen, typstorage) \
 	((typlen) == -1 && (typstorage) != 'p')
@@ -441,7 +444,10 @@ dataLocateItem(RumBtree btree, RumBtreeStack * stack)
 	{
 		stack->off = FirstOffsetNumber;
 		stack->predictNumber *= RumPageGetOpaque(page)->maxoff;
-		return btree->getLeftMostPage(btree, page);
+		if (ScanDirectionIsForward(btree->scanDirection))
+			return dataGetLeftMostPage(btree, page);
+		else
+			return dataGetRightMostPage(btree, page);
 	}
 
 	low = FirstOffsetNumber;
@@ -687,6 +693,20 @@ dataGetLeftMostPage(RumBtree btree, Page page)
 	Assert(RumPageGetOpaque(page)->maxoff >= FirstOffsetNumber);
 
 	pitem = (PostingItem *) RumDataPageGetItem(page, FirstOffsetNumber);
+	return PostingItemGetBlockNumber(pitem);
+}
+
+static BlockNumber
+dataGetRightMostPage(RumBtree btree, Page page)
+{
+	PostingItem *pitem;
+
+	Assert(!RumPageIsLeaf(page));
+	Assert(RumPageIsData(page));
+	Assert(RumPageGetOpaque(page)->maxoff >= FirstOffsetNumber);
+
+	pitem = (PostingItem *)
+			RumDataPageGetItem(page, RumPageGetOpaque(page)->maxoff);
 	return PostingItemGetBlockNumber(pitem);
 }
 
@@ -1445,13 +1465,15 @@ rumPrepareDataScan(RumBtree btree, Relation index, OffsetNumber attnum, RumState
 	btree->isDelete = FALSE;
 	btree->fullScan = FALSE;
 	btree->isBuild = FALSE;
+	btree->scanDirection = ForwardScanDirection;
 
 	btree->entryAttnum = attnum;
 }
 
 RumPostingTreeScan *
 rumPrepareScanPostingTree(Relation index, BlockNumber rootBlkno,
-				   bool searchMode, OffsetNumber attnum, RumState * rumstate)
+				   bool searchMode, ScanDirection scanDirection,
+				   OffsetNumber attnum, RumState * rumstate)
 {
 	RumPostingTreeScan *gdi = (RumPostingTreeScan *) palloc0(sizeof(RumPostingTreeScan));
 
@@ -1459,6 +1481,7 @@ rumPrepareScanPostingTree(Relation index, BlockNumber rootBlkno,
 
 	gdi->btree.searchMode = searchMode;
 	gdi->btree.fullScan = searchMode;
+	gdi->btree.scanDirection = scanDirection;
 
 	gdi->stack = rumPrepareFindLeafPage(&gdi->btree, rootBlkno);
 

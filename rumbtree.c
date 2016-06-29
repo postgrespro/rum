@@ -157,7 +157,8 @@ rumFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 				/* rightmost page */
 				break;
 
-			stack->buffer = rumStepRight(stack->buffer, btree->index, access);
+			stack->buffer = rumStep(stack->buffer, btree->index, access,
+									ForwardScanDirection);
 			stack->blkno = rightlink;
 			page = BufferGetPage(stack->buffer);
 		}
@@ -200,20 +201,31 @@ rumFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 }
 
 /*
- * Step right from current page.
+ * Step from current page.
  *
  * The next page is locked first, before releasing the current page. This is
  * crucial to protect from concurrent page deletion (see comment in
  * rumDeletePage).
  */
 Buffer
-rumStepRight(Buffer buffer, Relation index, int lockmode)
+rumStep(Buffer buffer, Relation index, int lockmode,
+			 ScanDirection scanDirection)
 {
 	Buffer		nextbuffer;
 	Page		page = BufferGetPage(buffer);
 	bool		isLeaf = RumPageIsLeaf(page);
 	bool		isData = RumPageIsData(page);
-	BlockNumber blkno = RumPageGetOpaque(page)->rightlink;
+	BlockNumber blkno;
+
+	blkno = (ScanDirectionIsForward(scanDirection)) ?
+		RumPageGetOpaque(page)->rightlink :
+		RumPageGetOpaque(page)->leftlink;
+
+	if (blkno == InvalidBlockNumber)
+	{
+		UnlockReleaseBuffer(buffer);
+		return InvalidBuffer;
+	}
 
 	nextbuffer = ReadBuffer(index, blkno);
 	LockBuffer(nextbuffer, lockmode);
@@ -229,7 +241,8 @@ rumStepRight(Buffer buffer, Relation index, int lockmode)
 	 * page.
 	 */
 	if (RumPageIsDeleted(page))
-		elog(ERROR, "right sibling of RUM page was deleted");
+		elog(ERROR, "%s sibling of RUM page was deleted",
+			 ScanDirectionIsForward(scanDirection) ? "right" : "left");
 
 	return nextbuffer;
 }
@@ -326,7 +339,8 @@ rumFindParents(RumBtree btree, RumBtreeStack * stack,
 				UnlockReleaseBuffer(buffer);
 				break;
 			}
-			buffer = rumStepRight(buffer, btree->index, RUM_EXCLUSIVE);
+			buffer = rumStep(buffer, btree->index, RUM_EXCLUSIVE,
+							 ForwardScanDirection);
 			page = BufferGetPage(buffer);
 		}
 
@@ -520,7 +534,8 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 				break;
 			}
 
-			parent->buffer = rumStepRight(parent->buffer, btree->index, RUM_EXCLUSIVE);
+			parent->buffer = rumStep(parent->buffer, btree->index,
+									 RUM_EXCLUSIVE, ForwardScanDirection);
 			parent->blkno = rightlink;
 			page = BufferGetPage(parent->buffer);
 		}

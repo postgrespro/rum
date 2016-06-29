@@ -120,6 +120,7 @@ typedef struct RumMetaPageData
 #define RumPageSetNonDeleted(page) ( RumPageGetOpaque(page)->flags &= ~RUM_DELETED)
 
 #define RumPageRightMost(page) ( RumPageGetOpaque(page)->rightlink == InvalidBlockNumber)
+#define RumPageLeftMost(page) ( RumPageGetOpaque(page)->leftlink == InvalidBlockNumber)
 
 /*
  * We use our own ItemPointerGet(BlockNumber|GetOffsetNumber)
@@ -463,9 +464,10 @@ typedef struct RumBtreeData
 	bool		searchMode;
 
 	Relation	index;
-	RumState   *rumstate;		/* not valid in a data scan */
+	RumState   *rumstate;
 	bool		fullScan;
 	bool		isBuild;
+	ScanDirection scanDirection;
 
 	BlockNumber rightblkno;
 
@@ -489,7 +491,8 @@ typedef struct RumBtreeData
 extern RumBtreeStack *rumPrepareFindLeafPage(RumBtree btree, BlockNumber blkno);
 extern RumBtreeStack *rumFindLeafPage(RumBtree btree, RumBtreeStack * stack);
 extern RumBtreeStack *rumReFindLeafPage(RumBtree btree, RumBtreeStack * stack);
-extern Buffer rumStepRight(Buffer buffer, Relation index, int lockmode);
+extern Buffer rumStep(Buffer buffer, Relation index, int lockmode,
+					  ScanDirection scanDirection);
 extern void freeRumBtreeStack(RumBtreeStack * stack);
 extern void rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 			   GinStatsData *buildStats);
@@ -532,7 +535,9 @@ typedef struct
 }	RumPostingTreeScan;
 
 extern RumPostingTreeScan *rumPrepareScanPostingTree(Relation index,
-						  BlockNumber rootBlkno, bool searchMode, OffsetNumber attnum, RumState * rumstate);
+						  BlockNumber rootBlkno, bool searchMode,
+						  ScanDirection scanDirection,
+						  OffsetNumber attnum, RumState * rumstate);
 extern void rumInsertItemPointers(RumState * rumstate,
 					  OffsetNumber attnum,
 					  RumPostingTreeScan * gdi,
