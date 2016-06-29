@@ -70,6 +70,7 @@ typedef struct RumMetaPageData
 	 * Pointers to head and tail of pending list, which consists of RUM_LIST
 	 * pages.  These store fast-inserted entries that haven't yet been moved
 	 * into the regular RUM structure.
+	 * XXX unused - pending list is removed.
 	 */
 	BlockNumber head;
 	BlockNumber tail;
