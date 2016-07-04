@@ -296,6 +296,21 @@ typedef struct
 #define RumPageGetIndexes(page) \
 	((RumDataLeafItemIndex *)(RumDataPageGetData(page) + RumDataPageSize))
 
+/*
+ * Macros to handle generic XLOG
+ */
+#define RumGenericXLogStart(index, isbuild) \
+	(!(isbuild) ? GenericXLogStart(index) : NULL)
+
+#define RumGenericXLogRegisterBuffer(state, buffer, flags, isbuild) \
+	(!(isbuild) ? GenericXLogRegisterBuffer(state, buffer, flags) : \
+	BufferGetPage(buffer))
+
+#define RumGenericXLogFinish(state, isbuild) \
+	(!(isbuild) ? GenericXLogFinish(state) : 0)
+
+#define RumGenericXLogAbort(state, isbuild) \
+	(!(isbuild) ? GenericXLogAbort(state) : (void) 0)
 
 /*
  * Storage type for RUM's reloptions
@@ -377,6 +392,8 @@ typedef struct RumConfig
 	Oid			addInfoTypeOid;
 }	RumConfig;
 
+
+
 /* rumutil.c */
 extern bytea *rumoptions(Datum reloptions, bool validate);
 extern Datum rumhandler(PG_FUNCTION_ARGS);
@@ -401,7 +418,8 @@ extern Datum rumtuple_get_key(RumState * rumstate, IndexTuple tuple,
 				 RumNullCategory * category);
 
 extern void rumGetStats(Relation index, GinStatsData *stats);
-extern void rumUpdateStats(Relation index, const GinStatsData *stats);
+extern void rumUpdateStats(Relation index, const GinStatsData *stats,
+						   bool isBuild);
 
 /* ruminsert.c */
 extern IndexBuildResult *rumbuild(Relation heap, Relation index,

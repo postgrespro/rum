@@ -49,9 +49,10 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 	ItemPointerData prev_iptr = {{0, 0}, 0};
 	GenericXLogState *state;
 
-	state = GenericXLogStart(index);
+	state = RumGenericXLogStart(index, rumstate->isBuild);
 
-	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
+	page = RumGenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE,
+										rumstate->isBuild);
 	RumInitPage(page, RUM_DATA | RUM_LEAF, BufferGetPageSize(buffer));
 
 	blkno = BufferGetBlockNumber(buffer);
@@ -68,7 +69,7 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 	Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 	updateItemIndexes(page, attnum, rumstate);
 
-	GenericXLogFinish(state);
+	RumGenericXLogFinish(state, rumstate->isBuild);
 
 	UnlockReleaseBuffer(buffer);
 
@@ -581,7 +582,6 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 			 RelationGetRelationName(index));
 
 	initRumState(&buildstate.rumstate, index);
-	buildstate.rumstate.isBuild = true;
 	buildstate.indtuples = 0;
 	memset(&buildstate.buildStats, 0, sizeof(GinStatsData));
 
@@ -649,7 +649,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	 * Update metapage stats
 	 */
 	buildstate.buildStats.nTotalPages = RelationGetNumberOfBlocks(index);
-	rumUpdateStats(index, &buildstate.buildStats);
+	rumUpdateStats(index, &buildstate.buildStats, buildstate.rumstate.isBuild);
 
 	/*
 	 * Return statistics
@@ -672,7 +672,7 @@ rumbuildempty(Relation index)
 				MetaBuffer;
 	GenericXLogState *state;
 
-	state = GenericXLogStart(index);
+	state = RumGenericXLogStart(index, false);
 
 	/* An empty RUM index has two pages. */
 	MetaBuffer =
@@ -686,7 +686,7 @@ rumbuildempty(Relation index)
 	RumInitMetabuffer(state, MetaBuffer);
 	RumInitBuffer(state, RootBuffer, RUM_LEAF);
 
-	GenericXLogFinish(state);
+	RumGenericXLogFinish(state, false);
 
 	/* Unlock and release the buffers. */
 	UnlockReleaseBuffer(MetaBuffer);
