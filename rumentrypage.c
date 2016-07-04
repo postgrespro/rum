@@ -552,7 +552,6 @@ rumPrepareEntryScan(RumBtree btree, OffsetNumber attnum,
 	btree->isData = FALSE;
 	btree->searchMode = FALSE;
 	btree->fullScan = FALSE;
-	btree->isBuild = FALSE;
 
 	btree->entryAttnum = attnum;
 	btree->entryKey = key;

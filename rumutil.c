@@ -119,6 +119,7 @@ initRumState(RumState * state, Relation index)
 	MemSet(state, 0, sizeof(RumState));
 
 	state->index = index;
+	state->isBuild = false;
 	state->oneCol = (origTupdesc->natts == 1) ? true : false;
 	state->origTupdesc = origTupdesc;
 

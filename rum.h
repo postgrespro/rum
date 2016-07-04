@@ -327,6 +327,7 @@ typedef struct RumOptions
 typedef struct RumState
 {
 	Relation	index;
+	bool		isBuild;
 	bool		oneCol;			/* true if single-column index */
 	bool		useAlternativeOrder;
 	AttrNumber	attrnOrderByColumn;
@@ -458,7 +459,6 @@ typedef struct RumBtreeData
 	Relation	index;
 	RumState   *rumstate;		/* not valid in a data scan */
 	bool		fullScan;
-	bool		isBuild;
 
 	BlockNumber rightblkno;
 

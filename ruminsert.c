@@ -285,7 +285,6 @@ addItemPointersToLeafTuple(RumState * rumstate,
 
 		/* Now insert the TIDs-to-be-added into the posting tree */
 		gdi = rumPrepareScanPostingTree(rumstate->index, postingRoot, FALSE, attnum, rumstate);
-		gdi->btree.isBuild = (buildStats != NULL);
 
 		rumInsertItemPointers(rumstate, attnum, gdi, items, nitem, buildStats);
 
@@ -365,7 +364,6 @@ buildFreshLeafTuple(RumState * rumstate,
 
 			gdi = rumPrepareScanPostingTree(rumstate->index, postingRoot, FALSE,
 											attnum, rumstate);
-			gdi->btree.isBuild = (buildStats != NULL);
 
 			rumInsertItemPointers(rumstate,
 								  attnum,
@@ -429,7 +427,6 @@ rumEntryInsert(RumState * rumstate,
 			/* insert into posting tree */
 			gdi = rumPrepareScanPostingTree(rumstate->index, rootPostingTree,
 											FALSE, attnum, rumstate);
-			gdi->btree.isBuild = (buildStats != NULL);
 			rumInsertItemPointers(rumstate, attnum, gdi, items,
 								  nitem, buildStats);
 			pfree(gdi);
@@ -584,6 +581,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 			 RelationGetRelationName(index));
 
 	initRumState(&buildstate.rumstate, index);
+	buildstate.rumstate.isBuild = true;
 	buildstate.indtuples = 0;
 	memset(&buildstate.buildStats, 0, sizeof(GinStatsData));
 
