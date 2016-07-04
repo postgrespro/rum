@@ -25,6 +25,8 @@
 
 #include "rum.h"
 
+#define RUM_NDELETE_AT_ONCE 16
+
 #define RUM_PAGE_FREESIZE \
 	( BLCKSZ - MAXALIGN(SizeOfPageHeaderData) - MAXALIGN(sizeof(RumPageOpaqueData)) )
 
@@ -512,28 +514,26 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 	do
 	{
 		Page		page;
-		int			i;
 		int64		nDeletedHeapTuples = 0;
-		rumxlogDeleteListPages data;
+		uint32		i,
+					nDeleted = 0;
 		Buffer		buffers[RUM_NDELETE_AT_ONCE];
 		GenericXLogState *state;
 
-		data.ndeleted = 0;
-		while (data.ndeleted < RUM_NDELETE_AT_ONCE && blknoToDelete != newHead)
+		while (nDeleted < RUM_NDELETE_AT_ONCE && blknoToDelete != newHead)
 		{
-			data.toDelete[data.ndeleted] = blknoToDelete;
-			buffers[data.ndeleted] = ReadBuffer(index, blknoToDelete);
-			LockBuffer(buffers[data.ndeleted], RUM_EXCLUSIVE);
+			buffers[nDeleted] = ReadBuffer(index, blknoToDelete);
+			LockBuffer(buffers[nDeleted], RUM_EXCLUSIVE);
 
-			page = BufferGetPage(buffers[data.ndeleted]);
+			page = BufferGetPage(buffers[nDeleted]);
 
-			data.ndeleted++;
+			nDeleted++;
 
 			if (RumPageIsDeleted(page))
 			{
 				GenericXLogAbort(metastate);
 				/* concurrent cleanup process is detected */
-				for (i = 0; i < data.ndeleted; i++)
+				for (i = 0; i < nDeleted; i++)
 					UnlockReleaseBuffer(buffers[i]);
 
 				return true;
@@ -544,12 +544,12 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 		}
 
 		if (stats)
-			stats->pages_deleted += data.ndeleted;
+			stats->pages_deleted += nDeleted;
 
 		metadata->head = blknoToDelete;
 
-		Assert(metadata->nPendingPages >= data.ndeleted);
-		metadata->nPendingPages -= data.ndeleted;
+		Assert(metadata->nPendingPages >= nDeleted);
+		metadata->nPendingPages -= nDeleted;
 		Assert(metadata->nPendingHeapTuples >= nDeletedHeapTuples);
 		metadata->nPendingHeapTuples -= nDeletedHeapTuples;
 
@@ -563,7 +563,7 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 
 		MarkBufferDirty(metabuffer);
 
-		for (i = 0; i < data.ndeleted; i++)
+		for (i = 0; i < nDeleted; i++)
 		{
 			state = GenericXLogStart(index);
 			page = GenericXLogRegisterBuffer(state, buffers[i], 0);
@@ -572,7 +572,7 @@ shiftList(Relation index, Buffer metabuffer, BlockNumber newHead,
 			GenericXLogFinish(state);
 		}
 
-		for (i = 0; i < data.ndeleted; i++)
+		for (i = 0; i < nDeleted; i++)
 			UnlockReleaseBuffer(buffers[i]);
 	} while (blknoToDelete != newHead);
 

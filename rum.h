@@ -377,16 +377,6 @@ typedef struct RumConfig
 	Oid			addInfoTypeOid;
 }	RumConfig;
 
-/* XLog stuff */
-
-#define RUM_NDELETE_AT_ONCE 16
-typedef struct rumxlogDeleteListPages
-{
-	int32		ndeleted;
-	BlockNumber toDelete[RUM_NDELETE_AT_ONCE];
-}	rumxlogDeleteListPages;
-
-
 /* rumutil.c */
 extern bytea *rumoptions(Datum reloptions, bool validate);
 extern Datum rumhandler(PG_FUNCTION_ARGS);
