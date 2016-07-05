@@ -653,15 +653,19 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	 */
 	for (blkno = 0; blkno < buildstate.buildStats.nTotalPages; blkno++)
 	{
-		Buffer		buffer = ReadBuffer(index, blkno);
-		GenericXLogState *state = RumGenericXLogStart(index,
-													  buildstate.rumstate.isBuild);
+		Buffer		buffer;
+		GenericXLogState *state;
 
-		RumGenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE,
-									 buildstate.rumstate.isBuild);
-		RumGenericXLogFinish(state, buildstate.rumstate.isBuild);
+		CHECK_FOR_INTERRUPTS();
 
-		ReleaseBuffer(buffer);
+		buffer = ReadBuffer(index, blkno);
+		LockBuffer(buffer, RUM_SHARE);
+
+		state = GenericXLogStart(index);
+		GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
+		GenericXLogFinish(state);
+
+		UnlockReleaseBuffer(buffer);
 	}
 
 	/*
@@ -685,7 +689,7 @@ rumbuildempty(Relation index)
 				MetaBuffer;
 	GenericXLogState *state;
 
-	state = RumGenericXLogStart(index, false);
+	state = GenericXLogStart(index);
 
 	/* An empty RUM index has two pages. */
 	MetaBuffer =
@@ -699,7 +703,7 @@ rumbuildempty(Relation index)
 	RumInitMetabuffer(state, MetaBuffer, false);
 	RumInitBuffer(state, RootBuffer, RUM_LEAF, false);
 
-	RumGenericXLogFinish(state, false);
+	GenericXLogFinish(state);
 
 	/* Unlock and release the buffers. */
 	UnlockReleaseBuffer(MetaBuffer);
