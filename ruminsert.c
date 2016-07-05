@@ -649,7 +649,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	rumUpdateStats(index, &buildstate.buildStats, buildstate.rumstate.isBuild);
 
 	/*
-	 * Write index to xlog.
+	 * Write index to xlog
 	 */
 	for (blkno = 0; blkno < buildstate.buildStats.nTotalPages; blkno++)
 	{
