@@ -399,11 +399,12 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 
 		if (btree->isEnoughSpace(btree, stack->buffer, stack->off))
 		{
-			state = GenericXLogStart(index);
-			page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
+			state = RumGenericXLogStart(index, btree->rumstate->isBuild);
+			page = RumGenericXLogRegisterBuffer(state, stack->buffer, 0,
+												btree->rumstate->isBuild);
 
 			btree->placeToPage(btree, page, stack->off);
-			GenericXLogFinish(state);
+			RumGenericXLogFinish(state, btree->rumstate->isBuild);
 
 			LockBuffer(stack->buffer, RUM_UNLOCK);
 			freeRumBtreeStack(stack);
@@ -430,11 +431,13 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 			{
 				Buffer		lbuffer;
 
-				state = GenericXLogStart(index);
+				state = RumGenericXLogStart(index, btree->rumstate->isBuild);
 
-				page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
-				rpage = GenericXLogRegisterBuffer(state, rbuffer,
-												  GENERIC_XLOG_FULL_IMAGE);
+				page = RumGenericXLogRegisterBuffer(state, stack->buffer, 0,
+													btree->rumstate->isBuild);
+				rpage = RumGenericXLogRegisterBuffer(state, rbuffer,
+													 GENERIC_XLOG_FULL_IMAGE,
+													 btree->rumstate->isBuild);
 
 				/*
 				 * newlpage is a pointer to memory page, it doesn't associate
@@ -448,8 +451,9 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 				 * pointer on root to left and right page
 				 */
 				lbuffer = RumNewBuffer(btree->index);
-				lpage = GenericXLogRegisterBuffer(state, lbuffer,
-												  GENERIC_XLOG_FULL_IMAGE);
+				lpage = RumGenericXLogRegisterBuffer(state, lbuffer,
+													 GENERIC_XLOG_FULL_IMAGE,
+													 btree->rumstate->isBuild);
 
 				RumPageGetOpaque(rpage)->rightlink = InvalidBlockNumber;
 				RumPageGetOpaque(newlpage)->leftlink = InvalidBlockNumber;
@@ -462,7 +466,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 				btree->fillRoot(btree, stack->buffer, lbuffer, rbuffer,
 								page, lpage, rpage);
 
-				GenericXLogFinish(state);
+				RumGenericXLogFinish(state, btree->rumstate->isBuild);
 
 				UnlockReleaseBuffer(rbuffer);
 				UnlockReleaseBuffer(lbuffer);
@@ -485,10 +489,12 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 			{
 				/* split non-root page */
 
-				state = GenericXLogStart(index);
+				state = RumGenericXLogStart(index, btree->rumstate->isBuild);
 
-				lpage = GenericXLogRegisterBuffer(state, stack->buffer, 0);
-				rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
+				lpage = RumGenericXLogRegisterBuffer(state, stack->buffer, 0,
+													 btree->rumstate->isBuild);
+				rpage = RumGenericXLogRegisterBuffer(state, rbuffer, 0,
+													 btree->rumstate->isBuild);
 
 				/*
 				 * newlpage is a pointer to memory page, it doesn't associate
@@ -504,7 +510,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 
 				PageRestoreTempPage(newlpage, lpage);
 
-				GenericXLogFinish(state);
+				RumGenericXLogFinish(state, btree->rumstate->isBuild);
 
 				UnlockReleaseBuffer(rbuffer);
 			}

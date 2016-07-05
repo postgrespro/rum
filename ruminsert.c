@@ -49,9 +49,10 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 	ItemPointerData prev_iptr = {{0, 0}, 0};
 	GenericXLogState *state;
 
-	state = GenericXLogStart(index);
+	state = RumGenericXLogStart(index, rumstate->isBuild);
 
-	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
+	page = RumGenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE,
+										rumstate->isBuild);
 	RumInitPage(page, RUM_DATA | RUM_LEAF, BufferGetPageSize(buffer));
 
 	blkno = BufferGetBlockNumber(buffer);
@@ -68,7 +69,7 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 	Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 	updateItemIndexes(page, attnum, rumstate);
 
-	GenericXLogFinish(state);
+	RumGenericXLogFinish(state, rumstate->isBuild);
 
 	UnlockReleaseBuffer(buffer);
 
@@ -286,8 +287,6 @@ addItemPointersToLeafTuple(RumState * rumstate,
 		/* Now insert the TIDs-to-be-added into the posting tree */
 		gdi = rumPrepareScanPostingTree(rumstate->index, postingRoot, FALSE,
 										ForwardScanDirection, attnum, rumstate);
-		gdi->btree.isBuild = (buildStats != NULL);
-
 		rumInsertItemPointers(rumstate, attnum, gdi, items, nitem, buildStats);
 
 		pfree(gdi);
@@ -367,7 +366,6 @@ buildFreshLeafTuple(RumState * rumstate,
 			gdi = rumPrepareScanPostingTree(rumstate->index, postingRoot, FALSE,
 											ForwardScanDirection,
 											attnum, rumstate);
-			gdi->btree.isBuild = (buildStats != NULL);
 
 			rumInsertItemPointers(rumstate,
 								  attnum,
@@ -432,7 +430,6 @@ rumEntryInsert(RumState * rumstate,
 			gdi = rumPrepareScanPostingTree(rumstate->index, rootPostingTree,
 											FALSE, ForwardScanDirection,
 											attnum, rumstate);
-			gdi->btree.isBuild = (buildStats != NULL);
 			rumInsertItemPointers(rumstate, attnum, gdi, items,
 								  nitem, buildStats);
 			pfree(gdi);
@@ -580,27 +577,24 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	uint32		nlist;
 	MemoryContext oldCtx;
 	OffsetNumber attnum;
-	GenericXLogState *state;
+	BlockNumber	blkno;
 
 	if (RelationGetNumberOfBlocks(index) != 0)
 		elog(ERROR, "index \"%s\" already contains data",
 			 RelationGetRelationName(index));
 
 	initRumState(&buildstate.rumstate, index);
+	buildstate.rumstate.isBuild = true;
 	buildstate.indtuples = 0;
 	memset(&buildstate.buildStats, 0, sizeof(GinStatsData));
-
-	state = GenericXLogStart(index);
 
 	/* initialize the meta page */
 	MetaBuffer = RumNewBuffer(index);
 	/* initialize the root page */
 	RootBuffer = RumNewBuffer(index);
 
-	RumInitMetabuffer(state, MetaBuffer);
-	RumInitBuffer(state, RootBuffer, RUM_LEAF);
-
-	GenericXLogFinish(state);
+	RumInitMetabuffer(NULL, MetaBuffer, buildstate.rumstate.isBuild);
+	RumInitBuffer(NULL, RootBuffer, RUM_LEAF, buildstate.rumstate.isBuild);
 
 	UnlockReleaseBuffer(MetaBuffer);
 	UnlockReleaseBuffer(RootBuffer);
@@ -654,7 +648,27 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	 * Update metapage stats
 	 */
 	buildstate.buildStats.nTotalPages = RelationGetNumberOfBlocks(index);
-	rumUpdateStats(index, &buildstate.buildStats);
+	rumUpdateStats(index, &buildstate.buildStats, buildstate.rumstate.isBuild);
+
+	/*
+	 * Write index to xlog
+	 */
+	for (blkno = 0; blkno < buildstate.buildStats.nTotalPages; blkno++)
+	{
+		Buffer		buffer;
+		GenericXLogState *state;
+
+		CHECK_FOR_INTERRUPTS();
+
+		buffer = ReadBuffer(index, blkno);
+		LockBuffer(buffer, RUM_SHARE);
+
+		state = GenericXLogStart(index);
+		GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
+		GenericXLogFinish(state);
+
+		UnlockReleaseBuffer(buffer);
+	}
 
 	/*
 	 * Return statistics
@@ -688,8 +702,8 @@ rumbuildempty(Relation index)
 	LockBuffer(RootBuffer, BUFFER_LOCK_EXCLUSIVE);
 
 	/* Initialize and xlog metabuffer and root buffer. */
-	RumInitMetabuffer(state, MetaBuffer);
-	RumInitBuffer(state, RootBuffer, RUM_LEAF);
+	RumInitMetabuffer(state, MetaBuffer, false);
+	RumInitBuffer(state, RootBuffer, RUM_LEAF, false);
 
 	GenericXLogFinish(state);
 

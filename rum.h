@@ -299,6 +299,21 @@ typedef struct
 #define RumPageGetIndexes(page) \
 	((RumDataLeafItemIndex *)(RumDataPageGetData(page) + RumDataPageSize))
 
+/*
+ * Macros to handle generic XLOG
+ */
+#define RumGenericXLogStart(index, isbuild) \
+	(!(isbuild) ? GenericXLogStart(index) : NULL)
+
+#define RumGenericXLogRegisterBuffer(state, buffer, flags, isbuild) \
+	(!(isbuild) ? GenericXLogRegisterBuffer(state, buffer, flags) : \
+	BufferGetPage(buffer))
+
+#define RumGenericXLogFinish(state, isbuild) \
+	(!(isbuild) ? GenericXLogFinish(state) : 0)
+
+#define RumGenericXLogAbort(state, isbuild) \
+	(!(isbuild) ? GenericXLogAbort(state) : (void) 0)
 
 /*
  * Storage type for RUM's reloptions
@@ -341,6 +356,7 @@ typedef struct RumConfig
 typedef struct RumState
 {
 	Relation	index;
+	bool		isBuild;
 	bool		oneCol;			/* true if single-column index */
 	bool		useAlternativeOrder;
 	AttrNumber	attrnOrderByColumn;
@@ -385,24 +401,16 @@ typedef struct RumState
 	Oid			supportCollation[INDEX_MAX_KEYS];
 }	RumState;
 
-/* XLog stuff */
-
-#define RUM_NDELETE_AT_ONCE 16
-typedef struct rumxlogDeleteListPages
-{
-	int32		ndeleted;
-	BlockNumber toDelete[RUM_NDELETE_AT_ONCE];
-}	rumxlogDeleteListPages;
-
-
 /* rumutil.c */
 extern bytea *rumoptions(Datum reloptions, bool validate);
 extern Datum rumhandler(PG_FUNCTION_ARGS);
 extern void initRumState(RumState * state, Relation index);
 extern Buffer RumNewBuffer(Relation index);
-extern void RumInitBuffer(GenericXLogState *state, Buffer buffer, uint32 flags);
+extern void RumInitBuffer(GenericXLogState *state, Buffer buffer, uint32 flags,
+						  bool isBuild);
 extern void RumInitPage(Page page, uint32 f, Size pageSize);
-extern void RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer);
+extern void RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer,
+							  bool isBuild);
 extern int rumCompareEntries(RumState * rumstate, OffsetNumber attnum,
 				  Datum a, RumNullCategory categorya,
 				  Datum b, RumNullCategory categoryb);
@@ -419,7 +427,8 @@ extern Datum rumtuple_get_key(RumState * rumstate, IndexTuple tuple,
 				 RumNullCategory * category);
 
 extern void rumGetStats(Relation index, GinStatsData *stats);
-extern void rumUpdateStats(Relation index, const GinStatsData *stats);
+extern void rumUpdateStats(Relation index, const GinStatsData *stats,
+						   bool isBuild);
 
 /* ruminsert.c */
 extern IndexBuildResult *rumbuild(Relation heap, Relation index,
@@ -467,7 +476,6 @@ typedef struct RumBtreeData
 	Relation	index;
 	RumState   *rumstate;
 	bool		fullScan;
-	bool		isBuild;
 	ScanDirection scanDirection;
 
 	BlockNumber rightblkno;

@@ -39,11 +39,12 @@ typedef struct
  * memory address.
  */
 
-static uint32
+static OffsetNumber
 rumVacuumPostingList(RumVacuumState * gvs, OffsetNumber attnum, Pointer src,
-					 uint32 nitem, Pointer *cleaned, Size size, Size *newSize)
+					 OffsetNumber nitem, Pointer *cleaned,
+					 Size size, Size *newSize)
 {
-	uint32		i,
+	OffsetNumber i,
 				j = 0;
 	RumKey		item;
 	ItemPointerData prevIptr;
@@ -241,8 +242,9 @@ rumVacuumPostingTreeLeaves(RumVacuumState * gvs, OffsetNumber attnum,
 		Size		newSize;
 		GenericXLogState *state;
 
-		state = GenericXLogStart(gvs->index);
-		page = GenericXLogRegisterBuffer(state, buffer, 0);
+		state = RumGenericXLogStart(gvs->index, gvs->rumstate.isBuild);
+		page = RumGenericXLogRegisterBuffer(state, buffer, 0,
+											gvs->rumstate.isBuild);
 
 		newMaxOff = rumVacuumPostingList(gvs, attnum,
 							   RumDataPageGetData(page), oldMaxOff, &cleaned,
@@ -262,10 +264,10 @@ rumVacuumPostingTreeLeaves(RumVacuumState * gvs, OffsetNumber attnum,
 			if (!isRoot && RumPageGetOpaque(page)->maxoff < FirstOffsetNumber)
 				hasVoidPage = TRUE;
 
-			GenericXLogFinish(state);
+			RumGenericXLogFinish(state, gvs->rumstate.isBuild);
 		}
 		else
-			GenericXLogAbort(state);
+			RumGenericXLogAbort(state, gvs->rumstate.isBuild);
 	}
 	else
 	{
@@ -341,7 +343,7 @@ restart:
 
 	LockBuffer(dBuffer, RUM_UNLOCK);
 
-	state = GenericXLogStart(gvs->index);
+	state = RumGenericXLogStart(gvs->index, gvs->rumstate.isBuild);
 
 	/*
 	 * Lock the pages in the same order as an insertion would, to avoid
@@ -367,9 +369,12 @@ restart:
 								 * LockBufferForCleanup() */
 		LockBuffer(pBuffer, RUM_EXCLUSIVE);
 
-	dPage = GenericXLogRegisterBuffer(state, dBuffer, 0);
-	lPage = GenericXLogRegisterBuffer(state, lBuffer, 0);
-	rPage = GenericXLogRegisterBuffer(state, rBuffer, 0);
+	dPage = RumGenericXLogRegisterBuffer(state, dBuffer, 0,
+										 gvs->rumstate.isBuild);
+	lPage = RumGenericXLogRegisterBuffer(state, lBuffer, 0,
+										 gvs->rumstate.isBuild);
+	rPage = RumGenericXLogRegisterBuffer(state, rBuffer, 0,
+										 gvs->rumstate.isBuild);
 
 	/*
 	 * last chance to check
@@ -395,7 +400,8 @@ restart:
 	RumPageGetOpaque(rPage)->leftlink = leftBlkno;
 
 	/* Delete downlink from parent */
-	parentPage = GenericXLogRegisterBuffer(state, pBuffer, 0);
+	parentPage = RumGenericXLogRegisterBuffer(state, pBuffer, 0,
+											  gvs->rumstate.isBuild);
 #ifdef USE_ASSERT_CHECKING
 	do
 	{
@@ -412,7 +418,7 @@ restart:
 	 */
 	RumPageGetOpaque(dPage)->flags = RUM_DELETED;
 
-	GenericXLogFinish(state);
+	RumGenericXLogFinish(state, gvs->rumstate.isBuild);
 
 	if (!isParentRoot)
 		LockBuffer(pBuffer, RUM_UNLOCK);
@@ -694,10 +700,11 @@ rumbulkdelete(IndexVacuumInfo *info,
 		{
 			GenericXLogState *state;
 
-			state = GenericXLogStart(index);
-			page = GenericXLogRegisterBuffer(state, buffer, 0);
+			state = RumGenericXLogStart(index, gvs.rumstate.isBuild);
+			page = RumGenericXLogRegisterBuffer(state, buffer, 0,
+												gvs.rumstate.isBuild);
 			PageRestoreTempPage(resPage, page);
-			GenericXLogFinish(state);
+			RumGenericXLogFinish(state, gvs.rumstate.isBuild);
 			UnlockReleaseBuffer(buffer);
 		}
 		else
@@ -806,7 +813,7 @@ rumvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 
 	/* Update the metapage with accurate page and entry counts */
 	idxStat.nTotalPages = npages;
-	rumUpdateStats(info->index, &idxStat);
+	rumUpdateStats(info->index, &idxStat, false);
 
 	/* Finally, vacuum the FSM */
 	IndexFreeSpaceMapVacuum(info->index);

@@ -1254,7 +1254,8 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	 * we suppose that during index creation table scaned from begin to end,
 	 * so ItemPointers are monotonically increased..
 	 */
-	if (btree->isBuild && RumPageRightMost(newlPage))
+	if (btree->rumstate && btree->rumstate->isBuild
+		&& RumPageRightMost(newlPage))
 		separator = freeSpace / sizeofitem;
 	else
 		separator = maxoff / 2;
@@ -1464,7 +1465,6 @@ rumPrepareDataScan(RumBtree btree, Relation index, OffsetNumber attnum, RumState
 	btree->searchMode = FALSE;
 	btree->isDelete = FALSE;
 	btree->fullScan = FALSE;
-	btree->isBuild = FALSE;
 	btree->scanDirection = ForwardScanDirection;
 
 	btree->entryAttnum = attnum;
