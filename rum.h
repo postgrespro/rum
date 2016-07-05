@@ -399,9 +399,11 @@ extern bytea *rumoptions(Datum reloptions, bool validate);
 extern Datum rumhandler(PG_FUNCTION_ARGS);
 extern void initRumState(RumState * state, Relation index);
 extern Buffer RumNewBuffer(Relation index);
-extern void RumInitBuffer(GenericXLogState *state, Buffer buffer, uint32 flags);
+extern void RumInitBuffer(GenericXLogState *state, Buffer buffer, uint32 flags,
+						  bool isBuild);
 extern void RumInitPage(Page page, uint32 f, Size pageSize);
-extern void RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer);
+extern void RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer,
+							  bool isBuild);
 extern int rumCompareEntries(RumState * rumstate, OffsetNumber attnum,
 				  Datum a, RumNullCategory categorya,
 				  Datum b, RumNullCategory categoryb);

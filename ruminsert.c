@@ -575,27 +575,24 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	uint32		nlist;
 	MemoryContext oldCtx;
 	OffsetNumber attnum;
-	GenericXLogState *state;
+	BlockNumber	blkno;
 
 	if (RelationGetNumberOfBlocks(index) != 0)
 		elog(ERROR, "index \"%s\" already contains data",
 			 RelationGetRelationName(index));
 
 	initRumState(&buildstate.rumstate, index);
+	buildstate.rumstate.isBuild = true;
 	buildstate.indtuples = 0;
 	memset(&buildstate.buildStats, 0, sizeof(GinStatsData));
-
-	state = GenericXLogStart(index);
 
 	/* initialize the meta page */
 	MetaBuffer = RumNewBuffer(index);
 	/* initialize the root page */
 	RootBuffer = RumNewBuffer(index);
 
-	RumInitMetabuffer(state, MetaBuffer);
-	RumInitBuffer(state, RootBuffer, RUM_LEAF);
-
-	GenericXLogFinish(state);
+	RumInitMetabuffer(NULL, MetaBuffer, buildstate.rumstate.isBuild);
+	RumInitBuffer(NULL, RootBuffer, RUM_LEAF, buildstate.rumstate.isBuild);
 
 	UnlockReleaseBuffer(MetaBuffer);
 	UnlockReleaseBuffer(RootBuffer);
@@ -652,6 +649,22 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	rumUpdateStats(index, &buildstate.buildStats, buildstate.rumstate.isBuild);
 
 	/*
+	 * Write index to xlog.
+	 */
+	for (blkno = 0; blkno < buildstate.buildStats.nTotalPages; blkno++)
+	{
+		Buffer		buffer = ReadBuffer(index, blkno);
+		GenericXLogState *state = RumGenericXLogStart(index,
+													  buildstate.rumstate.isBuild);
+
+		RumGenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE,
+									 buildstate.rumstate.isBuild);
+		RumGenericXLogFinish(state, buildstate.rumstate.isBuild);
+
+		ReleaseBuffer(buffer);
+	}
+
+	/*
 	 * Return statistics
 	 */
 	result = (IndexBuildResult *) palloc(sizeof(IndexBuildResult));
@@ -683,8 +696,8 @@ rumbuildempty(Relation index)
 	LockBuffer(RootBuffer, BUFFER_LOCK_EXCLUSIVE);
 
 	/* Initialize and xlog metabuffer and root buffer. */
-	RumInitMetabuffer(state, MetaBuffer);
-	RumInitBuffer(state, RootBuffer, RUM_LEAF);
+	RumInitMetabuffer(state, MetaBuffer, false);
+	RumInitBuffer(state, RootBuffer, RUM_LEAF, false);
 
 	RumGenericXLogFinish(state, false);
 

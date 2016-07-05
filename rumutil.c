@@ -487,25 +487,25 @@ RumInitPage(Page page, uint32 f, Size pageSize)
 }
 
 void
-RumInitBuffer(GenericXLogState *state, Buffer buffer, uint32 flags)
+RumInitBuffer(GenericXLogState *state, Buffer buffer, uint32 flags, bool isBuild)
 {
 	Page		page;
 
 	page = RumGenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE,
-										false);
+										isBuild);
 
 	RumInitPage(page, flags, BufferGetPageSize(buffer));
 }
 
 void
-RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer)
+RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer, bool isBuild)
 {
 	Page		metaPage;
 	RumMetaPageData *metadata;
 
 	/* Initialize contents of meta page */
 	metaPage = RumGenericXLogRegisterBuffer(state, metaBuffer,
-											GENERIC_XLOG_FULL_IMAGE, false);
+											GENERIC_XLOG_FULL_IMAGE, isBuild);
 
 	RumInitPage(metaPage, RUM_META, BufferGetPageSize(metaBuffer));
 	metadata = RumPageGetMeta(metaPage);
