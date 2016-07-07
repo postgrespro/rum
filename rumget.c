@@ -1605,8 +1605,6 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 static void
 entryFindItem(RumState * rumstate, RumScanEntry entry, RumKey * item)
 {
-	Page		page = NULL;
-
 	if (entry->nlist == 0)
 	{
 		entry->isFinished = TRUE;
@@ -1660,8 +1658,6 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumKey * item)
 	entry->gdi->stack = rumReFindLeafPage(&entry->gdi->btree, entry->gdi->stack);
 	entry->buffer = entry->gdi->stack->buffer;
 
-	page = BufferGetPage(entry->buffer);
-
 	if (scanPage(rumstate, entry, item,
 				 BufferGetPage(entry->buffer),
 				 true))
@@ -1685,7 +1681,6 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumKey * item)
 		}
 
 		entry->gdi->stack->blkno = BufferGetBlockNumber(entry->buffer);
-		page = BufferGetPage(entry->buffer);
 
 		if (scanPage(rumstate, entry, item,
 					 BufferGetPage(entry->buffer),

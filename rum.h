@@ -300,22 +300,6 @@ typedef struct
 	((RumDataLeafItemIndex *)(RumDataPageGetData(page) + RumDataPageSize))
 
 /*
- * Macros to handle generic XLOG
- */
-#define RumGenericXLogStart(index, isbuild) \
-	(!(isbuild) ? GenericXLogStart(index) : NULL)
-
-#define RumGenericXLogRegisterBuffer(state, buffer, flags, isbuild) \
-	(!(isbuild) ? GenericXLogRegisterBuffer(state, buffer, flags) : \
-	BufferGetPage(buffer))
-
-#define RumGenericXLogFinish(state, isbuild) \
-	(!(isbuild) ? GenericXLogFinish(state) : 0)
-
-#define RumGenericXLogAbort(state, isbuild) \
-	(!(isbuild) ? GenericXLogAbort(state) : (void) 0)
-
-/*
  * Storage type for RUM's reloptions
  */
 typedef struct RumOptions
@@ -780,6 +764,41 @@ extern Datum rum_ts_distance(PG_FUNCTION_ARGS);
 
 /* GUC parameters */
 extern PGDLLIMPORT int RumFuzzySearchLimit;
+
+/*
+ * Functions to handle generic XLOG
+ */
+static inline GenericXLogState *
+RumGenericXLogStart(Relation relation, bool isbuild)
+{
+	if (!isbuild)
+		return GenericXLogStart(relation);
+	return NULL;
+}
+
+static inline Page
+RumGenericXLogRegisterBuffer(GenericXLogState *state, Buffer buffer, int flags,
+							 bool isbuild)
+{
+	if (!isbuild)
+		return GenericXLogRegisterBuffer(state, buffer, flags);
+	return BufferGetPage(buffer);
+}
+
+static inline XLogRecPtr
+RumGenericXLogFinish(GenericXLogState *state, bool isbuild)
+{
+	if (!isbuild)
+		return GenericXLogFinish(state);
+	return InvalidXLogRecPtr;
+}
+
+static inline void
+RumGenericXLogAbort(GenericXLogState *state, bool isbuild)
+{
+	if (!isbuild)
+		GenericXLogAbort(state);
+}
 
 /*
  * Functions for reading ItemPointers with additional information. Used in
