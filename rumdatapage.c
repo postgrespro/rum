@@ -853,6 +853,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 					insertCount = 0;
 		bool		stopAppend = false;
 
+		RumItemSetMin(&copyItem);
 		/*
 		 * We're going to prevent var-byte re-encoding of whole page. Find
 		 * position in page using page indexes.

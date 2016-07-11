@@ -317,7 +317,7 @@ rumFindParents(RumBtree btree, RumBtreeStack * stack,
 		return;
 	}
 
-	leftmostBlkno = blkno = btree->getLeftMostPage(btree, page);
+	blkno = btree->getLeftMostPage(btree, page);
 	LockBuffer(root->buffer, RUM_UNLOCK);
 	Assert(blkno != InvalidBlockNumber);
 
