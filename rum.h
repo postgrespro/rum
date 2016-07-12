@@ -766,41 +766,6 @@ extern Datum rum_ts_distance(PG_FUNCTION_ARGS);
 extern PGDLLIMPORT int RumFuzzySearchLimit;
 
 /*
- * Functions to handle generic XLOG
- */
-static inline GenericXLogState *
-RumGenericXLogStart(Relation relation, bool isbuild)
-{
-	if (!isbuild)
-		return GenericXLogStart(relation);
-	return NULL;
-}
-
-static inline Page
-RumGenericXLogRegisterBuffer(GenericXLogState *state, Buffer buffer, int flags,
-							 bool isbuild)
-{
-	if (!isbuild)
-		return GenericXLogRegisterBuffer(state, buffer, flags);
-	return BufferGetPage(buffer);
-}
-
-static inline XLogRecPtr
-RumGenericXLogFinish(GenericXLogState *state, bool isbuild)
-{
-	if (!isbuild)
-		return GenericXLogFinish(state);
-	return InvalidXLogRecPtr;
-}
-
-static inline void
-RumGenericXLogAbort(GenericXLogState *state, bool isbuild)
-{
-	if (!isbuild)
-		GenericXLogAbort(state);
-}
-
-/*
  * Functions for reading ItemPointers with additional information. Used in
  * various .c files and have to be inline for being fast.
  */

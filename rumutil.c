@@ -487,8 +487,7 @@ RumInitBuffer(GenericXLogState *state, Buffer buffer, uint32 flags, bool isBuild
 {
 	Page		page;
 
-	page = RumGenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE,
-										isBuild);
+	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
 
 	RumInitPage(page, flags, BufferGetPageSize(buffer));
 }
@@ -500,8 +499,8 @@ RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer, bool isBuild)
 	RumMetaPageData *metadata;
 
 	/* Initialize contents of meta page */
-	metaPage = RumGenericXLogRegisterBuffer(state, metaBuffer,
-											GENERIC_XLOG_FULL_IMAGE, isBuild);
+	metaPage = GenericXLogRegisterBuffer(state, metaBuffer,
+										 GENERIC_XLOG_FULL_IMAGE);
 
 	RumInitPage(metaPage, RUM_META, BufferGetPageSize(metaBuffer));
 	metadata = RumPageGetMeta(metaPage);
@@ -850,11 +849,11 @@ rumUpdateStats(Relation index, const GinStatsData *stats, bool isBuild)
 	RumMetaPageData *metadata;
 	GenericXLogState *state;
 
-	state = RumGenericXLogStart(index, isBuild);
+	state = GenericXLogStart(index);
 
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
 	LockBuffer(metabuffer, RUM_EXCLUSIVE);
-	metapage = RumGenericXLogRegisterBuffer(state, metabuffer, 0, isBuild);
+	metapage = GenericXLogRegisterBuffer(state, metabuffer, 0);
 	metadata = RumPageGetMeta(metapage);
 
 	metadata->nTotalPages = stats->nTotalPages;
@@ -862,7 +861,7 @@ rumUpdateStats(Relation index, const GinStatsData *stats, bool isBuild)
 	metadata->nDataPages = stats->nDataPages;
 	metadata->nEntries = stats->nEntries;
 
-	RumGenericXLogFinish(state, isBuild);
+	GenericXLogFinish(state);
 
 	UnlockReleaseBuffer(metabuffer);
 }

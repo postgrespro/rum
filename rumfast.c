@@ -58,9 +58,9 @@ writeListPage(RumState *rumstate, Buffer buffer,
 				off;
 	GenericXLogState *state;
 
-	state = RumGenericXLogStart(rumstate->index, rumstate->isBuild);
+	state = GenericXLogStart(rumstate->index);
 
-	page = RumGenericXLogRegisterBuffer(state, buffer, 0, rumstate->isBuild);
+	page = GenericXLogRegisterBuffer(state, buffer, 0);
 	RumInitPage(page, RUM_LIST, BufferGetPageSize(buffer));
 
 	off = FirstOffsetNumber;
@@ -97,7 +97,7 @@ writeListPage(RumState *rumstate, Buffer buffer,
 
 	/* get free space before releasing buffer */
 	freesize = PageGetExactFreeSpace(page);
-	RumGenericXLogFinish(state, rumstate->isBuild);
+	GenericXLogFinish(state);
 	UnlockReleaseBuffer(buffer);
 
 	return freesize;
@@ -193,7 +193,7 @@ rumHeapTupleFastInsert(RumState * rumstate, RumTupleCollector * collector)
 	if (collector->ntuples == 0)
 		return;
 
-	state = RumGenericXLogStart(rumstate->index, rumstate->isBuild);
+	state = GenericXLogStart(rumstate->index);
 	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
 
 	if (collector->sumsize + collector->ntuples * sizeof(ItemIdData) > RumListPageSize)
@@ -236,8 +236,7 @@ rumHeapTupleFastInsert(RumState * rumstate, RumTupleCollector * collector)
 		 * metapage was unlocked, see above
 		 */
 		LockBuffer(metabuffer, RUM_EXCLUSIVE);
-		metapage = RumGenericXLogRegisterBuffer(state, metabuffer, 0,
-												rumstate->isBuild);
+		metapage = GenericXLogRegisterBuffer(state, metabuffer, 0);
 		metadata = RumPageGetMeta(metapage);
 
 		if (metadata->head == InvalidBlockNumber)
@@ -260,8 +259,7 @@ rumHeapTupleFastInsert(RumState * rumstate, RumTupleCollector * collector)
 
 			buffer = ReadBuffer(index, metadata->tail);
 			LockBuffer(buffer, RUM_EXCLUSIVE);
-			page = RumGenericXLogRegisterBuffer(state, buffer, 0,
-												rumstate->isBuild);
+			page = GenericXLogRegisterBuffer(state, buffer, 0);
 
 			Assert(RumPageGetOpaque(page)->rightlink == InvalidBlockNumber);
 
@@ -284,13 +282,12 @@ rumHeapTupleFastInsert(RumState * rumstate, RumTupleCollector * collector)
 		uint32		i;
 		Size		tupsize;
 
-		metapage = RumGenericXLogRegisterBuffer(state, metabuffer, 0,
-												rumstate->isBuild);
+		metapage = GenericXLogRegisterBuffer(state, metabuffer, 0);
 		metadata = RumPageGetMeta(metapage);
 
 		buffer = ReadBuffer(index, metadata->tail);
 		LockBuffer(buffer, RUM_EXCLUSIVE);
-		page = RumGenericXLogRegisterBuffer(state, buffer, 0, rumstate->isBuild);
+		page = GenericXLogRegisterBuffer(state, buffer, 0);
 
 		off = (PageIsEmpty(page)) ? FirstOffsetNumber :
 			OffsetNumberNext(PageGetMaxOffsetNumber(page));
@@ -309,7 +306,7 @@ rumHeapTupleFastInsert(RumState * rumstate, RumTupleCollector * collector)
 
 			if (l == InvalidOffsetNumber)
 			{
-				RumGenericXLogAbort(state, rumstate->isBuild);
+				GenericXLogAbort(state);
 				elog(ERROR, "failed to add item to index page in \"%s\"",
 					 RelationGetRelationName(index));
 			}
@@ -332,7 +329,7 @@ rumHeapTupleFastInsert(RumState * rumstate, RumTupleCollector * collector)
 	if (metadata->nPendingPages * RUM_PAGE_FREESIZE > work_mem * 1024L)
 		needCleanup = true;
 
-	RumGenericXLogFinish(state, rumstate->isBuild);
+	GenericXLogFinish(state);
 
 	if (buffer != InvalidBuffer)
 		UnlockReleaseBuffer(buffer);
@@ -508,10 +505,9 @@ shiftList(RumState *rumstate, Buffer metabuffer, BlockNumber newHead,
 	BlockNumber blknoToDelete;
 	GenericXLogState *metastate;
 
-	metastate = RumGenericXLogStart(rumstate->index, rumstate->isBuild);
-	metapage = RumGenericXLogRegisterBuffer(metastate, metabuffer,
-											GENERIC_XLOG_FULL_IMAGE,
-											rumstate->isBuild);
+	metastate = GenericXLogStart(rumstate->index);
+	metapage = GenericXLogRegisterBuffer(metastate, metabuffer,
+										 GENERIC_XLOG_FULL_IMAGE);
 	metadata = RumPageGetMeta(metapage);
 	blknoToDelete = metadata->head;
 
@@ -535,7 +531,7 @@ shiftList(RumState *rumstate, Buffer metabuffer, BlockNumber newHead,
 
 			if (RumPageIsDeleted(page))
 			{
-				RumGenericXLogAbort(metastate, rumstate->isBuild);
+				GenericXLogAbort(metastate);
 				/* concurrent cleanup process is detected */
 				for (i = 0; i < nDeleted; i++)
 					UnlockReleaseBuffer(buffers[i]);
@@ -565,23 +561,22 @@ shiftList(RumState *rumstate, Buffer metabuffer, BlockNumber newHead,
 			metadata->nPendingHeapTuples = 0;
 		}
 
-		MarkBufferDirty(metabuffer);
+//		MarkBufferDirty(metabuffer);
 
 		for (i = 0; i < nDeleted; i++)
 		{
-			state = RumGenericXLogStart(rumstate->index, rumstate->isBuild);
-			page = RumGenericXLogRegisterBuffer(state, buffers[i], 0,
-												rumstate->isBuild);
+			state = GenericXLogStart(rumstate->index);
+			page = GenericXLogRegisterBuffer(state, buffers[i], 0);
 
 			RumPageGetOpaque(page)->flags = RUM_DELETED;
-			RumGenericXLogFinish(state, rumstate->isBuild);
+			GenericXLogFinish(state);
 		}
 
 		for (i = 0; i < nDeleted; i++)
 			UnlockReleaseBuffer(buffers[i]);
 	} while (blknoToDelete != newHead);
 
-	RumGenericXLogFinish(metastate, rumstate->isBuild);
+	GenericXLogFinish(metastate);
 
 	return false;
 }

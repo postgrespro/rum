@@ -49,10 +49,9 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 	ItemPointerData prev_iptr = {{0, 0}, 0};
 	GenericXLogState *state;
 
-	state = RumGenericXLogStart(index, rumstate->isBuild);
+	state = GenericXLogStart(index);
 
-	page = RumGenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE,
-										rumstate->isBuild);
+	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
 	RumInitPage(page, RUM_DATA | RUM_LEAF, BufferGetPageSize(buffer));
 
 	blkno = BufferGetBlockNumber(buffer);
@@ -69,7 +68,7 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 	Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 	updateItemIndexes(page, attnum, rumstate);
 
-	RumGenericXLogFinish(state, rumstate->isBuild);
+	GenericXLogFinish(state);
 
 	UnlockReleaseBuffer(buffer);
 
