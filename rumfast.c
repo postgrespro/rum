@@ -256,7 +256,6 @@ rumHeapTupleFastInsert(RumState * rumstate, RumTupleCollector * collector)
 			/*
 			 * Merge lists
 			 */
-
 			buffer = ReadBuffer(index, metadata->tail);
 			LockBuffer(buffer, RUM_EXCLUSIVE);
 			page = GenericXLogRegisterBuffer(state, buffer, 0);

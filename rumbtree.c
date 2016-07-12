@@ -14,6 +14,7 @@
 #include "postgres.h"
 
 #include "access/generic_xlog.h"
+#include "miscadmin.h"
 
 #include "rum.h"
 
@@ -399,13 +400,27 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 
 		if (btree->isEnoughSpace(btree, stack->buffer, stack->off))
 		{
-			state = GenericXLogStart(index);
-			page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
+			if (btree->rumstate->isBuild)
+			{
+				page = BufferGetPage(stack->buffer);
+				START_CRIT_SECTION();
+			}
+			else
+			{
+				state = GenericXLogStart(index);
+				page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
+			}
 
 			btree->placeToPage(btree, page, stack->off);
-			GenericXLogFinish(state);
+
+			if (btree->rumstate->isBuild)
+				MarkBufferDirty(stack->buffer);
+			else
+				GenericXLogFinish(state);
 
 			LockBuffer(stack->buffer, RUM_UNLOCK);
+			if (btree->rumstate->isBuild)
+				END_CRIT_SECTION();
 			freeRumBtreeStack(stack);
 
 			return;
@@ -430,11 +445,19 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 			{
 				Buffer		lbuffer;
 
-				state = GenericXLogStart(index);
+				if (btree->rumstate->isBuild)
+				{
+					page = BufferGetPage(stack->buffer);
+					rpage = BufferGetPage(rbuffer);
+				}
+				else
+				{
+					state = GenericXLogStart(index);
 
-				page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
-				rpage = GenericXLogRegisterBuffer(state, rbuffer,
-												  GENERIC_XLOG_FULL_IMAGE);
+					page = GenericXLogRegisterBuffer(state, stack->buffer, 0);
+					rpage = GenericXLogRegisterBuffer(state, rbuffer,
+													  GENERIC_XLOG_FULL_IMAGE);
+				}
 
 				/*
 				 * newlpage is a pointer to memory page, it doesn't associate
@@ -448,8 +471,11 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 				 * pointer on root to left and right page
 				 */
 				lbuffer = RumNewBuffer(btree->index);
-				lpage = GenericXLogRegisterBuffer(state, lbuffer,
-												  GENERIC_XLOG_FULL_IMAGE);
+				if (btree->rumstate->isBuild)
+					lpage = BufferGetPage(lbuffer);
+				else
+					lpage = GenericXLogRegisterBuffer(state, lbuffer,
+													  GENERIC_XLOG_FULL_IMAGE);
 
 				RumPageGetOpaque(rpage)->rightlink = InvalidBlockNumber;
 				RumPageGetOpaque(newlpage)->leftlink = InvalidBlockNumber;
@@ -462,11 +488,22 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 				btree->fillRoot(btree, stack->buffer, lbuffer, rbuffer,
 								page, lpage, rpage);
 
-				GenericXLogFinish(state);
+				if (btree->rumstate->isBuild)
+				{
+					START_CRIT_SECTION();
+					MarkBufferDirty(rbuffer);
+					MarkBufferDirty(lbuffer);
+					MarkBufferDirty(stack->buffer);
+				}
+				else
+					GenericXLogFinish(state);
 
 				UnlockReleaseBuffer(rbuffer);
 				UnlockReleaseBuffer(lbuffer);
 				LockBuffer(stack->buffer, RUM_UNLOCK);
+
+				if (btree->rumstate->isBuild)
+					END_CRIT_SECTION();
 
 				freeRumBtreeStack(stack);
 
@@ -484,11 +521,18 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 			else
 			{
 				/* split non-root page */
+				if (btree->rumstate->isBuild)
+				{
+					lpage = BufferGetPage(stack->buffer);
+					rpage = BufferGetPage(rbuffer);
+				}
+				else
+				{
+					state = GenericXLogStart(index);
 
-				state = GenericXLogStart(index);
-
-				lpage = GenericXLogRegisterBuffer(state, stack->buffer, 0);
-				rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
+					lpage = GenericXLogRegisterBuffer(state, stack->buffer, 0);
+					rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
+				}
 
 				/*
 				 * newlpage is a pointer to memory page, it doesn't associate
@@ -502,11 +546,21 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 				RumPageGetOpaque(rpage)->leftlink = BufferGetBlockNumber(stack->buffer);
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
 
+				if (btree->rumstate->isBuild)
+					START_CRIT_SECTION();
 				PageRestoreTempPage(newlpage, lpage);
 
-				GenericXLogFinish(state);
+				if (btree->rumstate->isBuild)
+				{
+					MarkBufferDirty(rbuffer);
+					MarkBufferDirty(stack->buffer);
+				}
+				else
+					GenericXLogFinish(state);
 
 				UnlockReleaseBuffer(rbuffer);
+				if (btree->rumstate->isBuild)
+					END_CRIT_SECTION();
 			}
 		}
 

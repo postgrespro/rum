@@ -16,6 +16,7 @@
 #include "access/reloptions.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_type.h"
+#include "miscadmin.h"
 #include "storage/indexfsm.h"
 #include "storage/lmgr.h"
 #include "utils/guc.h"
@@ -483,11 +484,16 @@ RumInitPage(Page page, uint32 f, Size pageSize)
 }
 
 void
-RumInitBuffer(GenericXLogState *state, Buffer buffer, uint32 flags, bool isBuild)
+RumInitBuffer(GenericXLogState *state, Buffer buffer, uint32 flags,
+			  bool isBuild)
 {
 	Page		page;
 
-	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
+	if (isBuild)
+		page = BufferGetPage(buffer);
+	else
+		page = GenericXLogRegisterBuffer(state, buffer,
+										 GENERIC_XLOG_FULL_IMAGE);
 
 	RumInitPage(page, flags, BufferGetPageSize(buffer));
 }
@@ -499,8 +505,11 @@ RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer, bool isBuild)
 	RumMetaPageData *metadata;
 
 	/* Initialize contents of meta page */
-	metaPage = GenericXLogRegisterBuffer(state, metaBuffer,
-										 GENERIC_XLOG_FULL_IMAGE);
+	if (isBuild)
+		metaPage = BufferGetPage(metaBuffer);
+	else
+		metaPage = GenericXLogRegisterBuffer(state, metaBuffer,
+											 GENERIC_XLOG_FULL_IMAGE);
 
 	RumInitPage(metaPage, RUM_META, BufferGetPageSize(metaBuffer));
 	metadata = RumPageGetMeta(metaPage);
@@ -844,16 +853,23 @@ rumGetStats(Relation index, GinStatsData *stats)
 void
 rumUpdateStats(Relation index, const GinStatsData *stats, bool isBuild)
 {
-	Buffer		metabuffer;
+	Buffer		metaBuffer;
 	Page		metapage;
 	RumMetaPageData *metadata;
 	GenericXLogState *state;
 
-	state = GenericXLogStart(index);
-
-	metabuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
-	LockBuffer(metabuffer, RUM_EXCLUSIVE);
-	metapage = GenericXLogRegisterBuffer(state, metabuffer, 0);
+	metaBuffer = ReadBuffer(index, RUM_METAPAGE_BLKNO);
+	LockBuffer(metaBuffer, RUM_EXCLUSIVE);
+	if (isBuild)
+	{
+		metapage = BufferGetPage(metaBuffer);
+		START_CRIT_SECTION();
+	}
+	else
+	{
+		state = GenericXLogStart(index);
+		metapage = GenericXLogRegisterBuffer(state, metaBuffer, 0);
+	}
 	metadata = RumPageGetMeta(metapage);
 
 	metadata->nTotalPages = stats->nTotalPages;
@@ -861,9 +877,15 @@ rumUpdateStats(Relation index, const GinStatsData *stats, bool isBuild)
 	metadata->nDataPages = stats->nDataPages;
 	metadata->nEntries = stats->nEntries;
 
-	GenericXLogFinish(state);
+	if (isBuild)
+		MarkBufferDirty(metaBuffer);
+	else
+		GenericXLogFinish(state);
 
-	UnlockReleaseBuffer(metabuffer);
+	UnlockReleaseBuffer(metaBuffer);
+
+	if (isBuild)
+		END_CRIT_SECTION();
 }
 
 Datum

@@ -49,9 +49,16 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 	ItemPointerData prev_iptr = {{0, 0}, 0};
 	GenericXLogState *state;
 
-	state = GenericXLogStart(index);
-
-	page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
+	if (rumstate->isBuild)
+	{
+		page = BufferGetPage(buffer);
+		START_CRIT_SECTION();
+	}
+	else
+	{
+		state = GenericXLogStart(index);
+		page = GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
+	}
 	RumInitPage(page, RUM_DATA | RUM_LEAF, BufferGetPageSize(buffer));
 
 	blkno = BufferGetBlockNumber(buffer);
@@ -68,9 +75,15 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 	Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 	updateItemIndexes(page, attnum, rumstate);
 
-	GenericXLogFinish(state);
+	if (rumstate->isBuild)
+		MarkBufferDirty(buffer);
+	else
+		GenericXLogFinish(state);
 
 	UnlockReleaseBuffer(buffer);
+
+	if (rumstate->isBuild)
+		END_CRIT_SECTION();
 
 	return blkno;
 }
@@ -592,11 +605,15 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	/* initialize the root page */
 	RootBuffer = RumNewBuffer(index);
 
+	START_CRIT_SECTION();
 	RumInitMetabuffer(NULL, MetaBuffer, buildstate.rumstate.isBuild);
+	MarkBufferDirty(MetaBuffer);
 	RumInitBuffer(NULL, RootBuffer, RUM_LEAF, buildstate.rumstate.isBuild);
+	MarkBufferDirty(RootBuffer);
 
 	UnlockReleaseBuffer(MetaBuffer);
 	UnlockReleaseBuffer(RootBuffer);
+	END_CRIT_SECTION();
 
 	/* count the root as first entry page */
 	buildstate.buildStats.nEntryPages++;
