@@ -104,11 +104,6 @@ CREATE OPERATOR |=> (
 
 -- timestamp operator class
 
-CREATE FUNCTION rum_timestamp_cmp(timestamp,timestamp)
-RETURNS int
-AS 'MODULE_PATHNAME'
-LANGUAGE C STRICT IMMUTABLE;
-
 CREATE FUNCTION rum_timestamp_extract_value(timestamp,internal,internal,internal,internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
@@ -148,7 +143,7 @@ AS
 	OPERATOR        4       >=,
 	OPERATOR        5       >,
 	--support
-	FUNCTION        1 rum_timestamp_cmp(timestamp,timestamp),
+	FUNCTION        1 timestamp_cmp(timestamp,timestamp),
 	FUNCTION        2 rum_timestamp_extract_value(timestamp,internal,internal,internal,internal),
 	FUNCTION        3 rum_timestamp_extract_query(timestamp,internal,smallint,internal,internal,internal,internal),
 	FUNCTION        4 rum_timestamp_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal),
