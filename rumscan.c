@@ -415,17 +415,23 @@ fillMarkAddInfo(RumScanOpaque so, RumScanKey orderKey)
 
 	for(i=0; i<so->nkeys; i++)
 	{
-		RumScanKey	scanKey = so->keys[i];
+		RumScanKey		scanKey = so->keys[i];
+		ScanDirection	scanDirection;
 
 		if (scanKey->orderBy)
 			continue;
 
 		if (scanKey->attnum == so->rumstate.attrnAddToColumn &&
 			orderKey->attnum == so->rumstate.attrnAddToColumn &&
-			lookupScanDirection(&so->rumstate, orderKey->attnumOrig,
-								orderKey->strategy) == ForwardScanDirection)
+			(scanDirection = lookupScanDirection(&so->rumstate,
+								orderKey->attnumOrig,
+								orderKey->strategy)) != NoMovementScanDirection)
 		{
 			int j;
+
+			if (so->naturalOrder != NoMovementScanDirection &&
+				so->naturalOrder != scanDirection)
+				elog(ERROR, "Could not scan in differ directions at the same time");
 
 			for(j=0; j<scanKey->nentries; j++)
 			{
@@ -436,8 +442,47 @@ fillMarkAddInfo(RumScanOpaque so, RumScanKey orderKey)
 				scanEntry->useMarkAddInfo = true;
 				scanEntry->markAddInfo.addInfoIsNull = false;
 				scanEntry->markAddInfo.addInfo = orderKey->queryValues[0];
+				scanEntry->scanDirection = scanDirection;
 			}
-			so->naturalOrder = true;
+
+			scanKey->scanDirection = scanDirection;
+			so->naturalOrder = scanDirection;
+		}
+	}
+}
+
+static void
+adjustScanDirection(RumScanOpaque so)
+{
+	int i;
+
+	if (so->naturalOrder == NoMovementScanDirection)
+		return;
+
+	for(i=0; i<so->nkeys; i++)
+	{
+		RumScanKey	scanKey = so->keys[i];
+
+		if (scanKey->orderBy)
+			continue;
+
+		if (scanKey->attnum == so->rumstate.attrnAddToColumn)
+		{
+			if (scanKey->scanDirection != so->naturalOrder)
+			{
+				int	j;
+
+				if (scanKey->scanDirection != NoMovementScanDirection)
+					elog(ERROR, "Could not scan in differ directions at the same time");
+
+				scanKey->scanDirection = so->naturalOrder;
+				for(j=0; j<scanKey->nentries; j++)
+				{
+					RumScanEntry	scanEntry = scanKey->scanEntry[j];
+
+					scanEntry->scanDirection = so->naturalOrder;
+				}
+			}
 		}
 	}
 }
@@ -456,7 +501,7 @@ rumNewScanKey(IndexScanDesc scan)
 		haofHasAddToRestriction = 0x02
 	}		hasAddOnFilter = haofNone;
 
-	so->naturalOrder = (scan->numberOfOrderBys > 0) ? false : true;
+	so->naturalOrder = NoMovementScanDirection;
 
 	/*
 	 * Allocate all the scan key information in the key context. (If
@@ -575,6 +620,8 @@ rumNewScanKey(IndexScanDesc scan)
 		so->keys = keys;
 		so->nkeys = nkeys;
 	}
+
+	adjustScanDirection(so);
 
 	/* initialize expansible array of RumScanEntry pointers */
 	so->totalentries = 0;

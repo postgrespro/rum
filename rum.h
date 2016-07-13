@@ -96,7 +96,7 @@ typedef struct RumMetaPageData
 	int64		nEntries;
 }	RumMetaPageData;
 
-#define RUM_CURRENT_VERSION		(0xC0DE0001)
+#define RUM_CURRENT_VERSION		(0xC0DE0002)
 
 #define RumPageGetMeta(p) \
 	((RumMetaPageData *) PageGetContents(p))
@@ -149,9 +149,9 @@ typedef struct RumMetaPageData
 	(RumItemPointerGetOffsetNumber(p) == (OffsetNumber)0 && \
 	 RumItemPointerGetBlockNumber(p) == (BlockNumber)0)
 #define ItemPointerSetMax(p)  \
-	ItemPointerSet((p), InvalidBlockNumber, (OffsetNumber)0xffff)
+	ItemPointerSet((p), InvalidBlockNumber, (OffsetNumber)0xfffe)
 #define ItemPointerIsMax(p)  \
-	(RumItemPointerGetOffsetNumber(p) == (OffsetNumber)0xffff && \
+	(RumItemPointerGetOffsetNumber(p) == (OffsetNumber)0xfffe && \
 	 RumItemPointerGetBlockNumber(p) == InvalidBlockNumber)
 #define ItemPointerSetLossyPage(p, b)  \
 	ItemPointerSet((p), (b), (OffsetNumber)0xffff)
@@ -641,8 +641,8 @@ typedef struct RumScanEntryData
 	/* used for Posting list and one page in Posting tree */
 	RumKey	   *list;
 	MemoryContext context;
-	uint32		nlist;
-	OffsetNumber offset;
+	int16		nlist;
+	int16		offset;
 
 	ScanDirection	scanDirection;
 	bool		isFinished;
@@ -687,7 +687,7 @@ typedef struct RumScanOpaqueData
 	bool		useFastScan;
 	TIDBitmap  *tbm;
 
-	bool		naturalOrder;
+	ScanDirection	naturalOrder;
 }	RumScanOpaqueData;
 
 typedef RumScanOpaqueData *RumScanOpaque;

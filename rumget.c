@@ -119,7 +119,7 @@ callConsistentFn(RumState * rumstate, RumScanKey key)
  * Tries to refind previously taken ItemPointer on a posting page.
  */
 static bool
-findItemInPostingPage(Page page, RumKey	*item, OffsetNumber *off,
+findItemInPostingPage(Page page, RumKey	*item, int16 *off,
 					  OffsetNumber attno, OffsetNumber attnum,
 					  ScanDirection scanDirection, RumState * rumstate)
 {
@@ -450,7 +450,11 @@ setListPositionScanEntry(RumState * rumstate, RumScanEntry entry)
 					StopHigh = entry->nlist;
 
 	if (entry->useMarkAddInfo == false)
+	{
+		entry->offset = (ScanDirectionIsForward(entry->scanDirection)) ?
+							0 : entry->nlist - 1;
 		return false;
+	}
 
 	while (StopLow < StopHigh)
 	{
@@ -468,9 +472,20 @@ setListPositionScanEntry(RumState * rumstate, RumScanEntry entry)
 			return false;
 	}
 
-	entry->offset = StopHigh;
+	if (ScanDirectionIsForward(entry->scanDirection))
+	{
+		entry->offset = StopHigh;
 
-	return (StopHigh >= entry->nlist);
+		return (StopHigh >= entry->nlist);
+	}
+	else
+	{
+		if (entry->offset == 0)
+			return true;
+
+		entry->offset--;
+		return false;
+	}
 }
 
 /*
@@ -653,6 +668,8 @@ startScanKey(RumState * rumstate, RumScanKey key)
 static int
 cmpEntries(RumState *rumstate, RumScanEntry e1, RumScanEntry e2)
 {
+	int res;
+
 	if (e1->isFinished == TRUE)
 	{
 		if (e2->isFinished == TRUE)
@@ -666,7 +683,10 @@ cmpEntries(RumState *rumstate, RumScanEntry e1, RumScanEntry e2)
 	if (e1->attnumOrig != e2->attnumOrig)
 		return (e1->attnumOrig < e2->attnumOrig) ? 1 : -1;
 
-	return compareRumKey(rumstate, e1->attnumOrig, &e1->curRumKey, &e2->curRumKey);
+	res = compareRumKey(rumstate, e1->attnumOrig, &e1->curRumKey,
+						&e2->curRumKey);
+
+	return (ScanDirectionIsForward(e1->scanDirection)) ? res : -res;
 }
 
 static int
@@ -754,7 +774,7 @@ startScan(IndexScanDesc scan)
 		}
 	}
 
-	ItemPointerSetMin(&so->key.iptr);
+	ItemPointerSetInvalid(&so->key.iptr);
 
 	if (useFastScan)
 	{
@@ -790,12 +810,26 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 
 	for (;;)
 	{
-		if (entry->offset < entry->nlist)
+		if (ScanDirectionIsForward(entry->scanDirection))
 		{
-			entry->curRumKey = entry->list[entry->offset];
-			entry->offset++;
-			return;
+			if (entry->offset < entry->nlist)
+			{
+				entry->curRumKey = entry->list[entry->offset];
+				entry->offset++;
+				return;
+			}
 		}
+		else if (ScanDirectionIsBackward(entry->scanDirection))
+		{
+			if (entry->offset >= 0)
+			{
+				entry->curRumKey = entry->list[entry->offset];
+				entry->offset--;
+				return;
+			}
+		}
+		else
+			elog(ERROR,"NoMovementScanDirection");
 
 		LockBuffer(entry->buffer, RUM_SHARE);
 		page = BufferGetPage(entry->buffer);
@@ -837,7 +871,7 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 
 			entry->offset = InvalidOffsetNumber;
 			if (!ItemPointerIsValid(&entry->curRumKey.iptr) ||
-			findItemInPostingPage(page, &entry->curRumKey, &entry->offset,
+				findItemInPostingPage(page, &entry->curRumKey, &entry->offset,
 								  entry->attnumOrig, entry->attnum,
 								  entry->scanDirection, rumstate))
 			{
@@ -898,6 +932,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
 
 	Assert(!entry->isFinished);
 	Assert(entry->stack);
+	Assert(ScanDirectionIsForward(entry->scanDirection));
 
 	entry->buffer = InvalidBuffer;
 	RumItemSetMin(&entry->curRumKey);
@@ -1062,6 +1097,8 @@ entryGetItem(RumState * rumstate, RumScanEntry entry)
 
 	if (entry->matchBitmap)
 	{
+		Assert(ScanDirectionIsForward(entry->scanDirection));
+
 		do
 		{
 			if (entry->matchResult == NULL ||
@@ -1111,13 +1148,14 @@ entryGetItem(RumState * rumstate, RumScanEntry entry)
 	}
 	else if (!BufferIsValid(entry->buffer))
 	{
-		entry->offset++;
-		if (entry->offset <= entry->nlist)
+		if (entry->offset >= 0 && entry->offset < entry->nlist)
 		{
-			entry->curRumKey = entry->list[entry->offset - 1];
+			entry->curRumKey = entry->list[entry->offset];
+			entry->offset += entry->scanDirection;
 		}
 		else if (entry->stack)
 		{
+			entry->offset++;
 			entryGetNextItemList(rumstate, entry);
 		}
 		else
@@ -1162,6 +1200,29 @@ entryGetItem(RumState * rumstate, RumScanEntry entry)
  * item pointers for the same page.  (Doing so would break the key-combination
  * logic in scanGetItem.)
  */
+
+static int
+compareRumKeyScanDirection(RumState *rumstate, AttrNumber attno,
+						   ScanDirection scanDirection,
+						   RumKey *a, RumKey *b)
+{
+	int res = compareRumKey(rumstate, attno, a, b);
+
+	return  (ScanDirectionIsForward(scanDirection)) ? res : -res;
+
+}
+
+static int
+compareCurRumKeyScanDirection(RumState *rumstate, RumScanEntry entry,
+						   RumKey *minItem)
+{
+	return compareRumKeyScanDirection(rumstate,
+						(entry->forceUseBitmap) ?
+							InvalidAttrNumber : entry->attnumOrig,
+						entry->scanDirection,
+						&entry->curRumKey, minItem);
+}
+
 static void
 keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 {
@@ -1195,10 +1256,7 @@ keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 			allFinished = false;
 
 			if (minItemInited == false ||
-				compareRumKey(rumstate,
-							  (entry->forceUseBitmap) ?
-								InvalidAttrNumber : entry->attnumOrig,
-							  &entry->curRumKey, &minItem) < 0)
+				compareCurRumKeyScanDirection(rumstate, entry, &minItem) < 0)
 			{
 				minItem = entry->curRumKey;
 				minItemInited = true;
@@ -1382,14 +1440,14 @@ scanGetItemRegular(IndexScanDesc scan, RumKey *advancePast,
 	RumKey		myAdvancePast = *advancePast;
 	uint32		i;
 	bool		allFinished;
-	bool		match;
+	bool		match, itemSet;
 
 	for (;;)
 	{
 		/*
-		 * Advance any entries that are <= myAdvancePast.  In particular,
-		 * since entry->curItem was initialized with ItemPointerSetMin, this
-		 * ensures we fetch the first item for each entry on the first call.
+		 * Advance any entries that are <= myAdvancePast according to
+		 * scan direction. On first call myAdvancePast is invalid,
+		 * so anyway we are needed to call entryGetItem()
 		 */
 		allFinished = TRUE;
 
@@ -1398,13 +1456,14 @@ scanGetItemRegular(IndexScanDesc scan, RumKey *advancePast,
 			RumScanEntry entry = so->entries[i];
 
 			while (entry->isFinished == FALSE &&
-				   compareRumKey(rumstate,
-								 (entry->forceUseBitmap) ?
-									InvalidAttrNumber : entry->attnumOrig,
-								 &entry->curRumKey,
-								 &myAdvancePast) <= 0)
+				   (!ItemPointerIsValid(&myAdvancePast.iptr) ||
+				   compareCurRumKeyScanDirection(rumstate, entry,
+												 &myAdvancePast) <= 0))
 			{
 				entryGetItem(rumstate, entry);
+
+				if (!ItemPointerIsValid(&myAdvancePast.iptr))
+					break;
 			}
 
 			if (entry->isFinished == false)
@@ -1423,11 +1482,12 @@ scanGetItemRegular(IndexScanDesc scan, RumKey *advancePast,
 		 * we can stop.  Otherwise, set *item to the minimum of the key
 		 * curItems.
 		 */
-		ItemPointerSetMax(&item->iptr);
 
+		itemSet = false;
 		for (i = 0; i < so->nkeys; i++)
 		{
 			RumScanKey	key = so->keys[i];
+			int			cmp;
 
 			if (key->orderBy)
 				continue;
@@ -1437,12 +1497,17 @@ scanGetItemRegular(IndexScanDesc scan, RumKey *advancePast,
 			if (key->isFinished)
 				return false;	/* finished one of keys */
 
-			if (compareRumKey(rumstate, key->attnumOrig,
-							  &key->curItem, item) < 0)
+			if (itemSet == false)
+			{
+				*item = key->curItem;
+				itemSet = true;
+			}
+			cmp = compareRumKey(rumstate, key->attnumOrig,
+								&key->curItem, item);
+			if ((ScanDirectionIsForward(key->scanDirection) && cmp < 0) ||
+				(ScanDirectionIsBackward(key->scanDirection) && cmp > 0))
 				*item = key->curItem;
 		}
-
-		Assert(!ItemPointerIsMax(&item->iptr));
 
 		/*----------
 		 * Now *item contains first ItemPointer after previous result.
@@ -1602,6 +1667,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 /*
  * Find item of scan entry wich is greater or equal to the given item.
  */
+
 static void
 entryFindItem(RumState * rumstate, RumScanEntry entry, RumKey * item)
 {
@@ -1611,25 +1677,32 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumKey * item)
 		return;
 	}
 
+	Assert(!entry->forceUseBitmap);
+
 	/* Try to find in loaded part of page */
-	if (compareRumKey(rumstate, entry->attnumOrig,
-					  &entry->list[entry->nlist - 1],
-					  item) >= 0)
+	if ((ScanDirectionIsForward(entry->scanDirection) &&
+		 compareRumKey(rumstate, entry->attnumOrig,
+					   &entry->list[entry->nlist - 1], item) >= 0) ||
+		(ScanDirectionIsBackward(entry->scanDirection) &&
+		 compareRumKey(rumstate, entry->attnumOrig,
+					   &entry->list[0], item) <= 0))
 	{
-		if (compareRumKey(rumstate, entry->attnumOrig,
-						  &entry->curRumKey, item) >= 0)
+		if (compareRumKeyScanDirection(rumstate, entry->attnumOrig,
+							entry->scanDirection,
+							&entry->curRumKey, item) >= 0)
 			return;
 		while (entry->offset < entry->nlist)
 		{
-			if (compareRumKey(rumstate, entry->attnumOrig,
-							  &entry->list[entry->offset],
-							  item) >= 0)
+			if (compareRumKeyScanDirection(rumstate, entry->attnumOrig,
+							entry->scanDirection,
+							&entry->list[entry->offset],
+							item) >= 0)
 			{
 				entry->curRumKey = entry->list[entry->offset];
-				entry->offset++;
+				entry->offset += entry->scanDirection;
 				return;
 			}
-			entry->offset++;
+			entry->offset += entry->scanDirection;
 		}
 	}
 
@@ -2100,8 +2173,8 @@ insertScanItem(RumScanOpaque so, bool recheck)
 
 #if 0
 		  elog(NOTICE, "%f %u:%u", item->data[j],
-		  ItemPointerGetBlockNumber(&item->iptr),
-		  ItemPointerGetOffsetNumber(&item->iptr));
+		  RumItemPointerGetBlockNumber(&item->iptr),
+		  RumItemPointerGetOffsetNumber(&item->iptr));
 #endif
 
 
@@ -2135,9 +2208,8 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 		so->entriesIncrIndex = -1;
 		so->firstCall = false;
 
-		//scanPendingInsert(scan);
 		startScan(scan);
-		if (!so->naturalOrder)
+		if (so->naturalOrder == NoMovementScanDirection)
 		{
 			so->sortstate = rum_tuplesort_begin_rum(work_mem, so->norderbys,
 						false,
@@ -2154,7 +2226,7 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 		}
 	}
 
-	if (so->naturalOrder)
+	if (so->naturalOrder != NoMovementScanDirection)
 	{
 		if (scanGetItem(scan, &so->key, &so->key, &recheck))
 		{

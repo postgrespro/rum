@@ -283,7 +283,10 @@ rum_timestamp_config(PG_FUNCTION_ARGS)
 	config->strategyInfo[0].strategy = RUM_TMST_LEFT_DISTANCE;
 	config->strategyInfo[0].direction = ForwardScanDirection;
 
-	config->strategyInfo[1].strategy = InvalidStrategy;
+	config->strategyInfo[1].strategy = RUM_TMST_RIGHT_DISTANCE;
+	config->strategyInfo[1].direction = BackwardScanDirection;
+
+	config->strategyInfo[2].strategy = InvalidStrategy;
 
 	PG_RETURN_VOID();
 }
