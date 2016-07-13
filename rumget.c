@@ -480,10 +480,11 @@ setListPositionScanEntry(RumState * rumstate, RumScanEntry entry)
 	}
 	else
 	{
-		if (entry->offset == 0)
+		if (StopHigh == 0)
 			return true;
 
-		entry->offset--;
+		entry->offset = StopHigh - 1;
+
 		return false;
 	}
 }
