@@ -1596,7 +1596,8 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 	OffsetNumber first = FirstOffsetNumber,
 				i,
 				maxoff;
-	bool		found;
+	int16		bound = -1;
+	bool		found_eq = false;
 	int			cmp;
 
 	ItemPointerSetMin(&iter_item.iptr);
@@ -1611,6 +1612,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 
 	ptr = RumDataPageGetData(page);
 	maxoff = RumPageGetOpaque(page)->maxoff;
+
 	for (j = 0; j < RumDataLeafIndexCount; j++)
 	{
 		RumDataLeafItemIndex *index = &RumPageGetIndexes(page)[j];
@@ -1629,7 +1631,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 		else
 			cmp = rumCompareItemPointers(&index->iptr, &item->iptr);
 
-		if (cmp < 0 || (cmp <= 0 && !equalOk))
+		if (cmp < 0 || (cmp <= 0 && equalOk))
 		{
 			ptr = RumDataPageGetData(page) + index->pageOffset;
 			first = index->offsetNumer;
@@ -1637,31 +1639,63 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 		}
 		else
 		{
-			maxoff = index->offsetNumer - 1;
+			if (ScanDirectionIsBackward(entry->scanDirection))
+			{
+				if (j + 1 < RumDataLeafIndexCount)
+					maxoff = RumPageGetIndexes(page)[j+1].offsetNumer;
+			}
+			else
+				maxoff = index->offsetNumer - 1;
 			break;
 		}
 	}
 
+	if (ScanDirectionIsBackward(entry->scanDirection))
+	{
+		first = FirstOffsetNumber;
+		ItemPointerSetMin(&iter_item.iptr);
+		ptr = RumDataPageGetData(page);
+	}
+
 	entry->nlist = maxoff - first + 1;
-	entry->offset = InvalidOffsetNumber;
-	found = false;
+	bound = -1;
 	for (i = first; i <= maxoff; i++)
 	{
 		ptr = rumDataPageLeafRead(ptr, entry->attnum, &iter_item, rumstate);
 		entry->list[i - first] = iter_item;
 
+		if (bound != -1)
+			continue;
+
 		cmp = compareRumKey(rumstate, entry->attnumOrig,
 							item, &iter_item);
-		if ((cmp < 0 || (cmp <= 0 && equalOk)) && entry->offset == InvalidOffsetNumber)
+
+		if (cmp <= 0)
 		{
-			found = true;
-			entry->offset = i - first + 1;
+			bound = i - first;
+			if (cmp == 0)
+				found_eq = true;
 		}
 	}
-	if (!found)
+
+	if (bound == -1)
 		return false;
 
-	entry->curRumKey = entry->list[entry->offset - 1];
+	if (found_eq)
+	{
+		entry->offset = bound;
+		if (!equalOk)
+			entry->offset += entry->scanDirection;
+	}
+	else if (ScanDirectionIsBackward(entry->scanDirection))
+		entry->offset = bound - 1;
+	else
+		entry->offset = bound;
+
+	if (entry->offset < 0 || entry->offset >= entry->nlist)
+		return false;
+
+	entry->curRumKey = entry->list[entry->offset];
 	return true;
 }
 
@@ -1692,7 +1726,7 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumKey * item)
 							entry->scanDirection,
 							&entry->curRumKey, item) >= 0)
 			return;
-		while (entry->offset < entry->nlist)
+		while (entry->offset >= 0 && entry->offset < entry->nlist)
 		{
 			if (compareRumKeyScanDirection(rumstate, entry->attnumOrig,
 							entry->scanDirection,
