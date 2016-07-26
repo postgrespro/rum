@@ -307,7 +307,7 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 	Datum	   *queryValues;
 	int32		nQueryValues = 0;
 	bool	   *partial_matches = NULL;
-	Pointer    *extra_data = NULL;
+	Pointer	   *extra_data = NULL;
 	bool	   *nullFlags = NULL;
 	int32		searchMode = GIN_SEARCH_MODE_DEFAULT;
 
@@ -550,13 +550,15 @@ rumNewScanKey(IndexScanDesc scan)
 	/*
 	 * Fill markAddInfo if possible
 	 */
-	for (i = 0; so->rumstate.useAlternativeOrder && i < so->nkeys; i++)
+	for (i = 0; i < so->nkeys; i++)
 	{
 		RumScanKey  key = so->keys[i];
 
-		if (key->orderBy && key->useAddToColumn &&
+		if (so->rumstate.useAlternativeOrder &&
+			key->orderBy && key->useAddToColumn &&
 			key->attnum == so->rumstate.attrnAddToColumn)
 			fillMarkAddInfo(so, key);
+
 		if (key->orderBy == false)
 		{
 			if (key->attnumOrig == so->rumstate.attrnAddToColumn)
@@ -570,27 +572,14 @@ rumNewScanKey(IndexScanDesc scan)
 		(hasAddOnFilter & haofHasAddOnRestriction))
 	{
 		RumScanKey *keys = palloc(sizeof(*keys) * so->nkeys);
-		int			nkeys = 0;
-#ifdef ADD_INFO_FILTER
+		int			nkeys = 0,
+					j;
 		RumScanKey	addToKey = NULL;
-#endif
 
 		for(i=0; i<so->nkeys; i++)
 		{
 			RumScanKey  key = so->keys[i];
 
-#ifndef ADD_INFO_FILTER
-			if (key->orderBy == false &&
-				key->attnumOrig == so->rumstate.attrnAddToColumn)
-			{
-				int j;
-
-				for(j = 0; j<key->nentries; j++)
-					key->scanEntry[j]->forceUseBitmap = true;
-
-				keys[nkeys++] = key;
-			}
-#else
 			if (key->orderBy == false &&
 				key->attnumOrig == so->rumstate.attrnOrderByColumn)
 			{
@@ -605,11 +594,10 @@ rumNewScanKey(IndexScanDesc scan)
 					}
 
 				if (addToKey == NULL)
-					elog(ERROR,"could not find add_to column");
-
-				addToKey->addInfoKeys[ addToKey->addInfoNKeys++ ] = key;
+					keys[nkeys++] = key;
+				else
+					addToKey->addInfoKeys[ addToKey->addInfoNKeys++ ] = key;
 			}
-#endif
 			else
 			{
 				keys[nkeys++] = key;

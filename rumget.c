@@ -106,8 +106,37 @@ callConsistentFn(RumState * rumstate, RumScanKey key)
 				 * long-lived memory context and, somehow, freeed. Seems, the
 				 * last is real problem
 				 */
-				key->outerAddInfo = key->addInfo[0];
+				key->outerAddInfo = key->addInfo[i];
 				break;
+			}
+		}
+
+		if (key->addInfoKeys)
+		{
+			if (key->outerAddInfoIsNull)
+				res = false; /* assume strict operator */
+
+			for(i = 0; res && i < key->addInfoNKeys; i++)
+			{
+				RumScanKey subkey = key->addInfoKeys[i];
+				int j;
+
+				for(j=0; res && j<subkey->nentries; j++)
+				{
+					RumScanEntry	scanSubEntry = subkey->scanEntry[j];
+					int cmp =
+					DatumGetInt32(FunctionCall4Coll(
+						&rumstate->comparePartialFn[scanSubEntry->attnumOrig - 1],
+						rumstate->supportCollation[scanSubEntry->attnumOrig - 1],
+						scanSubEntry->queryKey,
+						key->outerAddInfo,
+						UInt16GetDatum(scanSubEntry->strategy),
+						PointerGetDatum(scanSubEntry->extra_data)
+					));
+
+					if (cmp != 0)
+						res = false;
+				}
 			}
 		}
 	}
@@ -1631,7 +1660,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 		else
 			cmp = rumCompareItemPointers(&index->iptr, &item->iptr);
 
-		if (cmp < 0 || (cmp <= 0 && equalOk))
+		if (cmp < 0 || (cmp <= 0 && !equalOk))
 		{
 			ptr = RumDataPageGetData(page) + index->pageOffset;
 			first = index->offsetNumer;
@@ -1986,6 +2015,7 @@ scanGetItemFast(IndexScanDesc scan, RumKey *advancePast,
 					key->addInfoIsNull[j] = true;
 				}
 			}
+
 			if (!callConsistentFn(&so->rumstate, key))
 			{
 				consistentResult = false;
