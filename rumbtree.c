@@ -414,13 +414,14 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 			btree->placeToPage(btree, page, stack->off);
 
 			if (btree->rumstate->isBuild)
+			{
 				MarkBufferDirty(stack->buffer);
+				END_CRIT_SECTION();
+			}
 			else
 				GenericXLogFinish(state);
 
 			LockBuffer(stack->buffer, RUM_UNLOCK);
-			if (btree->rumstate->isBuild)
-				END_CRIT_SECTION();
 			freeRumBtreeStack(stack);
 
 			return;
@@ -520,6 +521,9 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 			}
 			else
 			{
+				BlockNumber	rightrightBlkno = InvalidBlockNumber;
+				Buffer		rightrightBuffer;
+
 				/* split non-root page */
 				if (btree->rumstate->isBuild)
 				{
@@ -534,6 +538,8 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 					rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
 				}
 
+				rightrightBlkno = RumPageGetOpaque(lpage)->rightlink;
+
 				/*
 				 * newlpage is a pointer to memory page, it doesn't associate
 				 * with buffer, stack->buffer should be untouched
@@ -546,6 +552,29 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 				RumPageGetOpaque(rpage)->leftlink = BufferGetBlockNumber(stack->buffer);
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
 
+				/*
+				 * it's safe because we don't have right-to-left walking
+				 * with locking bth pages except vacuum. But vacuum will
+				 * try to lock all pages with conditional lock
+				 */
+				if (rightrightBlkno != InvalidBlockNumber)
+				{
+					Page	rightrightPage;
+
+					rightrightBuffer = ReadBuffer(btree->index,
+												  rightrightBlkno);
+
+					LockBuffer(rightrightBuffer, RUM_EXCLUSIVE);
+					if (btree->rumstate->isBuild)
+						rightrightPage = BufferGetPage(rightrightBuffer);
+					else
+						rightrightPage =
+							GenericXLogRegisterBuffer(state, rightrightBuffer, 0);
+
+					RumPageGetOpaque(rightrightPage)->leftlink =
+						BufferGetBlockNumber(rbuffer);
+				}
+
 				if (btree->rumstate->isBuild)
 					START_CRIT_SECTION();
 				PageRestoreTempPage(newlpage, lpage);
@@ -554,13 +583,16 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 				{
 					MarkBufferDirty(rbuffer);
 					MarkBufferDirty(stack->buffer);
+					if (rightrightBlkno != InvalidBlockNumber)
+						MarkBufferDirty(rightrightBuffer);
+					END_CRIT_SECTION();
 				}
 				else
 					GenericXLogFinish(state);
 
 				UnlockReleaseBuffer(rbuffer);
-				if (btree->rumstate->isBuild)
-					END_CRIT_SECTION();
+				if (rightrightBlkno != InvalidBlockNumber)
+					UnlockReleaseBuffer(rightrightBuffer);
 			}
 		}
 
