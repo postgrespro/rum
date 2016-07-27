@@ -905,9 +905,18 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				if (stopAppend)
 					 /* there is no free space on page */
 					break;
-				else
+				else if (RumPageRightMost(page))
 					/* force insertion of new item */
 					cmp = 1;
+				else if ((cmp = compareRumKey(btree->rumstate, btree->entryAttnum,
+											  RumDataPageGetRightBound(page),
+											  btree->items + btree->curitem)) >= 0)
+				{
+					/* force insertion of new item */
+				}
+				else
+					/* new items should be inserted on next page */
+					break;
 			}
 			else if (off <= maxoff)
 			{
@@ -930,10 +939,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				copyItemEmpty = true;
 
 				if (cmp == 0)
-				{
 					btree->curitem++;
-					insertCount++;
-				}
 			}
 			else /* if (cmp > 0) */
 			{
@@ -957,8 +963,8 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 
 					Assert(ptr - oldptr == newItemSize);
 					iptr = btree->items[btree->curitem].iptr;
-					btree->curitem++;
 					freespace -= newItemSize;
+					btree->curitem++;
 					insertCount++;
 				}
 				else
@@ -970,7 +976,6 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 			Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
 		}
 
-		Assert(insertCount > 0);
 		RumPageGetOpaque(page)->maxoff += insertCount;
 
 		/* Update indexes in the end of page */
@@ -1209,7 +1214,6 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	OffsetNumber maxoff = RumPageGetOpaque(newlPage)->maxoff;
 	Size		pageSize = PageGetPageSize(newlPage);
 	Size		freeSpace;
-	uint32		nCopied = 1;
 
 	static char vector[2 * BLCKSZ];
 
@@ -1220,36 +1224,13 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	memcpy(vector, RumDataPageGetItem(newlPage, FirstOffsetNumber),
 		   maxoff * sizeofitem);
 
-	if (RumPageIsLeaf(newlPage) && RumPageRightMost(newlPage) &&
-		off > RumPageGetOpaque(newlPage)->maxoff)
-	{
-		nCopied = 0;
-		while (btree->curitem < btree->nitem &&
-			   maxoff * sizeof(ItemPointerData) < 2 * (freeSpace - sizeof(ItemPointerData)))
-		{
-			memcpy(vector + maxoff * sizeof(ItemPointerData),
-				   &btree->items[btree->curitem].iptr,
-				   sizeof(ItemPointerData));
-			maxoff++;
-			nCopied++;
-			btree->curitem++;
-		}
-	}
-	else
-	{
-		ptr = vector + (off - 1) * sizeofitem;
-		if (maxoff + 1 - off != 0)
-			memmove(ptr + sizeofitem, ptr, (maxoff - off + 1) * sizeofitem);
-		if (RumPageIsLeaf(newlPage))
-		{
-			memcpy(ptr, &btree->items[btree->curitem].iptr, sizeofitem);
-			btree->curitem++;
-		}
-		else
-			memcpy(ptr, &(btree->pitem), sizeofitem);
+	Assert(!RumPageIsLeaf(newlPage));
+	ptr = vector + (off - 1) * sizeofitem;
+	if (maxoff + 1 - off != 0)
+		memmove(ptr + sizeofitem, ptr, (maxoff - off + 1) * sizeofitem);
+	memcpy(ptr, &(btree->pitem), sizeofitem);
 
-		maxoff++;
-	}
+	maxoff++;
 
 	/*
 	 * we suppose that during index creation table scaned from begin to end,

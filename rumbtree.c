@@ -203,10 +203,6 @@ rumFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 
 /*
  * Step from current page.
- *
- * The next page is locked first, before releasing the current page. This is
- * crucial to protect from concurrent page deletion (see comment in
- * rumDeletePage).
  */
 Buffer
 rumStep(Buffer buffer, Relation index, int lockmode,
@@ -229,8 +225,8 @@ rumStep(Buffer buffer, Relation index, int lockmode,
 	}
 
 	nextbuffer = ReadBuffer(index, blkno);
-	LockBuffer(nextbuffer, lockmode);
 	UnlockReleaseBuffer(buffer);
+	LockBuffer(nextbuffer, lockmode);
 
 	/* Sanity check that the page we stepped to is of similar kind. */
 	page = BufferGetPage(nextbuffer);
