@@ -1790,6 +1790,7 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumKey * item)
 	/* Try to traverse to another leaf page */
 	entry->gdi->btree.items = item;
 	entry->gdi->btree.curitem = 0;
+	entry->gdi->btree.fullScan = false;
 
 	entry->gdi->stack->buffer = entry->buffer;
 	entry->gdi->stack = rumReFindLeafPage(&entry->gdi->btree, entry->gdi->stack);
