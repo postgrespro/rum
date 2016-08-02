@@ -1110,13 +1110,11 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		}
 		else
 		{
-			prevTotalsize = totalsize;
 			totalsize = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
 							   &item, &prevIptr, btree->rumstate, totalsize);
 			maxItemIndex++;
 
 			totalCount++;
-			maxItemSize = Max(maxItemSize, totalsize - prevTotalsize);
 		}
 	}
 

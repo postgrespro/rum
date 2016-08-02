@@ -269,7 +269,7 @@ extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 	{
 		bytea	   *addinfo;
 		unsigned char *ptr;
-		int			index = context->index;
+		int			index;
 
 
 		for (index = 0; index < context->index; index++)
