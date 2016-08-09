@@ -27,6 +27,7 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'knew&
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'among');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'structure&ancient');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(complimentary|sight)&(sending|heart)');
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(gave | half) <-> way');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',

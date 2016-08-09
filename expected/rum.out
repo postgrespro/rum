@@ -76,6 +76,12 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(comp
      2
 (1 row)
 
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(gave | half) <-> way');
+ count 
+-------
+     2
+(1 row)
+
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
  count 
