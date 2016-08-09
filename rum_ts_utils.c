@@ -149,7 +149,7 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 
 		res = TS_execute(GETQUERY(query),
 						 &gcv,
-						 false,
+						 TS_EXEC_PHRASE_AS_AND,
 						 pre_checkcondition_rum);
 	}
 
@@ -242,7 +242,9 @@ rum_tsquery_consistent(PG_FUNCTION_ARGS)
 		gcv.addInfoIsNull = addInfoIsNull;
 		gcv.notPhrase = false;
 
-		res = TS_execute(GETQUERY(query), &gcv, true, checkcondition_rum);
+		res = TS_execute(GETQUERY(query), &gcv,
+						 TS_EXEC_CALC_NOT,
+						 checkcondition_rum);
 	}
 
 	PG_RETURN_BOOL(res);
