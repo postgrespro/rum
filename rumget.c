@@ -2020,7 +2020,8 @@ scanGetItemFast(IndexScanDesc scan, RumKey *advancePast,
 			if (!callConsistentFn(&so->rumstate, key))
 			{
 				consistentResult = false;
-				entryShift(k, so, false);
+				for (j = k; j < so->totalentries; j++)
+					entryShift(j, so, false);
 				continue;
 			}
 		}

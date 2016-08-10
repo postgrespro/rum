@@ -82,6 +82,24 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(gave
      2
 (1 row)
 
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(gave | !half) <-> way');
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '!gave & way');
+ count 
+-------
+     3
+(1 row)
+
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '!gave & wooded & !look');
+ count 
+-------
+     1
+(1 row)
+
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
  count 
