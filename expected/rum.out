@@ -5,6 +5,8 @@ BEFORE UPDATE OR INSERT ON test_rum
 FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('a', 'pg_catalog.english', 't');
 CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 \copy test_rum(t) from 'data/rum.data';
+CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_timestamp_ops);
+ERROR:  additional information attribute "a" is not found in index
 SET enable_seqscan=off;
 explain (costs off)
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');

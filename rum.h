@@ -870,6 +870,8 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumKey * item,
 	{
 		attr = rumstate->addAttrs[attnum - 1];
 
+		Assert(attr);
+
 		if (attr->attbyval)
 		{
 			/* do not use aligment for pass-by-value types */
@@ -948,6 +950,8 @@ rumDataPageLeafReadPointer(Pointer ptr, OffsetNumber attnum, RumKey * item,
 	if (!item->addInfoIsNull)
 	{
 		attr = rumstate->addAttrs[attnum - 1];
+
+		Assert(attr);
 
 		if (!attr->attbyval)
 			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen,
