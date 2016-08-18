@@ -663,6 +663,13 @@ typedef struct
 	bool		recheck;
 }	RumOrderingItem;
 
+typedef enum
+{
+	RumFastScan,
+	RumRegularScan,
+	RumFullScan
+}	RumScanType;
+
 typedef struct RumScanOpaqueData
 {
 	MemoryContext tempCtx;
@@ -684,7 +691,7 @@ typedef struct RumScanOpaqueData
 	RumKey		key;
 	bool		firstCall;
 	bool		isVoidRes;		/* true if query is unsatisfiable */
-	bool		useFastScan;
+	RumScanType	scanType;
 	TIDBitmap  *tbm;
 
 	ScanDirection	naturalOrder;
