@@ -64,6 +64,9 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'rat')
 
 SELECT a FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'bar') ORDER BY a;
 
+-- Check full-index scan with order by
+SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') FROM test_rum ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
+
 CREATE TABLE tst (i int4, t tsvector);
 INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(1,100000) i;
 CREATE INDEX tstidx ON tst USING rum (t rum_tsvector_ops);

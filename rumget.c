@@ -2076,13 +2076,17 @@ scanGetItemFull(IndexScanDesc scan, RumKey *advancePast,
 				RumKey *item, bool *recheck)
 {
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
+	RumScanKey	key;
 	RumScanEntry entry;
 	bool		nextEntryList;
 	uint32		i;
 
-	Assert(so->totalentries > 0);
+	Assert(so->nkeys > 0 && so->totalentries > 0);
 	Assert(so->entries[0]->scanWithAddInfo);
 
+	/* Full-index scan key */
+	key = so->keys[0];
+	Assert(key->searchMode == GIN_SEARCH_MODE_EVERYTHING);
 	/*
 	 * This is first entry of the first key, which is used for full-index
 	 * scan.
@@ -2092,6 +2096,12 @@ scanGetItemFull(IndexScanDesc scan, RumKey *advancePast,
 	entryGetItem(&so->rumstate, entry, &nextEntryList);
 	if (entry->isFinished == TRUE)
 		return false;
+
+	/* Fill outerAddInfo using callConstistentFn() */
+	key->entryRes[0] = TRUE;
+	key->addInfo[0] = entry->curRumKey.addInfo;
+	key->addInfoIsNull[0] = entry->curRumKey.addInfoIsNull;
+	callConsistentFn(&so->rumstate, key);
 
 	/* Move related order by entries */
 	if (nextEntryList)
