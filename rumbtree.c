@@ -374,7 +374,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 	Page		page,
 				rpage,
 				lpage;
-	GenericXLogState *state;
+	GenericXLogState *state = NULL;
 
 	/* extract root BlockNumber from stack */
 	Assert(stack != NULL);

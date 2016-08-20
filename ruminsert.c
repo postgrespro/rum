@@ -47,7 +47,7 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 	int			i;
 	Pointer		ptr;
 	ItemPointerData prev_iptr = {{0, 0}, 0};
-	GenericXLogState *state;
+	GenericXLogState *state = NULL;
 
 	if (rumstate->isBuild)
 	{
