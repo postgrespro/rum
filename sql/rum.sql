@@ -52,6 +52,16 @@ SELECT
 	FROM test_rum
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
 
+-- Check ranking normalization
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0), *
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
+SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query), *
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
+
 INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');
 INSERT INTO test_rum (t) VALUES ('345 qwerty copyright');
 INSERT INTO test_rum (t) VALUES ('345 qwerty');

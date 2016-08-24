@@ -6,16 +6,43 @@ LANGUAGE C;
 -- Access method
 CREATE ACCESS METHOD rum TYPE INDEX HANDLER rumhandler;
 
--- Opclasses
+-- tsvector opclasses
+
+CREATE TYPE rum_distance_query AS (query tsquery, method int);
+
+CREATE FUNCTION tsquery_to_distance_query(tsquery)
+RETURNS rum_distance_query
+AS 'MODULE_PATHNAME', 'tsquery_to_distance_query'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE CAST (tsquery AS rum_distance_query)
+		WITH FUNCTION tsquery_to_distance_query(tsquery) AS IMPLICIT;
+
 CREATE FUNCTION rum_ts_distance(tsvector,tsquery)
 RETURNS float4
-AS 'MODULE_PATHNAME'
+AS 'MODULE_PATHNAME', 'rum_ts_distance_tt'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION rum_ts_distance(tsvector,tsquery,int)
+RETURNS float4
+AS 'MODULE_PATHNAME', 'rum_ts_distance_ttf'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION rum_ts_distance(tsvector,rum_distance_query)
+RETURNS float4
+AS 'MODULE_PATHNAME', 'rum_ts_distance_td'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <=> (
         LEFTARG = tsvector,
         RIGHTARG = tsquery,
         PROCEDURE = rum_ts_distance
+);
+
+CREATE OPERATOR <=> (
+		LEFTARG = tsvector,
+		RIGHTARG = rum_distance_query,
+		PROCEDURE = rum_ts_distance
 );
 
 CREATE FUNCTION rum_extract_tsvector(tsvector,internal,internal,internal,internal)
