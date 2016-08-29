@@ -302,7 +302,8 @@ freeScanKeys(RumScanOpaque so)
 }
 
 static void
-initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
+initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery,
+			bool *hasPartialMatch)
 {
 	Datum	   *queryValues;
 	int32		nQueryValues = 0;
@@ -389,6 +390,15 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery)
 				   queryValues, (RumNullCategory *) nullFlags,
 				   partial_matches, extra_data,
 				   (skey->sk_flags & SK_ORDER_BY) ? true : false);
+
+	if (partial_matches && hasPartialMatch)
+	{
+		int32	j;
+		RumScanKey	key = so->keys[so->nkeys - 1];
+
+		for (j = 0; *hasPartialMatch == false && j < key->nentries; j++)
+			*hasPartialMatch |= key->scanEntry[j]->isPartialMatch;
+	}
 }
 
 static ScanDirection
@@ -494,6 +504,7 @@ rumNewScanKey(IndexScanDesc scan)
 	int			i;
 	bool		hasNullQuery = false;
 	bool		checkEmptyEntry = false;
+	bool		hasPartialMatch = false;
 	MemoryContext oldCtx;
 	enum {
 		haofNone = 0x00,
@@ -520,7 +531,7 @@ rumNewScanKey(IndexScanDesc scan)
 
 	for (i = 0; i < scan->numberOfKeys; i++)
 	{
-		initScanKey(so, &scan->keyData[i], &hasNullQuery);
+		initScanKey(so, &scan->keyData[i], &hasNullQuery, &hasPartialMatch);
 		if (so->isVoidRes)
 			break;
 	}
@@ -542,7 +553,7 @@ rumNewScanKey(IndexScanDesc scan)
 
 	for (i = 0; i < scan->numberOfOrderBys; i++)
 	{
-		initScanKey(so, &scan->orderByData[i], &hasNullQuery);
+		initScanKey(so, &scan->orderByData[i], &hasNullQuery, NULL);
 		if (so->isVoidRes)
 			break;
 	}
@@ -610,6 +621,8 @@ rumNewScanKey(IndexScanDesc scan)
 	}
 
 	adjustScanDirection(so);
+	if (scan->numberOfOrderBys > 0 && hasPartialMatch)
+		elog(ERROR,"Partial match and order by index couldn't be used together");
 
 	/* initialize expansible array of RumScanEntry pointers */
 	so->totalentries = 0;

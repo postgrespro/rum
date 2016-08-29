@@ -97,7 +97,7 @@ callConsistentFn(RumState * rumstate, RumScanKey key)
 
 		for (i = 0; i < key->nentries; i++)
 		{
-			if (key->entryRes[i] && key->addInfoIsNull[0] == false)
+			if (key->entryRes[i] && key->addInfoIsNull[i] == false)
 			{
 				key->outerAddInfoIsNull = false;
 
