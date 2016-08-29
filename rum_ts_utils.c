@@ -42,7 +42,7 @@ typedef struct
 	bool	   *need_recheck;
 	Datum	   *addInfo;
 	bool	   *addInfoIsNull;
-	bool		notPhrase;
+	bool		recheckPhrase;
 }	RumChkVal;
 
 typedef struct
@@ -176,29 +176,39 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 	/*
 	 * Fill position list for phrase operator if it's needed end it exists
 	 */
-	if (data && gcv->addInfo && gcv->addInfoIsNull[j] == false)
+	if (data)
 	{
-		bytea	   *positions;
-		int32		i;
-		char	   *ptrt;
-		WordEntryPos post;
+		/* caller wants an array of positions (phrase search) */
 
-		if (gcv->notPhrase)
-			elog(ERROR, "phrase search isn't supported yet");
-
-		positions = DatumGetByteaP(gcv->addInfo[j]);
-		data->npos = count_pos(VARDATA_ANY(positions),
-							   VARSIZE_ANY_EXHDR(positions));
-		data->pos = palloc(sizeof(*data->pos) * data->npos);
-		data->allocated = true;
-
-		ptrt = (char *) VARDATA_ANY(positions);
-		post = 0;
-
-		for (i = 0; i < data->npos; i++)
+		if (gcv->recheckPhrase)
 		{
-			ptrt = decompress_pos(ptrt, &post);
-			data->pos[i] = post;
+			/*
+			 * we don't have a positions because we store a timestamp in
+			 * addInfo
+			 */
+			*(gcv->need_recheck) = true;
+		}
+		else if (gcv->addInfo && gcv->addInfoIsNull[j] == false)
+		{
+			bytea	   *positions;
+			int32		i;
+			char	   *ptrt;
+			WordEntryPos post;
+
+			positions = DatumGetByteaP(gcv->addInfo[j]);
+			data->npos = count_pos(VARDATA_ANY(positions),
+								   VARSIZE_ANY_EXHDR(positions));
+			data->pos = palloc(sizeof(*data->pos) * data->npos);
+			data->allocated = true;
+
+			ptrt = (char *) VARDATA_ANY(positions);
+			post = 0;
+
+			for (i = 0; i < data->npos; i++)
+			{
+				ptrt = decompress_pos(ptrt, &post);
+				data->pos[i] = post;
+			}
 		}
 	}
 
@@ -240,9 +250,9 @@ rum_tsquery_consistent(PG_FUNCTION_ARGS)
 		gcv.need_recheck = recheck;
 		gcv.addInfo = addInfo;
 		gcv.addInfoIsNull = addInfoIsNull;
-		gcv.notPhrase = false;
+		gcv.recheckPhrase = false;
 
-		res = TS_execute(GETQUERY(query), &gcv, true, checkcondition_rum);
+		res = TS_execute(GETQUERY(query), &gcv, TS_EXEC_EMPTY, checkcondition_rum);
 	}
 
 	PG_RETURN_BOOL(res);
@@ -283,9 +293,9 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 		gcv.need_recheck = recheck;
 		gcv.addInfo = addInfo;
 		gcv.addInfoIsNull = addInfoIsNull;
-		gcv.notPhrase = true;
+		gcv.recheckPhrase = true;
 
-		res = TS_execute(GETQUERY(query), &gcv, true, checkcondition_rum);
+		res = TS_execute(GETQUERY(query), &gcv, TS_EXEC_PHRASE_AS_AND, checkcondition_rum);
 	}
 
 	PG_RETURN_BOOL(res);
