@@ -11,12 +11,15 @@
 
 #include "postgres.h"
 
+#include "access/htup_details.h"
 #include "catalog/pg_type.h"
+#include "funcapi.h"
 #include "miscadmin.h"
 #include "tsearch/ts_type.h"
 #include "tsearch/ts_utils.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/typcache.h"
 
 #include "rum.h"
 
@@ -29,7 +32,11 @@ PG_FUNCTION_INFO_V1(rum_tsquery_pre_consistent);
 PG_FUNCTION_INFO_V1(rum_tsquery_consistent);
 PG_FUNCTION_INFO_V1(rum_tsquery_timestamp_consistent);
 PG_FUNCTION_INFO_V1(rum_tsquery_distance);
-PG_FUNCTION_INFO_V1(rum_ts_distance);
+PG_FUNCTION_INFO_V1(rum_ts_distance_tt);
+PG_FUNCTION_INFO_V1(rum_ts_distance_ttf);
+PG_FUNCTION_INFO_V1(rum_ts_distance_td);
+
+PG_FUNCTION_INFO_V1(tsquery_to_distance_query);
 
 static int	count_pos(char *ptr, int len);
 static char *decompress_pos(char *ptr, uint16 *pos);
@@ -149,7 +156,7 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 
 		res = TS_execute(GETQUERY(query),
 						 &gcv,
-						 false,
+						 TS_EXEC_PHRASE_AS_AND,
 						 pre_checkcondition_rum);
 	}
 
@@ -252,7 +259,9 @@ rum_tsquery_consistent(PG_FUNCTION_ARGS)
 		gcv.addInfoIsNull = addInfoIsNull;
 		gcv.recheckPhrase = false;
 
-		res = TS_execute(GETQUERY(query), &gcv, TS_EXEC_EMPTY, checkcondition_rum);
+		res = TS_execute(GETQUERY(query), &gcv,
+						 TS_EXEC_CALC_NOT,
+						 checkcondition_rum);
 	}
 
 	PG_RETURN_BOOL(res);
@@ -295,7 +304,9 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 		gcv.addInfoIsNull = addInfoIsNull;
 		gcv.recheckPhrase = true;
 
-		res = TS_execute(GETQUERY(query), &gcv, TS_EXEC_PHRASE_AS_AND, checkcondition_rum);
+		res = TS_execute(GETQUERY(query), &gcv,
+						 TS_EXEC_CALC_NOT | TS_EXEC_PHRASE_AS_AND,
+						 checkcondition_rum);
 	}
 
 	PG_RETURN_BOOL(res);
@@ -1190,7 +1201,7 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 }
 
 Datum
-rum_ts_distance(PG_FUNCTION_ARGS)
+rum_ts_distance_tt(PG_FUNCTION_ARGS)
 {
 	TSVector	txt = PG_GETARG_TSVECTOR(0);
 	TSQuery		query = PG_GETARG_TSQUERY(1);
@@ -1204,6 +1215,95 @@ rum_ts_distance(PG_FUNCTION_ARGS)
 		PG_RETURN_FLOAT4(get_float4_infinity());
 	else
 		PG_RETURN_FLOAT4(1.0 / res);
+}
+
+Datum
+rum_ts_distance_ttf(PG_FUNCTION_ARGS)
+{
+	TSVector	txt = PG_GETARG_TSVECTOR(0);
+	TSQuery		query = PG_GETARG_TSQUERY(1);
+	int			method = PG_GETARG_INT32(2);
+	float4		res;
+
+	res = calc_score(weights, txt, query, method);
+
+	PG_FREE_IF_COPY(txt, 0);
+	PG_FREE_IF_COPY(query, 1);
+	if (res == 0)
+		PG_RETURN_FLOAT4(get_float4_infinity());
+	else
+		PG_RETURN_FLOAT4(1.0 / res);
+}
+
+Datum
+rum_ts_distance_td(PG_FUNCTION_ARGS)
+{
+	TSVector	txt = PG_GETARG_TSVECTOR(0);
+	HeapTupleHeader d = PG_GETARG_HEAPTUPLEHEADER(1);
+
+	Oid			tupType = HeapTupleHeaderGetTypeId(d);
+	int32		tupTypmod = HeapTupleHeaderGetTypMod(d);
+	TupleDesc	tupdesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
+	HeapTupleData tuple;
+
+	TSQuery		query;
+	int			method;
+	bool		isnull;
+	float4		res;
+
+	tuple.t_len = HeapTupleHeaderGetDatumLength(d);
+	ItemPointerSetInvalid(&(tuple.t_self));
+	tuple.t_tableOid = InvalidOid;
+	tuple.t_data = d;
+
+	query = DatumGetTSQuery(fastgetattr(&tuple, 1, tupdesc, &isnull));
+	if (isnull)
+	{
+		ReleaseTupleDesc(tupdesc);
+		PG_FREE_IF_COPY(txt, 0);
+		PG_FREE_IF_COPY(d, 1);
+		elog(ERROR, "NULL query value is not allowed");
+	}
+
+	method = DatumGetInt32(fastgetattr(&tuple, 2, tupdesc, &isnull));
+	if (isnull)
+		method = 0;
+
+	res = calc_score(weights, txt, query, method);
+
+	ReleaseTupleDesc(tupdesc);
+	PG_FREE_IF_COPY(txt, 0);
+	PG_FREE_IF_COPY(d, 1);
+
+	if (res == 0)
+		PG_RETURN_FLOAT4(get_float4_infinity());
+	else
+		PG_RETURN_FLOAT4(1.0 / res);
+}
+
+Datum
+tsquery_to_distance_query(PG_FUNCTION_ARGS)
+{
+	TSQuery		query = PG_GETARG_TSQUERY(0);
+
+	TupleDesc	tupdesc;
+	HeapTuple	htup;
+	Datum		values[2];
+	bool		nulls[2];
+
+	/* Build a tuple descriptor for our result type */
+	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+		elog(ERROR, "return type must be a row type");
+
+	tupdesc = BlessTupleDesc(tupdesc);
+
+	MemSet(nulls, 0, sizeof(nulls));
+	values[0] = TSQueryGetDatum(query);
+	values[1] = Int32GetDatum(DEF_NORM_METHOD);
+
+	htup = heap_form_tuple(tupdesc, values, nulls);
+
+	PG_RETURN_DATUM(HeapTupleGetDatum(htup));
 }
 
 Datum

@@ -445,7 +445,6 @@ entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	{
 		size = MAXALIGN(IndexTupleSize(btree->entry));
 		memcpy(ptr, btree->entry, size);
-		ptr += size;
 		totalsize += size + sizeof(ItemIdData);
 	}
 

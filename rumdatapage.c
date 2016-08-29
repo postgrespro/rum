@@ -236,6 +236,8 @@ rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
 	if (!item->addInfoIsNull)
 	{
 		attr = rumstate->addAttrs[attnum - 1];
+		Assert(attr);
+
 		ptr = rumDatumWrite(ptr, item->addInfo, attr->attbyval, attr->attalign,
 							attr->attlen, attr->attstorage);
 	}
@@ -293,6 +295,8 @@ rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
 	if (!item->addInfoIsNull)
 	{
 		attr = rumstate->addAttrs[attnum - 1];
+		Assert(attr);
+
 		size = rumComputeDatumSize(size, item->addInfo, attr->attbyval,
 							 attr->attalign, attr->attlen, attr->attstorage);
 	}
@@ -1110,13 +1114,11 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		}
 		else
 		{
-			prevTotalsize = totalsize;
 			totalsize = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
 							   &item, &prevIptr, btree->rumstate, totalsize);
 			maxItemIndex++;
 
 			totalCount++;
-			maxItemSize = Max(maxItemSize, totalsize - prevTotalsize);
 		}
 	}
 

@@ -658,6 +658,7 @@ processPendingPage(BuildAccumulator *accum, KeyArray *ka,
 		if (OidIsValid(accum->rumstate->addInfoTypeOid[curattnum - 1]))
 		{
 			Form_pg_attribute attr = accum->rumstate->addAttrs[curattnum - 1];
+			Assert(attr);
 
 			if (accum->rumstate->oneCol)
 				addInfo = index_getattr(itup, 2,

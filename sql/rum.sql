@@ -10,6 +10,8 @@ CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 
 \copy test_rum(t) from 'data/rum.data';
 
+CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_timestamp_ops);
+
 SET enable_seqscan=off;
 
 explain (costs off)
@@ -27,6 +29,10 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'knew&
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'among');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'structure&ancient');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(complimentary|sight)&(sending|heart)');
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(gave | half) <-> way');
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(gave | !half) <-> way');
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '!gave & way');
+SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '!gave & wooded & !look');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
@@ -46,6 +52,16 @@ SELECT
 	FROM test_rum
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
 
+-- Check ranking normalization
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0), *
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
+SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query), *
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
+
 INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');
 INSERT INTO test_rum (t) VALUES ('345 qwerty copyright');
 INSERT INTO test_rum (t) VALUES ('345 qwerty');
@@ -57,6 +73,9 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '345')
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'rat');
 
 SELECT a FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'bar') ORDER BY a;
+
+-- Check full-index scan with order by
+SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') FROM test_rum ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
 
 CREATE TABLE tst (i int4, t tsvector);
 INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(1,100000) i;

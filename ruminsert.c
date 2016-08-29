@@ -47,7 +47,7 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 	int			i;
 	Pointer		ptr;
 	ItemPointerData prev_iptr = {{0, 0}, 0};
-	GenericXLogState *state;
+	GenericXLogState *state = NULL;
 
 	if (rumstate->isBuild)
 	{
@@ -511,8 +511,13 @@ rumHeapTupleBulkInsert(RumBuildState * buildstate, OffsetNumber attnum,
 	MemoryContextSwitchTo(oldCtx);
 	for (i = 0; i < nentries; i++)
 	{
-		if (attr && !addInfoIsNull[i])
+		if (!addInfoIsNull[i])
 		{
+			/* Check existance of additional information attribute in index */
+			if (!attr)
+				elog(ERROR, "additional information attribute \"%s\" is not found in index",
+					 NameStr(buildstate->rumstate.origTupdesc->attrs[attnum - 1]->attname));
+
 			addInfo[i] = datumCopy(addInfo[i], attr->attbyval, attr->attlen);
 		}
 	}
@@ -766,6 +771,11 @@ rumHeapTupleInsert(RumState * rumstate, OffsetNumber attnum,
 	for (i = 0; i < nentries; i++)
 	{
 		RumKey		insert_item;
+
+		/* Check existance of additional information attribute in index */
+		if (!addInfoIsNull[i] && !rumstate->addAttrs[attnum - 1])
+			elog(ERROR, "additional information attribute \"%s\" is not found in index",
+				 NameStr(rumstate->origTupdesc->attrs[attnum - 1]->attname));
 
 		insert_item.iptr = *item;
 		insert_item.addInfo = addInfo[i];

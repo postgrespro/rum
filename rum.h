@@ -663,6 +663,13 @@ typedef struct
 	bool		recheck;
 }	RumOrderingItem;
 
+typedef enum
+{
+	RumFastScan,
+	RumRegularScan,
+	RumFullScan
+}	RumScanType;
+
 typedef struct RumScanOpaqueData
 {
 	MemoryContext tempCtx;
@@ -684,7 +691,7 @@ typedef struct RumScanOpaqueData
 	RumKey		key;
 	bool		firstCall;
 	bool		isVoidRes;		/* true if query is unsatisfiable */
-	bool		useFastScan;
+	RumScanType	scanType;
 	TIDBitmap  *tbm;
 
 	ScanDirection	naturalOrder;
@@ -760,7 +767,12 @@ extern Datum rum_extract_tsquery(PG_FUNCTION_ARGS);
 extern Datum rum_tsvector_config(PG_FUNCTION_ARGS);
 extern Datum rum_tsquery_pre_consistent(PG_FUNCTION_ARGS);
 extern Datum rum_tsquery_distance(PG_FUNCTION_ARGS);
-extern Datum rum_ts_distance(PG_FUNCTION_ARGS);
+extern Datum rum_ts_distance_tt(PG_FUNCTION_ARGS);
+extern Datum rum_ts_distance_ttf(PG_FUNCTION_ARGS);
+extern Datum rum_ts_distance_td(PG_FUNCTION_ARGS);
+
+extern Datum tsquery_to_distance_query(PG_FUNCTION_ARGS);
+
 
 /* GUC parameters */
 extern PGDLLIMPORT int RumFuzzySearchLimit;
@@ -870,6 +882,8 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumKey * item,
 	{
 		attr = rumstate->addAttrs[attnum - 1];
 
+		Assert(attr);
+
 		if (attr->attbyval)
 		{
 			/* do not use aligment for pass-by-value types */
@@ -948,6 +962,8 @@ rumDataPageLeafReadPointer(Pointer ptr, OffsetNumber attnum, RumKey * item,
 	if (!item->addInfoIsNull)
 	{
 		attr = rumstate->addAttrs[attnum - 1];
+
+		Assert(attr);
 
 		if (!attr->attbyval)
 			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen,
