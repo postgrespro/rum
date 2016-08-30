@@ -2335,14 +2335,12 @@ reverseScan(IndexScanDesc scan)
 	{
 		RumScanKey	key = so->keys[i];
 
-		key->isFinished = false;
 		key->scanDirection = - key->scanDirection;
 
 		for(j=0; j<key->nentries; j++)
 		{
 			RumScanEntry	entry = key->scanEntry[j];
 
-			entry->isFinished = false;
 			entry->scanDirection = - entry->scanDirection;
 		}
 	}
@@ -2366,8 +2364,11 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 		if (RumIsNewKey(scan))
 			rumNewScanKey(scan);
 
+		so->firstCall = false;
+
 		if (RumIsVoidRes(scan))
 			PG_RETURN_INT64(0);
+
 
 		startScan(scan);
 		if (so->naturalOrder == NoMovementScanDirection)

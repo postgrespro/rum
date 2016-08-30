@@ -299,6 +299,12 @@ freeScanKeys(RumScanOpaque so)
 	so->entries = NULL;
 	so->sortedEntries = NULL;
 	so->totalentries = 0;
+
+	if (so->sortstate)
+	{
+		rum_tuplesort_end(so->sortstate);
+		so->sortstate = NULL;
+	}
 }
 
 static void
@@ -516,7 +522,6 @@ rumNewScanKey(IndexScanDesc scan)
 	so->secondPass = false;
 	so->tbm = NULL;
 	so->entriesIncrIndex = -1;
-	so->firstCall = false;
 	so->norderbys = scan->numberOfOrderBys;
 
 	/*
@@ -693,12 +698,6 @@ rumrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 	if (orderbys && scan->numberOfOrderBys > 0)
 		memmove(scan->orderByData, orderbys,
 				scan->numberOfOrderBys * sizeof(ScanKeyData));
-
-	if (so->sortstate)
-	{
-		rum_tuplesort_end(so->sortstate);
-		so->sortstate = NULL;
-	}
 }
 
 void
