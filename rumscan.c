@@ -285,7 +285,7 @@ freeScanEntries(RumScanEntry *entries, uint32 nentries)
 	}
 }
 
-static void
+void
 freeScanKeys(RumScanOpaque so)
 {
 	freeScanEntries(so->entries, so->totalentries);
@@ -513,6 +513,11 @@ rumNewScanKey(IndexScanDesc scan)
 	}		hasAddOnFilter = haofNone;
 
 	so->naturalOrder = NoMovementScanDirection;
+	so->secondPass = false;
+	so->tbm = NULL;
+	so->entriesIncrIndex = -1;
+	so->firstCall = false;
+	so->norderbys = scan->numberOfOrderBys;
 
 	/*
 	 * Allocate all the scan key information in the key context. (If

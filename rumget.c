@@ -25,15 +25,6 @@
 /* GUC parameter */
 int			RumFuzzySearchLimit = 0;
 
-typedef struct pendingPosition
-{
-	Buffer		pendingBuffer;
-	OffsetNumber firstOffset;
-	OffsetNumber lastOffset;
-	ItemPointerData item;
-	bool	   *hasMatchKey;
-} pendingPosition;
-
 static bool scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item,
 		 Page page, bool equalOk);
 static void insertScanItem(RumScanOpaque so, bool recheck);
@@ -2331,6 +2322,34 @@ insertScanItem(RumScanOpaque so, bool recheck)
 	rum_tuplesort_putrum(so->sortstate, item);
 }
 
+static void
+reverseScan(IndexScanDesc scan)
+{
+	RumScanOpaque	so = (RumScanOpaque) scan->opaque;
+	int				i, j;
+
+	freeScanKeys(so);
+	rumNewScanKey(scan);
+
+	for(i=0; i<so->nkeys; i++)
+	{
+		RumScanKey	key = so->keys[i];
+
+		key->isFinished = false;
+		key->scanDirection = - key->scanDirection;
+
+		for(j=0; j<key->nentries; j++)
+		{
+			RumScanEntry	entry = key->scanEntry[j];
+
+			entry->isFinished = false;
+			entry->scanDirection = - entry->scanDirection;
+		}
+	}
+
+	startScan(scan);
+}
+
 bool
 rumgettuple(IndexScanDesc scan, ScanDirection direction)
 {
@@ -2341,8 +2360,6 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 
 	if (so->firstCall)
 	{
-		so->norderbys = scan->numberOfOrderBys;
-
 		/*
 		 * Set up the scan keys, and check for unsatisfiable query.
 		 */
@@ -2351,10 +2368,6 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 
 		if (RumIsVoidRes(scan))
 			PG_RETURN_INT64(0);
-
-		so->tbm = NULL;
-		so->entriesIncrIndex = -1;
-		so->firstCall = false;
 
 		startScan(scan);
 		if (so->naturalOrder == NoMovementScanDirection)
@@ -2383,6 +2396,12 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 			scan->xs_recheckorderby = false;
 
 			return true;
+		}
+		else if (so->secondPass == false)
+		{
+			reverseScan(scan);
+			so->secondPass = true;
+			return rumgettuple(scan, direction);
 		}
 
 		return false;

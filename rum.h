@@ -695,6 +695,7 @@ typedef struct RumScanOpaqueData
 	TIDBitmap  *tbm;
 
 	ScanDirection	naturalOrder;
+	bool			secondPass;
 }	RumScanOpaqueData;
 
 typedef RumScanOpaqueData *RumScanOpaque;
@@ -706,6 +707,7 @@ extern void rumrescan(IndexScanDesc scan, ScanKey scankey, int nscankeys,
 extern Datum rummarkpos(PG_FUNCTION_ARGS);
 extern Datum rumrestrpos(PG_FUNCTION_ARGS);
 extern void rumNewScanKey(IndexScanDesc scan);
+extern void freeScanKeys(RumScanOpaque so);
 
 /* rumget.c */
 extern int64 rumgetbitmap(IndexScanDesc scan, TIDBitmap *tbm);
