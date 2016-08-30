@@ -2367,8 +2367,7 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 		so->firstCall = false;
 
 		if (RumIsVoidRes(scan))
-			PG_RETURN_INT64(0);
-
+			return false;
 
 		startScan(scan);
 		if (so->naturalOrder == NoMovementScanDirection)
