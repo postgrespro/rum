@@ -743,6 +743,9 @@ typedef struct
 	RumEntryAccumulator *entryallocator;
 	uint32		eas_used;
 	RBTree	   *tree;
+#if PG_VERSION_NUM >= 100000
+	RBTreeIterator tree_walk;
+#endif
 	RumKey	   *sortSpace;
 	uint32		sortSpaceN;
 } BuildAccumulator;

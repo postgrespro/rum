@@ -272,7 +272,11 @@ qsortCompareRumKey(const void *a, const void *b, void *arg)
 void
 rumBeginBAScan(BuildAccumulator *accum)
 {
+#if PG_VERSION_NUM >= 100000
+	rb_begin_iterate(accum->tree, LeftRightWalk, &accum->tree_walk);
+#else
 	rb_begin_iterate(accum->tree, LeftRightWalk);
+#endif
 }
 
 /*
@@ -288,7 +292,11 @@ rumGetBAEntry(BuildAccumulator *accum,
 	RumEntryAccumulator *entry;
 	RumKey	   *list;
 
+#if PG_VERSION_NUM >= 100000
+	entry = (RumEntryAccumulator *) rb_iterate(&accum->tree_walk);
+#else
 	entry = (RumEntryAccumulator *) rb_iterate(accum->tree);
+#endif
 
 	if (entry == NULL)
 		return NULL;			/* no more entries */
