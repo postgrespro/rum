@@ -682,7 +682,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 		CHECK_FOR_INTERRUPTS();
 
 		buffer = ReadBuffer(index, blkno);
-		LockBuffer(buffer, RUM_SHARE);
+		LockBuffer(buffer, RUM_EXCLUSIVE);
 
 		state = GenericXLogStart(index);
 		GenericXLogRegisterBuffer(state, buffer, GENERIC_XLOG_FULL_IMAGE);
