@@ -26,7 +26,7 @@
 int			RumFuzzySearchLimit = 0;
 
 static bool scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item,
-		 Page page, bool equalOk);
+					 bool equalOk);
 static void insertScanItem(RumScanOpaque so, bool recheck);
 static int	scan_entry_cmp(const void *p1, const void *p2, void *arg);
 static void entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList);
@@ -806,9 +806,7 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 		LockBuffer(entry->buffer, RUM_SHARE);
 		page = BufferGetPage(entry->buffer);
 
-		if (scanPage(rumstate, entry, &entry->curRumKey,
-					 BufferGetPage(entry->buffer),
-					 false))
+		if (scanPage(rumstate, entry, &entry->curRumKey, false))
 		{
 			LockBuffer(entry->buffer, RUM_UNLOCK);
 			return;
@@ -1565,7 +1563,7 @@ scanGetItemRegular(IndexScanDesc scan, RumKey *advancePast,
  * of page.
  */
 static bool
-scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
+scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item,
 		 bool equalOk)
 {
 	int			j;
@@ -1577,6 +1575,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 	int16		bound = -1;
 	bool		found_eq = false;
 	int			cmp;
+	Page		page = BufferGetPage(entry->buffer);
 
 	ItemPointerSetMin(&iter_item.iptr);
 
@@ -1737,9 +1736,7 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumKey * item)
 	/* Check rest of page */
 	LockBuffer(entry->buffer, RUM_SHARE);
 
-	if (scanPage(rumstate, entry, item,
-				 BufferGetPage(entry->buffer),
-				 true))
+	if (scanPage(rumstate, entry, item, true))
 	{
 		LockBuffer(entry->buffer, RUM_UNLOCK);
 		return;
@@ -1754,9 +1751,7 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumKey * item)
 	entry->gdi->stack = rumReFindLeafPage(&entry->gdi->btree, entry->gdi->stack);
 	entry->buffer = entry->gdi->stack->buffer;
 
-	if (scanPage(rumstate, entry, item,
-				 BufferGetPage(entry->buffer),
-				 true))
+	if (scanPage(rumstate, entry, item, true))
 	{
 		LockBuffer(entry->buffer, RUM_UNLOCK);
 		return;
@@ -1778,9 +1773,7 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumKey * item)
 
 		entry->gdi->stack->blkno = BufferGetBlockNumber(entry->buffer);
 
-		if (scanPage(rumstate, entry, item,
-					 BufferGetPage(entry->buffer),
-					 true))
+		if (scanPage(rumstate, entry, item, true))
 		{
 			LockBuffer(entry->buffer, RUM_UNLOCK);
 			return;
