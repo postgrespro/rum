@@ -136,51 +136,6 @@ callConsistentFn(RumState * rumstate, RumScanKey key)
 }
 
 /*
- * Tries to refind previously taken ItemPointer on a posting page.
- */
-static bool
-findItemInPostingPage(Page page, RumKey	*item, int16 *off,
-					  OffsetNumber attno, OffsetNumber attnum,
-					  ScanDirection scanDirection, RumState * rumstate)
-{
-	OffsetNumber maxoff = RumPageGetOpaque(page)->maxoff;
-	int			res;
-	Pointer		ptr;
-	RumKey		iter_item;
-
-	ItemPointerSetMin(&iter_item.iptr);
-
-	if (RumPageGetOpaque(page)->flags & RUM_DELETED)
-		/* page was deleted by concurrent vacuum */
-		return false;
-
-	ptr = RumDataPageGetData(page);
-
-	/*
-	 * scan page to find equal or first greater value
-	 */
-	for (*off = FirstOffsetNumber; *off <= maxoff; (*off)++)
-	{
-		ptr = rumDataPageLeafRead(ptr, attnum, &iter_item, rumstate);
-		res = compareRumKey(rumstate, attno, item, &iter_item);
-
-		if (res == 0)
-		{
-			return true;
-		}
-		else if (res < 0)
-		{
-			if (ScanDirectionIsBackward(scanDirection) &&
-				*off > FirstOffsetNumber)
-				(*off)--;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-/*
  * Goes to the next page if current offset is outside of bounds
  */
 static bool
@@ -650,6 +605,8 @@ restartScanEntry:
 
 			LockBuffer(entry->buffer, RUM_UNLOCK);
 			entry->isFinished = setListPositionScanEntry(rumstate, entry);
+			if (!entry->isFinished)
+				entry->curRumKey = entry->list[entry->offset];
 		}
 		else if (RumGetNPosting(itup) > 0)
 		{
@@ -659,6 +616,8 @@ restartScanEntry:
 
 			rumReadTuple(rumstate, entry->attnum, itup, entry->list);
 			entry->isFinished = setListPositionScanEntry(rumstate, entry);
+			if (!entry->isFinished)
+				entry->curRumKey = entry->list[entry->offset];
 		}
 
 		if (entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
@@ -837,26 +796,12 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 
 	for (;;)
 	{
-		if (ScanDirectionIsForward(entry->scanDirection))
+		if (entry->offset >= 0 && entry->offset < entry->nlist)
 		{
-			if (entry->offset < entry->nlist)
-			{
-				entry->curRumKey = entry->list[entry->offset];
-				entry->offset++;
-				return;
-			}
+			entry->curRumKey = entry->list[entry->offset];
+			entry->offset += entry->scanDirection;
+			return;
 		}
-		else if (ScanDirectionIsBackward(entry->scanDirection))
-		{
-			if (entry->offset >= 0)
-			{
-				entry->curRumKey = entry->list[entry->offset];
-				entry->offset--;
-				return;
-			}
-		}
-		else
-			elog(ERROR,"NoMovementScanDirection");
 
 		LockBuffer(entry->buffer, RUM_SHARE);
 		page = BufferGetPage(entry->buffer);
@@ -871,6 +816,13 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 
 		for (;;)
 		{
+			OffsetNumber maxoff,
+						i;
+			Pointer		ptr;
+			RumKey		item;
+			bool		searchBorder =
+				(ScanDirectionIsForward(entry->scanDirection) &&
+				 ItemPointerIsValid(&entry->curRumKey.iptr));
 			/*
 			 * It's needed to go by right link. During that we should refind
 			 * first ItemPointer greater that stored
@@ -896,55 +848,48 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 			entry->gdi->stack->blkno = BufferGetBlockNumber(entry->buffer);
 			page = BufferGetPage(entry->buffer);
 
-			entry->offset = InvalidOffsetNumber;
-			if (!ItemPointerIsValid(&entry->curRumKey.iptr) ||
-				findItemInPostingPage(page, &entry->curRumKey, &entry->offset,
-								  entry->attnumOrig, entry->attnum,
-								  entry->scanDirection, rumstate))
+			entry->offset = -1;
+			maxoff = RumPageGetOpaque(page)->maxoff;
+			entry->nlist = maxoff;
+			ItemPointerSetMin(&item.iptr);
+			ptr = RumDataPageGetData(page);
+
+			for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 			{
-				OffsetNumber maxoff,
-							i;
-				Pointer		ptr;
-				RumKey		item;
+				ptr = rumDataPageLeafRead(ptr, entry->attnum, &item, rumstate);
+				entry->list[i - FirstOffsetNumber] = item;
 
-				ItemPointerSetMin(&item.iptr);
-
-				/*
-				 * Found position equal to or greater than stored
-				 */
-				maxoff = RumPageGetOpaque(page)->maxoff;
-				entry->nlist = maxoff;
-
-				ptr = RumDataPageGetData(page);
-
-				for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
+				if (searchBorder)
 				{
-					ptr = rumDataPageLeafRead(ptr, entry->attnum, &item,
-											  rumstate);
-					entry->list[i - FirstOffsetNumber] = item;
+					/* don't search position for backward scan,
+					   because of split algorithm */
+					int cmp = compareRumKey(rumstate,
+											entry->attnumOrig,
+											&entry->curRumKey,
+											&item);
+
+					if (cmp > 0)
+					{
+						entry->offset = i - FirstOffsetNumber;
+						searchBorder = false;
+					}
 				}
-
-				LockBuffer(entry->buffer, RUM_UNLOCK);
-
-				if (!ItemPointerIsValid(&entry->curRumKey.iptr) ||
-					compareRumKey(rumstate, entry->attnumOrig,
-								  &entry->curRumKey,
-								  &entry->list[entry->offset - 1]) == 0)
-				{
-					/*
-					 * First pages are deleted or empty, or we found exact
-					 * position, so break inner loop and continue outer one.
-					 */
-					break;
-				}
-
-				/*
-				 * Find greater than entry->curItem position, store it.
-				 */
-				entry->curRumKey = entry->list[entry->offset - 1];
-
-				return;
 			}
+
+			LockBuffer(entry->buffer, RUM_UNLOCK);
+
+			if (entry->offset < 0)
+			{
+				if (ScanDirectionIsForward(entry->scanDirection) &&
+					ItemPointerIsValid(&entry->curRumKey.iptr))
+					/* go on next page */
+					break;
+				entry->offset = (ScanDirectionIsForward(entry->scanDirection)) ?
+							0 : entry->nlist - 1;
+			}
+
+			entry->curRumKey = entry->list[entry->offset];
+			return;
 		}
 	}
 }
@@ -1635,7 +1580,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 
 	ItemPointerSetMin(&iter_item.iptr);
 
-	if (!RumPageRightMost(page))
+	if (ScanDirectionIsForward(entry->scanDirection) && !RumPageRightMost(page))
 	{
 		cmp = compareRumKey(rumstate, entry->attnumOrig,
 							RumDataPageGetRightBound(page), item);
@@ -1683,7 +1628,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 		}
 	}
 
-	if (ScanDirectionIsBackward(entry->scanDirection))
+	if (ScanDirectionIsBackward(entry->scanDirection) && first >= maxoff)
 	{
 		first = FirstOffsetNumber;
 		ItemPointerSetMin(&iter_item.iptr);
@@ -1712,7 +1657,15 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 	}
 
 	if (bound == -1)
+	{
+		if (ScanDirectionIsBackward(entry->scanDirection))
+		{
+			entry->offset = maxoff - first;
+			goto end;
+		}
 		return false;
+
+	}
 
 	if (found_eq)
 	{
@@ -1728,6 +1681,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item, Page page,
 	if (entry->offset < 0 || entry->offset >= entry->nlist)
 		return false;
 
+end:
 	entry->curRumKey = entry->list[entry->offset];
 	return true;
 }
