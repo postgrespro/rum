@@ -1,4 +1,4 @@
-#coding: utf-8
+# coding: utf-8
 """
 	Test RUM index with big base 'pglist'
 
@@ -56,7 +56,8 @@ class PglistTests(unittest.TestCase):
 			pglist_dumpgz = pglist_dump + ".gz"
 			if not os.path.isfile(pglist_dumpgz):
 				print("Downloading: %s" % pglist_dumpgz)
-				request.urlretrieve("http://www.sai.msu.su/~megera/postgres/files/pglist-28-04-16.dump.gz",
+				request.urlretrieve(
+					"http://www.sai.msu.su/~megera/postgres/files/pglist-28-04-16.dump.gz",
 					pglist_dumpgz)
 
 			print("Decompressing: %s" % pglist_dumpgz)
@@ -83,7 +84,8 @@ class PglistTests(unittest.TestCase):
 		try:
 			print("Creating index 'rumidx_orderby_sent'")
 
-			self.node.safe_psql("pglist",
+			self.node.safe_psql(
+				"pglist",
 				"CREATE INDEX rumidx_orderby_sent ON pglist USING rum ("
 				"  fts rum_tsvector_timestamp_ops, sent) "
 				"  WITH (attach=sent, to=fts, order_by_attach=t)")
