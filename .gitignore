@@ -2,3 +2,12 @@
 *.o
 *.so
 results
+__pycache__
+*.pyc
+
+# virtualenv
+bin
+include
+lib
+pip-selfcheck.json
+
