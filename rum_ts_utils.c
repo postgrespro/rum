@@ -656,15 +656,13 @@ Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
 	  Extention *ext)
 {
 	DocRepresentation *ptr;
-	int			lastpos = ext->pos;
+	int			lastpos;
 	int			i;
-	bool		found = false;
+	bool		found;
 
-	/*
-	 * since this function recurses, it could be driven to stack overflow.
-	 * (though any decent compiler will optimize away the tail-recursion.
-	 */
-	check_stack_depth();
+restart:
+	lastpos = ext->pos;
+	found = false;
 
 	memset(qr->operandexist, 0, sizeof(bool) * qr->lenght);
 
@@ -742,7 +740,7 @@ Cover(DocRepresentation *doc, uint32 len, QueryRepresentation *qr,
 	}
 
 	ext->pos++;
-	return Cover(doc, len, qr, ext);
+	goto restart;
 }
 
 static DocRepresentation *
