@@ -21,7 +21,10 @@ from os.path import expanduser
 class PglistTests(unittest.TestCase):
 
     def setUp(self):
-        self.node = tg.get_new_node("pglist_select")
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+
+        self.node = tg.get_new_node("pglist",
+                                    os.path.join(current_dir, "tmp_install"))
         try:
             self.node.init()
             self.node.append_conf("postgresql.conf",
@@ -30,10 +33,8 @@ class PglistTests(unittest.TestCase):
                                   "max_wal_size='2GB'\n"
                                   "work_mem='50MB'")
             self.node.start()
-
-            self.init_pglist_data(self.node)
         except Exception as e:
-            self.printlog(self.node.logs_dir + "/postgresql.log")
+            self.printlog(os.path.join(self.node.logs_dir, "postgresql.log"))
             raise e
 
     def tearDown(self):
@@ -41,15 +42,11 @@ class PglistTests(unittest.TestCase):
 
     def init_pglist_data(self, node):
         # Check if 'pglist' base exists
-        base_exists = False
         bases = node.execute("postgres",
-                             "SELECT datname FROM pg_database WHERE datistemplate = false")
-        for base in bases:
-            if base[0].lower() == "pglist":
-                base_exists = True
-                break
-
-        if base_exists:
+                             "SELECT count(*) FROM pg_database "
+                             "WHERE datistemplate = false AND "
+                             "  datname = 'pglist'")
+        if bases[0][0] != 0:
             return
 
         # Check if 'pglist' dump exists
@@ -58,12 +55,12 @@ class PglistTests(unittest.TestCase):
         if not os.path.isfile(pglist_dump):
             pglist_dumpgz = pglist_dump + ".gz"
             if not os.path.isfile(pglist_dumpgz):
-                print("Downloading: %s" % pglist_dumpgz)
+                print("Downloading: {0}".format(pglist_dumpgz))
                 request.urlretrieve(
                     "http://www.sai.msu.su/~megera/postgres/files/pglist-28-04-16.dump.gz",
                     pglist_dumpgz)
 
-            print("Decompressing: %s" % pglist_dumpgz)
+            print("Decompressing: {0}".format(pglist_dumpgz))
             gz = gzip.open(pglist_dumpgz, 'rb')
             with open(pglist_dump, 'wb') as f:
                 f.write(gz.read())
@@ -85,13 +82,22 @@ class PglistTests(unittest.TestCase):
     def test_order_by(self):
         """Tests SELECT constructions to 'pglist' base"""
         try:
-            print("Creating index 'rumidx_orderby_sent'")
-
-            self.node.safe_psql(
+            self.init_pglist_data(self.node)
+            indexes = self.node.execute(
                 "pglist",
-                "CREATE INDEX rumidx_orderby_sent ON pglist USING rum ("
-                "  fts rum_tsvector_timestamp_ops, sent) "
-                "  WITH (attach=sent, to=fts, order_by_attach=t)")
+                "SELECT count(*) FROM pg_class c "
+                "  JOIN pg_index i ON i.indexrelid = c.oid"
+                "  JOIN pg_class c2 ON i.indrelid = c2.oid"
+                "  WHERE c.relkind = 'i' AND c2.relname = 'pglist' AND "
+                "    c.relname = 'rumidx_orderby_sent'")
+            if indexes[0][0] == 0:
+                print("Creating index 'rumidx_orderby_sent'")
+
+                self.node.safe_psql(
+                    "pglist",
+                    "CREATE INDEX rumidx_orderby_sent ON pglist USING rum ("
+                    "  fts rum_tsvector_timestamp_ops, sent) "
+                    "  WITH (attach=sent, to=fts, order_by_attach=t)")
 
             print("Running tests")
 
@@ -100,7 +106,8 @@ class PglistTests(unittest.TestCase):
                     "pglist",
                     "SELECT sent, subject "
                     "  FROM pglist "
-                    "  WHERE fts @@ to_tsquery('english', 'backend <-> crushed') "
+                    "  WHERE fts @@ "
+                    "    to_tsquery('english', 'backend <-> crushed') "
                     "  ORDER BY sent <=| '2016-01-01 00:01' LIMIT 5"
                 ),
                 b'1999-06-02 11:52:46|Re: [HACKERS] PID of backend\n'
@@ -109,12 +116,13 @@ class PglistTests(unittest.TestCase):
             self.assertEqual(
                 self.node.safe_psql(
                     "pglist",
-                    "SELECT count(*) FROM pglist WHERE fts @@ to_tsquery('english', 'tom & lane')"
+                    "SELECT count(*) FROM pglist "
+                    "WHERE fts @@ to_tsquery('english', 'tom & lane')"
                 ),
                 b'222813\n'
             )
         except Exception as e:
-            self.printlog(self.node.logs_dir + "/postgresql.log")
+            self.printlog(os.path.join(self.node.logs_dir, "postgresql.log"))
             raise e
 
 if __name__ == "__main__":
