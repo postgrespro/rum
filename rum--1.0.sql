@@ -95,7 +95,6 @@ AS
         FUNCTION        8       rum_tsquery_distance(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),
 		FUNCTION		10		rum_ts_join_pos(internal, internal),
         STORAGE         text;
-
 -- timestamp ops
 
 CREATE FUNCTION timestamp_distance(timestamp, timestamp)
@@ -209,6 +208,83 @@ AS
         FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         STORAGE         text;
 
+-- timestamptz ops
+
+CREATE FUNCTION timestamptz_distance(timestamptz, timestamptz)
+RETURNS float8
+AS 'MODULE_PATHNAME', 'timestamp_distance'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR <=> (
+	PROCEDURE = timestamptz_distance,
+	LEFTARG = timestamptz,
+	RIGHTARG = timestamptz,
+	COMMUTATOR = <=>
+);
+
+CREATE FUNCTION timestamptz_left_distance(timestamptz, timestamptz)
+RETURNS float8
+AS 'MODULE_PATHNAME', 'timestamp_left_distance'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR <=| (
+	PROCEDURE = timestamptz_left_distance,
+	LEFTARG = timestamptz,
+	RIGHTARG = timestamptz,
+	COMMUTATOR = |=>
+);
+
+CREATE FUNCTION timestamptz_right_distance(timestamptz, timestamptz)
+RETURNS float8
+AS 'MODULE_PATHNAME', 'timestamp_right_distance'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR |=> (
+	PROCEDURE = timestamptz_right_distance,
+	LEFTARG = timestamptz,
+	RIGHTARG = timestamptz,
+	COMMUTATOR = <=|
+);
+
+
+CREATE OPERATOR CLASS timestamptz_ops
+DEFAULT FOR TYPE timestamptz USING rum
+AS
+    OPERATOR        1       <,
+	OPERATOR        2       <=,
+	OPERATOR        3       =,
+	OPERATOR        4       >=,
+	OPERATOR        5       >,
+	--support
+	FUNCTION        1 timestamptz_cmp(timestamptz,timestamptz),
+	FUNCTION        2 rum_timestamp_extract_value(timestamp,internal,internal,internal,internal),
+	FUNCTION        3 rum_timestamp_extract_query(timestamp,internal,smallint,internal,internal,internal,internal),
+	FUNCTION        4 rum_timestamp_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal),
+	FUNCTION        5 rum_timestamp_compare_prefix(timestamp,timestamp,smallint,internal),
+    FUNCTION        6 rum_timestamp_config(internal),
+	-- support to timestamptz disttance in rum_tsvector_timestamptz_ops
+	FUNCTION		9 rum_timestamp_outer_distance(timestamp, timestamp, smallint),
+	OPERATOR		20		<=> (timestamptz,timestamptz) FOR ORDER BY pg_catalog.float_ops,
+	OPERATOR		21		<=| (timestamptz,timestamptz) FOR ORDER BY pg_catalog.float_ops,
+	OPERATOR		22		|=> (timestamptz,timestamptz) FOR ORDER BY pg_catalog.float_ops,
+STORAGE         timestamptz;
+
+--together
+
+CREATE OPERATOR CLASS rum_tsvector_timestamptz_ops
+FOR TYPE tsvector USING rum
+AS
+        OPERATOR        1       @@ (tsvector, tsquery),
+		--support function
+        FUNCTION        1       gin_cmp_tslexeme(text, text),
+        FUNCTION        2       rum_extract_tsvector(tsvector,internal,internal,internal,internal),
+        FUNCTION        3       rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal),
+        FUNCTION        4       rum_tsquery_timestamp_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
+        FUNCTION        5       gin_cmp_prefix(text,text,smallint,internal),
+        FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
+        STORAGE         text;
+
+-- inversed 
 
 CREATE FUNCTION ruminv_extract_tsquery(tsquery,internal,internal,internal,internal)
 RETURNS internal
@@ -240,3 +316,4 @@ AS
         FUNCTION        4       ruminv_tsvector_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         FUNCTION        6       ruminv_tsquery_config(internal),
         STORAGE         text;
+
