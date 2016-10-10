@@ -297,6 +297,7 @@ initRumState(RumState * state, Relation index)
 						   index_getprocinfo(index, i + 1, RUM_ORDERING_PROC),
 						   CurrentMemoryContext);
 			state->canOrdering[i] = true;
+
 		}
 		else
 		{
@@ -313,6 +314,18 @@ initRumState(RumState * state, Relation index)
 		else
 		{
 			state->canOuterOrdering[i] = false;
+		}
+
+		if (index_getprocid(index, i + 1, RUM_ADDINFO_JOIN) != InvalidOid)
+		{
+			fmgr_info_copy(&(state->joinAddInfoFn[i]),
+					index_getprocinfo(index, i + 1, RUM_ADDINFO_JOIN),
+						   CurrentMemoryContext);
+			state->canJoinAddInfo[i] = true;
+		}
+		else
+		{
+			state->canJoinAddInfo[i] = false;
 		}
 
 		/*

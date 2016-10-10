@@ -159,6 +159,9 @@ rumvalidate(Oid opclassoid)
 											3, 3,
 											opcintype, opcintype, INT2OID);
 				break;
+			case RUM_ADDINFO_JOIN:
+				ok = true; /* XXX */
+				break;
 			default:
 				ereport(INFO,
 						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),

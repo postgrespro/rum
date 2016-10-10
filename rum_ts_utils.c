@@ -35,6 +35,7 @@ PG_FUNCTION_INFO_V1(rum_tsquery_distance);
 PG_FUNCTION_INFO_V1(rum_ts_distance_tt);
 PG_FUNCTION_INFO_V1(rum_ts_distance_ttf);
 PG_FUNCTION_INFO_V1(rum_ts_distance_td);
+PG_FUNCTION_INFO_V1(rum_ts_join_pos);
 
 PG_FUNCTION_INFO_V1(tsquery_to_distance_query);
 
@@ -1313,4 +1314,77 @@ rum_tsvector_config(PG_FUNCTION_ARGS)
 	config->strategyInfo[0].strategy = InvalidStrategy;
 
 	PG_RETURN_VOID();
+}
+
+Datum
+rum_ts_join_pos(PG_FUNCTION_ARGS)
+{
+	Datum	addInfo1 = PG_GETARG_DATUM(0);
+	Datum	addInfo2 = PG_GETARG_DATUM(1);
+	char	*in1 = VARDATA_ANY(addInfo1),
+			*in2 = VARDATA_ANY(addInfo2);
+	bytea	*result;
+	int		count1 = count_pos(in1, VARSIZE_ANY_EXHDR(addInfo1)),
+			count2 = count_pos(in2, VARSIZE_ANY_EXHDR(addInfo2)),
+			countRes = 0,
+			i1 = 0, i2 = 0, size;
+	uint16	pos1, pos2, *pos;
+
+	result = palloc(VARHDRSZ + sizeof(uint16) * (count1 + count2));
+	pos = palloc(sizeof(uint16) * (count1 + count2));
+
+	Assert(count1 > 0 && count2 > 0);
+
+
+	in1 = decompress_pos(in1, &pos1);
+	in2 = decompress_pos(in2, &pos2);
+
+	while(i1 < count1 && i2 < count2)
+	{
+		if (WEP_GETPOS(pos1) > WEP_GETPOS(pos2))
+		{
+			pos[countRes++] = pos2;
+			if (i2 < count2)
+				in2 = decompress_pos(in2, &pos2);
+			i2++;
+		}
+		else if (WEP_GETPOS(pos1) < WEP_GETPOS(pos2))
+		{
+			pos[countRes++] = pos1;
+			if (i1 < count1)
+				in1 = decompress_pos(in1, &pos1);
+			i1++;
+		}
+		else
+		{
+			pos[countRes++] = pos1;
+			if (i1 < count1)
+				in1 = decompress_pos(in1, &pos1);
+			if (i2 < count2)
+				in2 = decompress_pos(in2, &pos2);
+			i1++;
+			i2++;
+		}
+	}
+
+	while(i1 < count1)
+	{
+		pos[countRes++] = pos1;
+		if (i1 < count1)
+			in1 = decompress_pos(in1, &pos1);
+		i1++;
+	}
+
+	while(i2 < count2)
+	{
+		pos[countRes++] = pos2;
+		if (i2 < count2)
+			in2 = decompress_pos(in2, &pos2);
+		i2++;
+	}
+
+	size = compress_pos(result->vl_dat, pos, countRes) + VARHDRSZ;
+	SET_VARSIZE(result, size);
+
+	PG_RETURN_BYTEA_P(result);
 }

@@ -162,7 +162,7 @@ moveRightIfItNeeded(RumBtreeData * btree, RumBtreeStack * stack)
 
 /*
  * Scan all pages of a posting tree and save all its heap ItemPointers
- * in scanEntry->matchBitmap
+ * in scanEntry->matchSortstate
  */
 static void
 scanPostingTree(Relation index, RumScanEntry scanEntry,
@@ -205,8 +205,8 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 			ptr = RumDataPageGetData(page);
 			for (i = FirstOffsetNumber; i <= maxoff; i++)
 			{
-				ptr = rumDataPageLeafReadPointer(ptr, attnum, &item, rumstate);
-				tbm_add_tuples(scanEntry->matchBitmap, &item.iptr, 1, false);
+				ptr = rumDataPageLeafRead(ptr, attnum, &item, rumstate);
+				rum_tuplesort_putrumkey(scanEntry->matchSortstate, &item);
 			}
 
 			scanEntry->predictNumberResult += maxoff;
@@ -222,7 +222,7 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 }
 
 /*
- * Collects TIDs into scanEntry->matchBitmap for all heap tuples that
+ * Collects TIDs into scanEntry->matchSortstate for all heap tuples that
  * match the search entry.  This supports three different match modes:
  *
  * 1. Partial-match support: scan from current point until the
@@ -240,9 +240,17 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 {
 	OffsetNumber attnum;
 	Form_pg_attribute attr;
+	FmgrInfo	*cmp = NULL;
+	RumState	*rumstate = btree->rumstate;
 
-	/* Initialize empty bitmap result */
-	scanEntry->matchBitmap = tbm_create(work_mem * 1024L);
+	if (rumstate->useAlternativeOrder &&
+		scanEntry->attnumOrig == rumstate->attrnAddToColumn)
+	{
+		cmp = &rumstate->compareFn[rumstate->attrnOrderByColumn - 1];
+	}
+
+	/* Initialize  */
+	scanEntry->matchSortstate = rum_tuplesort_begin_rumkey(work_mem, cmp);
 
 	/* Null query cannot partial-match anything */
 	if (scanEntry->isPartialMatch &&
@@ -251,7 +259,7 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 
 	/* Locate tupdesc entry for key column (for attbyval/attlen data) */
 	attnum = scanEntry->attnumOrig;
-	attr = btree->rumstate->origTupdesc->attrs[attnum - 1];
+	attr = rumstate->origTupdesc->attrs[attnum - 1];
 
 	for (;;)
 	{
@@ -272,11 +280,11 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 		/*
 		 * If tuple stores another attribute then stop scan
 		 */
-		if (rumtuple_get_attrnum(btree->rumstate, itup) != attnum)
+		if (rumtuple_get_attrnum(rumstate, itup) != attnum)
 			return true;
 
 		/* Safe to fetch attribute value */
-		idatum = rumtuple_get_key(btree->rumstate, itup, &icategory);
+		idatum = rumtuple_get_key(rumstate, itup, &icategory);
 
 		/*
 		 * Check for appropriate scan stop conditions
@@ -299,8 +307,8 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 			 * case cmp < 0 => not match and continue scan
 			 *----------
 			 */
-			cmp = DatumGetInt32(FunctionCall4Coll(&btree->rumstate->comparePartialFn[attnum - 1],
-							   btree->rumstate->supportCollation[attnum - 1],
+			cmp = DatumGetInt32(FunctionCall4Coll(&rumstate->comparePartialFn[attnum - 1],
+							   rumstate->supportCollation[attnum - 1],
 												  scanEntry->queryKey,
 												  idatum,
 										 UInt16GetDatum(scanEntry->strategy),
@@ -346,7 +354,7 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 			LockBuffer(stack->buffer, RUM_UNLOCK);
 
 			/* Collect all the TIDs in this entry's posting tree */
-			scanPostingTree(btree->index, scanEntry, rootPostingTree, attnum, btree->rumstate);
+			scanPostingTree(btree->index, scanEntry, rootPostingTree, attnum, rumstate);
 
 			/*
 			 * We lock again the entry page and while it was unlocked insert
@@ -376,12 +384,12 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 				page = BufferGetPage(stack->buffer);
 				itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, stack->off));
 
-				if (rumtuple_get_attrnum(btree->rumstate, itup) != attnum)
+				if (rumtuple_get_attrnum(rumstate, itup) != attnum)
 					elog(ERROR, "lost saved point in index");	/* must not happen !!! */
-				newDatum = rumtuple_get_key(btree->rumstate, itup,
+				newDatum = rumtuple_get_key(rumstate, itup,
 											&newCategory);
 
-				if (rumCompareEntries(btree->rumstate, attnum,
+				if (rumCompareEntries(rumstate, attnum,
 									  newDatum, newCategory,
 									  idatum, icategory) == 0)
 					break;		/* Found! */
@@ -394,15 +402,19 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 		}
 		else
 		{
-			ItemPointerData *ipd = (ItemPointerData *) palloc(
-							 sizeof(ItemPointerData) * RumGetNPosting(itup));
+			int	i;
+			char	*ptr = RumGetPosting(itup);
+			RumKey	item;
 
-			rumReadTuplePointers(btree->rumstate, scanEntry->attnum, itup, ipd);
+			ItemPointerSetMin(&item.iptr);
+			for (i = 0; i < RumGetNPosting(itup); i++)
+			{
+				ptr = rumDataPageLeafRead(ptr, scanEntry->attnum, &item,
+										  rumstate);
+				rum_tuplesort_putrumkey(scanEntry->matchSortstate, &item);
+			}
 
-			tbm_add_tuples(scanEntry->matchBitmap,
-						   ipd, RumGetNPosting(itup), false);
 			scanEntry->predictNumberResult += RumGetNPosting(itup);
-			pfree(ipd);
 		}
 
 		if (scanEntry->forceUseBitmap)
@@ -483,8 +495,7 @@ restartScanEntry:
 	entry->gdi = NULL;
 	entry->stack = NULL;
 	entry->nlist = 0;
-	entry->matchBitmap = NULL;
-	entry->matchResult = NULL;
+	entry->matchSortstate = NULL;
 	entry->reduceResult = FALSE;
 	entry->predictNumberResult = 0;
 
@@ -521,22 +532,20 @@ restartScanEntry:
 			 * found data and rescan. See comments near 'return false' in
 			 * collectMatchBitmap()
 			 */
-			if (entry->matchBitmap)
+			if (entry->matchSortstate)
 			{
-				if (entry->matchIterator)
-					tbm_end_iterate(entry->matchIterator);
-				entry->matchIterator = NULL;
-				tbm_free(entry->matchBitmap);
-				entry->matchBitmap = NULL;
+				rum_tuplesort_end(entry->matchSortstate);
+				entry->matchSortstate = NULL;
 			}
 			LockBuffer(stackEntry->buffer, RUM_UNLOCK);
 			freeRumBtreeStack(stackEntry);
 			goto restartScanEntry;
 		}
 
-		if (entry->matchBitmap && !tbm_is_empty(entry->matchBitmap))
+		if (entry->matchSortstate)
 		{
-			entry->matchIterator = tbm_begin_iterate(entry->matchBitmap);
+			rum_tuplesort_performsort(entry->matchSortstate);
+			ItemPointerSetMin(&entry->collectRumKey.iptr);
 			entry->isFinished = FALSE;
 		}
 	}
@@ -638,7 +647,6 @@ startScanKey(RumState * rumstate, RumScanKey key)
 	key->curItemMatches = false;
 	key->recheckCurItem = false;
 	key->isFinished = false;
-	key->hadLossyEntry = false;
 }
 
 /*
@@ -920,8 +928,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
 		entry->list = NULL;
 		entry->nlist = 0;
 	}
-	entry->matchBitmap = NULL;
-	entry->matchResult = NULL;
+	entry->matchSortstate = NULL;
 	entry->reduceResult = FALSE;
 	entry->predictNumberResult = 0;
 
@@ -1054,13 +1061,6 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
  * or sets entry->isFinished to TRUE if there are no more.
  *
  * Item pointers must be returned in ascending order.
- *
- * Note: this can return a "lossy page" item pointer, indicating that the
- * entry potentially matches all items on that heap page.  However, it is
- * not allowed to return both a lossy page pointer and exact (regular)
- * item pointers for the same page.  (Doing so would break the key-combination
- * logic in keyGetItem and scanGetItem; see comment in scanGetItem.)  In the
- * current implementation this is guaranteed by the behavior of tidbitmaps.
  */
 static void
 entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
@@ -1070,55 +1070,117 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
 	if (nextEntryList)
 		*nextEntryList = false;
 
-	if (entry->matchBitmap)
+	if (entry->matchSortstate)
 	{
 		Assert(ScanDirectionIsForward(entry->scanDirection));
 
 		do
 		{
-			if (entry->matchResult == NULL ||
-				entry->offset >= entry->matchResult->ntuples)
+			RumKey	collected;
+			RumKey	*current_collected;
+
+			/* We are finished, but should return last result */
+			if (ItemPointerIsMax(&entry->collectRumKey.iptr))
 			{
-				entry->matchResult = tbm_iterate(entry->matchIterator);
-
-				if (entry->matchResult == NULL)
-				{
-					ItemPointerSetInvalid(&entry->curRumKey.iptr);
-					tbm_end_iterate(entry->matchIterator);
-					entry->matchIterator = NULL;
-					entry->isFinished = TRUE;
-					break;
-				}
-
-				/*
-				 * Reset counter to the beginning of entry->matchResult. Note:
-				 * entry->offset is still greater than matchResult->ntuples if
-				 * matchResult is lossy.  So, on next call we will get next
-				 * result from TIDBitmap.
-				 */
-				entry->offset = 0;
-			}
-
-			if (entry->matchResult->ntuples < 0)
-			{
-				/*
-				 * lossy result, so we need to check the whole page
-				 */
-				ItemPointerSetLossyPage(&entry->curRumKey.iptr,
-										entry->matchResult->blockno);
-
-				/*
-				 * We might as well fall out of the loop; we could not
-				 * estimate number of results on this page to support correct
-				 * reducing of result even if it's enabled
-				 */
+				entry->isFinished = TRUE;
+				rum_tuplesort_end(entry->matchSortstate);
+				entry->matchSortstate = NULL;
 				break;
 			}
 
-			ItemPointerSet(&entry->curRumKey.iptr,
-						   entry->matchResult->blockno,
-						   entry->matchResult->offsets[entry->offset]);
-			entry->offset++;
+			/* collectRumKey could store the begining of current result */
+			if (!ItemPointerIsMin(&entry->collectRumKey.iptr))
+				collected = entry->collectRumKey;
+			else
+				ItemPointerSetMin(&collected.iptr);
+
+			ItemPointerSetMin(&entry->curRumKey.iptr);
+
+			for(;;)
+			{
+				bool	should_free;
+
+				current_collected = rum_tuplesort_getrumkey(
+					entry->matchSortstate,
+					ScanDirectionIsForward(entry->scanDirection) ? true : false,
+					&should_free);
+
+				if (current_collected == NULL)
+				{
+					entry->curRumKey = collected;
+					break;
+				}
+
+				if (ItemPointerIsMin(&collected.iptr) ||
+					rumCompareItemPointers(&collected.iptr,
+										   &current_collected->iptr) == 0)
+				{
+					Datum	joinedAddInfo = (Datum)0;
+					bool	joinedAddInfoIsNull;
+
+					if (ItemPointerIsMin(&collected.iptr))
+					{
+						joinedAddInfoIsNull = true; /* wiil change later */
+						collected.addInfoIsNull = true;
+					}
+					else
+						joinedAddInfoIsNull = collected.addInfoIsNull ||
+											current_collected->addInfoIsNull;
+
+					if (joinedAddInfoIsNull)
+					{
+						joinedAddInfoIsNull =
+							(collected.addInfoIsNull && current_collected->addInfoIsNull);
+
+						if (collected.addInfoIsNull == false)
+							joinedAddInfo = collected.addInfo;
+						else if (current_collected->addInfoIsNull == false)
+							joinedAddInfo = current_collected->addInfo;
+					}
+					else if (rumstate->canJoinAddInfo[entry->attnumOrig - 1])
+					{
+						joinedAddInfo =
+							FunctionCall2(
+								&rumstate->joinAddInfoFn[entry->attnumOrig - 1],
+								collected.addInfo,
+								current_collected->addInfo);
+					}
+					else
+					{
+						joinedAddInfo = current_collected->addInfo;
+					}
+
+					collected.iptr = current_collected->iptr;
+					collected.addInfoIsNull = joinedAddInfoIsNull;
+					collected.addInfo = joinedAddInfo;
+
+					if (should_free)
+						pfree(current_collected);
+				}
+				else
+				{
+					entry->curRumKey = collected;
+					entry->collectRumKey = *current_collected;
+					if (should_free)
+						pfree(current_collected);
+					break;
+				}
+			}
+
+			if (current_collected == NULL)
+			{
+				/* mark next call as last */
+				ItemPointerSetMax(&entry->collectRumKey.iptr);
+
+				/* even current call is last */
+				if (ItemPointerIsMin(&entry->curRumKey.iptr))
+				{
+					entry->isFinished = TRUE;
+					rum_tuplesort_end(entry->matchSortstate);
+					entry->matchSortstate = NULL;
+					break;
+				}
+			}
 		} while (entry->reduceResult == true && dropItem(entry));
 	}
 	else if (!BufferIsValid(entry->buffer))
@@ -1164,18 +1226,11 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
  * The current item is the smallest curItem among the inputs.  key->curItem
  * is set to that value.  key->curItemMatches is set to indicate whether that
  * TID passes the consistentFn test.  If so, key->recheckCurItem is set true
- * iff recheck is needed for this item pointer (including the case where the
- * item pointer is a lossy page pointer).
+ * iff recheck is needed for this item pointer
  *
  * If all entry streams are exhausted, sets key->isFinished to TRUE.
  *
  * Item pointers must be returned in ascending order.
- *
- * Note: this can return a "lossy page" item pointer, indicating that the
- * key potentially matches all items on that heap page.  However, it is
- * not allowed to return both a lossy page pointer and exact (regular)
- * item pointers for the same page.  (Doing so would break the key-combination
- * logic in scanGetItem.)
  */
 
 static int
@@ -1204,10 +1259,7 @@ static void
 keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 {
 	RumKey		 minItem;
-	ItemPointerData curPageLossy;
 	uint32		i;
-	uint32		lossyEntry;
-	bool		haveLossyEntry;
 	RumScanEntry entry;
 	bool		res;
 	MemoryContext oldCtx;
@@ -1218,11 +1270,6 @@ keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 
 	/*
 	 * Find the minimum of the active entry curItems.
-	 *
-	 * Note: a lossy-page entry is encoded by a ItemPointer with max value for
-	 * offset (0xffff), so that it will sort after any exact entries for the
-	 * same page.  So we'll prefer to return exact pointers not lossy
-	 * pointers, which is good.
 	 */
 
 	for (i = 0; i < key->nentries; i++)
@@ -1250,11 +1297,8 @@ keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 
 	/*
 	 * We might have already tested this item; if so, no need to repeat work.
-	 * (Note: the ">" case can happen, if minItem is exact but we previously
-	 * had to set curItem to a lossy-page pointer.)
 	 */
-	if (rumCompareItemPointers(&key->curItem.iptr, &minItem.iptr) == 0 ||
-		key->hadLossyEntry)
+	if (rumCompareItemPointers(&key->curItem.iptr, &minItem.iptr) == 0)
 		return;
 
 	/*
@@ -1262,94 +1306,10 @@ keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 	 */
 	key->curItem = minItem;
 
-	/*
-	 * Lossy-page entries pose a problem, since we don't know the correct
-	 * entryRes state to pass to the consistentFn, and we also don't know what
-	 * its combining logic will be (could be AND, OR, or even NOT). If the
-	 * logic is OR then the consistentFn might succeed for all items in the
-	 * lossy page even when none of the other entries match.
-	 *
-	 * If we have a single lossy-page entry then we check to see if the
-	 * consistentFn will succeed with only that entry TRUE.  If so, we return
-	 * a lossy-page pointer to indicate that the whole heap page must be
-	 * checked.  (On subsequent calls, we'll do nothing until minItem is past
-	 * the page altogether, thus ensuring that we never return both regular
-	 * and lossy pointers for the same page.)
-	 *
-	 * This idea could be generalized to more than one lossy-page entry, but
-	 * ideally lossy-page entries should be infrequent so it would seldom be
-	 * the case that we have more than one at once.  So it doesn't seem worth
-	 * the extra complexity to optimize that case. If we do find more than
-	 * one, we just punt and return a lossy-page pointer always.
-	 *
-	 * Note that only lossy-page entries pointing to the current item's page
-	 * should trigger this processing; we might have future lossy pages in the
-	 * entry array, but they aren't relevant yet.
-	 */
-	ItemPointerSetLossyPage(&curPageLossy,
-							RumItemPointerGetBlockNumber(&key->curItem.iptr));
-
-	lossyEntry = 0;
-	haveLossyEntry = false;
-	for (i = 0; i < key->nentries; i++)
-	{
-		entry = key->scanEntry[i];
-		if (entry->isFinished == FALSE &&
-			rumCompareItemPointers(&entry->curRumKey.iptr, &curPageLossy) == 0)
-		{
-			if (haveLossyEntry)
-			{
-				/* Multiple lossy entries, punt */
-				key->curItem.iptr = curPageLossy;
-				key->curItemMatches = true;
-				key->recheckCurItem = true;
-				key->hadLossyEntry = true;
-				return;
-			}
-			lossyEntry = i;
-			haveLossyEntry = true;
-		}
-	}
-
 	/* prepare for calling consistentFn in temp context */
 	oldCtx = MemoryContextSwitchTo(tempCtx);
 
-	if (haveLossyEntry)
-	{
-		/* Single lossy-page entry, so see if whole page matches */
-		for (i = 0; i < key->nentries; i++)
-		{
-			key->addInfo[i] = (Datum) 0;
-			key->addInfoIsNull[i] = true;
-		}
-		memset(key->entryRes, FALSE, key->nentries);
-		key->entryRes[lossyEntry] = TRUE;
-
-		if (callConsistentFn(rumstate, key))
-		{
-			/* Yes, so clean up ... */
-			MemoryContextSwitchTo(oldCtx);
-			MemoryContextReset(tempCtx);
-
-			/* and return lossy pointer for whole page */
-			key->curItem.iptr = curPageLossy;
-			key->curItemMatches = true;
-			key->recheckCurItem = true;
-			key->hadLossyEntry = true;
-			return;
-		}
-	}
-
 	/*
-	 * At this point we know that we don't need to return a lossy whole-page
-	 * pointer, but we might have matches for individual exact item pointers,
-	 * possibly in combination with a lossy pointer.  Our strategy if there's
-	 * a lossy pointer is to try the consistentFn both ways and return a hit
-	 * if it accepts either one (forcing the hit to be marked lossy so it will
-	 * be rechecked).  An exception is that we don't need to try it both ways
-	 * if the lossy pointer is in a "hidden" entry, because the consistentFn's
-	 * result can't depend on that.
-	 *
 	 * Prepare entryRes array to be passed to consistentFn.
 	 */
 	for (i = 0; i < key->nentries; i++)
@@ -1369,30 +1329,10 @@ keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 			key->addInfoIsNull[i] = true;
 		}
 	}
-	if (haveLossyEntry)
-	{
-		key->entryRes[lossyEntry] = TRUE;
-		key->addInfo[lossyEntry] = (Datum) 0;
-		key->addInfoIsNull[lossyEntry] = true;
-	}
 
 	res = callConsistentFn(rumstate, key);
 
-	if (!res && haveLossyEntry && lossyEntry < key->nuserentries)
-	{
-		/* try the other way for the lossy item */
-		key->entryRes[lossyEntry] = FALSE;
-		key->addInfo[lossyEntry] = (Datum) 0;
-		key->addInfoIsNull[lossyEntry] = true;
-
-		res = callConsistentFn(rumstate, key);
-	}
-
 	key->curItemMatches = res;
-	/* If we matched a lossy entry, force recheckCurItem = true */
-	if (haveLossyEntry)
-		key->recheckCurItem = true;
-	key->hadLossyEntry = haveLossyEntry;
 
 	/* clean up after consistentFn calls */
 	MemoryContextSwitchTo(oldCtx);
@@ -1488,23 +1428,6 @@ scanGetItemRegular(IndexScanDesc scan, RumKey *advancePast,
 
 		/*----------
 		 * Now *item contains first ItemPointer after previous result.
-		 *
-		 * The item is a valid hit only if all the keys succeeded for either
-		 * that exact TID, or a lossy reference to the same page.
-		 *
-		 * This logic works only if a keyGetItem stream can never contain both
-		 * exact and lossy pointers for the same page.  Else we could have a
-		 * case like
-		 *
-		 *		stream 1		stream 2
-		 *		...             ...
-		 *		42/6			42/7
-		 *		50/1			42/0xffff
-		 *		...             ...
-		 *
-		 * We would conclude that 42/6 is not a match and advance stream 1,
-		 * thus never detecting the match to the lossy pointer in stream 2.
-		 * (keyGetItem has a similar problem versus entryGetItem.)
 		 *----------
 		 */
 		match = true;
@@ -1518,10 +1441,6 @@ scanGetItemRegular(IndexScanDesc scan, RumKey *advancePast,
 			if (key->curItemMatches)
 			{
 				if (rumCompareItemPointers(&item->iptr, &key->curItem.iptr) == 0)
-					continue;
-				if (ItemPointerIsLossyPage(&key->curItem.iptr) &&
-					RumItemPointerGetBlockNumber(&key->curItem.iptr) ==
-					RumItemPointerGetBlockNumber(&item->iptr))
 					continue;
 			}
 			match = false;
@@ -2133,10 +2052,7 @@ rumgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 		if (!scanGetItem(scan, &so->key, &so->key, &recheck))
 			break;
 
-		if (ItemPointerIsLossyPage(&so->key.iptr))
-			tbm_add_page(tbm, ItemPointerGetBlockNumber(&so->key.iptr));
-		else
-			tbm_add_tuples(tbm, &so->key.iptr, 1, recheck);
+		tbm_add_tuples(tbm, &so->key.iptr, 1, recheck);
 		ntids++;
 	}
 

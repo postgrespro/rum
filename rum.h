@@ -374,6 +374,7 @@ typedef struct RumState
 	FmgrInfo	preConsistentFn[INDEX_MAX_KEYS];		/* optional method */
 	FmgrInfo	orderingFn[INDEX_MAX_KEYS];		/* optional method */
 	FmgrInfo	outerOrderingFn[INDEX_MAX_KEYS];		/* optional method */
+	FmgrInfo	joinAddInfoFn[INDEX_MAX_KEYS];		/* optional method */
 	/* canPartialMatch[i] is true if comparePartialFn[i] is valid */
 	bool		canPartialMatch[INDEX_MAX_KEYS];
 	/* canPreConsistent[i] is true if preConsistentFn[i] is valid */
@@ -381,6 +382,7 @@ typedef struct RumState
 	/* canOrdering[i] is true if orderingFn[i] is valid */
 	bool		canOrdering[INDEX_MAX_KEYS];
 	bool		canOuterOrdering[INDEX_MAX_KEYS];
+	bool		canJoinAddInfo[INDEX_MAX_KEYS];
 	/* Collations to pass to the support functions */
 	Oid			supportCollation[INDEX_MAX_KEYS];
 }	RumState;
@@ -599,7 +601,6 @@ typedef struct RumScanKeyData
 	 * key cannot succeed for any later TIDs.
 	 */
 	RumKey		curItem;
-	bool		hadLossyEntry;
 	bool		curItemMatches;
 	bool		recheckCurItem;
 	bool		isFinished;
@@ -630,9 +631,9 @@ typedef struct RumScanEntryData
 
 	/* for a partial-match or full-scan query, we accumulate all TIDs here */
 	bool		forceUseBitmap;
-	TIDBitmap  *matchBitmap;
-	TBMIterator *matchIterator;
-	TBMIterateResult *matchResult;
+	/* or here if we need to store addinfo */
+	Tuplesortstate *matchSortstate;
+	RumKey		   collectRumKey;
 
 	/* for full-scan query with order-by */
 	RumBtreeStack *stack;
@@ -765,7 +766,8 @@ extern RumKey *rumGetBAEntry(BuildAccumulator *accum,
 #define RUM_PRE_CONSISTENT_PROC		7
 #define RUM_ORDERING_PROC			8
 #define RUM_OUTER_ORDERING_PROC		9
-#define RUMNProcs					9
+#define RUM_ADDINFO_JOIN			10
+#define RUMNProcs					10
 
 extern Datum rum_extract_tsvector(PG_FUNCTION_ARGS);
 extern Datum rum_extract_tsquery(PG_FUNCTION_ARGS);

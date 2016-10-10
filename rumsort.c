@@ -137,6 +137,8 @@
 #include "utils/rel.h"
 #include "utils/sortsupport.h"
 
+#include "rum.h" /* RumKey */
+
 /* sort-type codes for sort__start probes */
 #define HEAP_SORT		0
 #define INDEX_SORT		1
@@ -408,6 +410,9 @@ struct Tuplesortstate
 	/* Do we need ItemPointer comparison in comparetup_rum()? */
 	bool		compareItemPointer;
 
+	/* compare_rumkey */
+	FmgrInfo	*cmp;
+
 	/*
 	 * Resource snapshot for time of sort start.
 	 */
@@ -534,6 +539,13 @@ static void writetup_rum(Tuplesortstate *state, int tapenum,
 static void readtup_rum(Tuplesortstate *state, SortTuple *stup,
 			int tapenum, unsigned int len);
 static void reversedirection_rum(Tuplesortstate *state);
+static int comparetup_rumkey(const SortTuple *a, const SortTuple *b,
+			   Tuplesortstate *state);
+static void copytup_rumkey(Tuplesortstate *state, SortTuple *stup, void *tup);
+static void writetup_rumkey(Tuplesortstate *state, int tapenum,
+			 SortTuple *stup);
+static void readtup_rumkey(Tuplesortstate *state, SortTuple *stup,
+			int tapenum, unsigned int len);
 
 /*
  * Special versions of qsort just for SortTuple objects.  qsort_tuple() sorts
@@ -1164,6 +1176,40 @@ rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess,
 }
 
 Tuplesortstate *
+rum_tuplesort_begin_rumkey(int workMem, FmgrInfo *cmp)
+{
+	Tuplesortstate *state = rum_tuplesort_begin_common(workMem, false);
+	MemoryContext oldcontext;
+
+	oldcontext = MemoryContextSwitchTo(state->sortcontext);
+
+#ifdef TRACE_SORT
+	if (trace_sort)
+		elog(LOG,
+			 "begin rumkey sort: workMem = %d", workMem);
+#endif
+
+	TRACE_POSTGRESQL_SORT_START(INDEX_SORT,
+								enforceUnique,
+								2,
+								workMem,
+								false);
+
+	state->cmp = cmp;
+	state->comparetup = comparetup_rumkey;
+	state->copytup = copytup_rumkey;
+	state->writetup = writetup_rumkey;
+	state->readtup = readtup_rumkey;
+	state->reversedirection = reversedirection_rum;
+	state->reverse = false;
+	state->compareItemPointer = false;
+
+	MemoryContextSwitchTo(oldcontext);
+
+	return state;
+}
+
+Tuplesortstate *
 rum_tuplesort_begin_datum(Oid datumType, Oid sortOperator, Oid sortCollation,
 						  bool nullsFirstFlag,
 						  int workMem, bool randomAccess)
@@ -1545,6 +1591,23 @@ rum_tuplesort_putdatum(Tuplesortstate *state, Datum val, bool isNull)
 
 void
 rum_tuplesort_putrum(Tuplesortstate *state, RumSortItem * item)
+{
+	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
+	SortTuple	stup;
+
+	/*
+	 * Copy the given tuple into memory we control, and decrease availMem.
+	 * Then call the common code.
+	 */
+	COPYTUP(state, &stup, (void *) item);
+
+	puttuple_common(state, &stup);
+
+	MemoryContextSwitchTo(oldcontext);
+}
+
+void
+rum_tuplesort_putrumkey(Tuplesortstate *state, RumKey * item)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
@@ -2102,6 +2165,19 @@ rum_tuplesort_getrum(Tuplesortstate *state, bool forward, bool *should_free)
 	return (RumSortItem *) stup.tuple;
 }
 
+RumKey *
+rum_tuplesort_getrumkey(Tuplesortstate *state, bool forward, bool *should_free)
+{
+	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
+	SortTuple	stup;
+
+	if (!rum_tuplesort_gettuple_common(state, forward, &stup, should_free))
+		stup.tuple = NULL;
+
+	MemoryContextSwitchTo(oldcontext);
+
+	return (RumKey *) stup.tuple;
+}
 
 /*
  * rum_tuplesort_merge_order - report merge order we'll use for given memory
@@ -3950,3 +4026,98 @@ reversedirection_rum(Tuplesortstate *state)
 {
 	state->reverse = !state->reverse;
 }
+
+static int
+comparetup_rumkey(const SortTuple *a, const SortTuple *b, Tuplesortstate *state)
+{
+	RumKey	*i1, *i2;
+
+	i1 = (RumKey *) a->tuple;
+	i2 = (RumKey *) b->tuple;
+
+	if (state->cmp)
+	{
+		if (i1->addInfoIsNull || i2->addInfoIsNull)
+		{
+			if (!(i1->addInfoIsNull && i2->addInfoIsNull))
+				return (i1->addInfoIsNull) ? 1 : -1;
+			/* go to itempointer compare */
+		}
+		else
+		{
+			int r;
+
+			r = DatumGetInt32(FunctionCall2(state->cmp,
+											i1->addInfo,
+											i2->addInfo));
+
+			if (r != 0)
+				return r;
+		}
+	}
+
+	/*
+	 * If key values are equal, we sort on ItemPointer.
+	 */
+	if (i1->iptr.ip_blkid.bi_hi < i2->iptr.ip_blkid.bi_hi)
+		return -1;
+	else if (i1->iptr.ip_blkid.bi_hi > i2->iptr.ip_blkid.bi_hi)
+		return 1;
+
+	if (i1->iptr.ip_blkid.bi_lo < i2->iptr.ip_blkid.bi_lo)
+		return -1;
+	else if (i1->iptr.ip_blkid.bi_lo > i2->iptr.ip_blkid.bi_lo)
+		return 1;
+
+	if (i1->iptr.ip_posid < i2->iptr.ip_posid)
+		return -1;
+	else if (i1->iptr.ip_posid > i2->iptr.ip_posid)
+		return 1;
+
+	return 0;
+}
+
+static void
+copytup_rumkey(Tuplesortstate *state, SortTuple *stup, void *tup)
+{
+	stup->isnull1 = true;
+	stup->tuple = palloc(sizeof(RumKey));
+	memcpy(stup->tuple, tup, sizeof(RumKey));
+	USEMEM(state, GetMemoryChunkSpace(stup->tuple));
+}
+
+static void
+writetup_rumkey(Tuplesortstate *state, int tapenum, SortTuple *stup)
+{
+	RumKey *item = (RumKey *) stup->tuple;
+	unsigned int writtenlen = sizeof(*item);
+
+	LogicalTapeWrite(state->tapeset, tapenum,
+					 (void *) item, writtenlen);
+	if (state->randomAccess)	/* need trailing length word? */
+		LogicalTapeWrite(state->tapeset, tapenum,
+						 (void *) &writtenlen, sizeof(writtenlen));
+
+	FREEMEM(state, GetMemoryChunkSpace(item));
+	pfree(item);
+}
+
+static void
+readtup_rumkey(Tuplesortstate *state, SortTuple *stup,
+			int tapenum, unsigned int len)
+{
+	RumKey *item = (RumKey *) palloc(sizeof(RumKey));
+
+	Assert(len == sizeof(RumKey));
+
+	USEMEM(state, GetMemoryChunkSpace(item));
+	LogicalTapeReadExact(state->tapeset, tapenum,
+						 (void *) item, len);
+	stup->isnull1 = true;
+	stup->tuple = item;
+
+	if (state->randomAccess)	/* need trailing length word? */
+		LogicalTapeReadExact(state->tapeset, tapenum,
+							 &len, sizeof(len));
+}
+

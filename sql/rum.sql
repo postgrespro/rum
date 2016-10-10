@@ -5,7 +5,6 @@ CREATE TABLE test_rum( t text, a tsvector );
 CREATE TRIGGER tsvectorupdate
 BEFORE UPDATE OR INSERT ON test_rum
 FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('a', 'pg_catalog.english', 't');
-
 CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 
 \copy test_rum(t) from 'data/rum.data';
@@ -100,3 +99,18 @@ INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) F
 DELETE FROM tst WHERE i = 5;
 VACUUM tst;
 INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(14001,15000) i;
+
+set enable_bitmapscan=off;
+explain (costs off)
+SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
+SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
+SELECT a <=> to_tsquery('pg_catalog.english', 'b:*'), *
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'b:*')
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'b:*');

@@ -75,6 +75,11 @@ RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
+CREATE FUNCTION rum_ts_join_pos(internal, internal) -- to prevent calling from SQL
+RETURNS bytea
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
 CREATE OPERATOR CLASS rum_tsvector_ops
 FOR TYPE tsvector USING rum
 AS
@@ -88,6 +93,7 @@ AS
         FUNCTION        6       rum_tsvector_config(internal),
         FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         FUNCTION        8       rum_tsquery_distance(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),
+		FUNCTION		10		rum_ts_join_pos(internal, internal),
         STORAGE         text;
 
 -- timestamp ops

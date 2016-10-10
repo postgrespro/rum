@@ -104,14 +104,12 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->extra_data = extra_data;
 	scanEntry->strategy = strategy;
 	scanEntry->searchMode = searchMode;
-	scanEntry->forceUseBitmap = false;
 	scanEntry->attnum = scanEntry->attnumOrig = attnum;
+	scanEntry->forceUseBitmap = false;
 
 	scanEntry->buffer = InvalidBuffer;
 	RumItemSetMin(&scanEntry->curRumKey);
-	scanEntry->matchBitmap = NULL;
-	scanEntry->matchIterator = NULL;
-	scanEntry->matchResult = NULL;
+	scanEntry->matchSortstate = NULL;
 	scanEntry->stack = NULL;
 	scanEntry->scanWithAddInfo = false;
 	scanEntry->list = NULL;
@@ -169,7 +167,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	if (key->orderBy && key->attnum == rumstate->attrnOrderByColumn)
 	{
 		if (nQueryValues != 1)
-			elog(ERROR, "extractQuery should return only one value");
+			elog(ERROR, "extractQuery should return only one value for ordering");
 		if (rumstate->canOuterOrdering[attnum - 1] == false)
 			elog(ERROR, "doesn't support ordering as additional info");
 
@@ -277,10 +275,8 @@ freeScanEntries(RumScanEntry *entries, uint32 nentries)
 			freeRumBtreeStack(entry->stack);
 		if (entry->list)
 			pfree(entry->list);
-		if (entry->matchIterator)
-			tbm_end_iterate(entry->matchIterator);
-		if (entry->matchBitmap)
-			tbm_free(entry->matchBitmap);
+		if (entry->matchSortstate)
+			rum_tuplesort_end(entry->matchSortstate);
 		pfree(entry);
 	}
 }
@@ -631,8 +627,6 @@ rumNewScanKey(IndexScanDesc scan)
 	}
 
 	adjustScanDirection(so);
-	if (scan->numberOfOrderBys > 0 && hasPartialMatch)
-		elog(ERROR,"Partial match and order by index couldn't be used together");
 
 	/* initialize expansible array of RumScanEntry pointers */
 	so->totalentries = 0;
