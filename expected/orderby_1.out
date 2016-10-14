@@ -1,0 +1,362 @@
+CREATE TABLE tsts (id int, t tsvector, d timestamp);
+\copy tsts from 'data/tsts.data'
+CREATE INDEX tsts_idx ON tsts USING rum (t rum_tsvector_timestamp_ops, d)
+	WITH (attach = 'd', to = 't');
+ERROR:  currently, RUM doesn't support order by over pass-by-reference column
+INSERT INTO tsts VALUES (-1, 't1 t2',  '2016-05-02 02:24:22.326724'); 
+INSERT INTO tsts VALUES (-2, 't1 t2 t3',  '2016-05-02 02:26:22.326724'); 
+SELECT count(*) FROM tsts WHERE t @@ 'wr|qh';
+ count 
+-------
+   158
+(1 row)
+
+SELECT count(*) FROM tsts WHERE t @@ 'wr&qh';
+ count 
+-------
+    17
+(1 row)
+
+SELECT count(*) FROM tsts WHERE t @@ 'eq&yt';
+ count 
+-------
+     6
+(1 row)
+
+SELECT count(*) FROM tsts WHERE t @@ 'eq|yt';
+ count 
+-------
+    98
+(1 row)
+
+SELECT count(*) FROM tsts WHERE t @@ '(eq&yt)|(wr&qh)';
+ count 
+-------
+    23
+(1 row)
+
+SELECT count(*) FROM tsts WHERE t @@ '(eq|yt)&(wr|qh)';
+ count 
+-------
+    39
+(1 row)
+
+SET enable_indexscan=OFF;
+SET enable_indexonlyscan=OFF;
+SET enable_bitmapscan=OFF;
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ id  |                d                |   ?column?    
+-----+---------------------------------+---------------
+ 355 | Mon May 16 14:21:22.326724 2016 |      2.673276
+ 354 | Mon May 16 13:21:22.326724 2016 |   3602.673276
+ 371 | Tue May 17 06:21:22.326724 2016 |  57597.326724
+ 406 | Wed May 18 17:21:22.326724 2016 | 183597.326724
+ 415 | Thu May 19 02:21:22.326724 2016 | 215997.326724
+(5 rows)
+
+SELECT id, d, d <=| '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=| '2016-05-16 14:21:25' LIMIT 5;
+ id  |                d                |   ?column?    
+-----+---------------------------------+---------------
+ 355 | Mon May 16 14:21:22.326724 2016 |      2.673276
+ 354 | Mon May 16 13:21:22.326724 2016 |   3602.673276
+ 252 | Thu May 12 07:21:22.326724 2016 | 370802.673276
+ 232 | Wed May 11 11:21:22.326724 2016 | 442802.673276
+ 168 | Sun May 08 19:21:22.326724 2016 | 673202.673276
+(5 rows)
+
+SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d |=> '2016-05-16 14:21:25' LIMIT 5;
+ id  |                d                |   ?column?    
+-----+---------------------------------+---------------
+ 371 | Tue May 17 06:21:22.326724 2016 |  57597.326724
+ 406 | Wed May 18 17:21:22.326724 2016 | 183597.326724
+ 415 | Thu May 19 02:21:22.326724 2016 | 215997.326724
+ 428 | Thu May 19 15:21:22.326724 2016 | 262797.326724
+ 457 | Fri May 20 20:21:22.326724 2016 | 367197.326724
+(5 rows)
+
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
+ id  |                d                
+-----+---------------------------------
+  16 | Mon May 02 11:21:22.326724 2016
+  39 | Tue May 03 10:21:22.326724 2016
+  71 | Wed May 04 18:21:22.326724 2016
+ 135 | Sat May 07 10:21:22.326724 2016
+ 168 | Sun May 08 19:21:22.326724 2016
+ 232 | Wed May 11 11:21:22.326724 2016
+ 252 | Thu May 12 07:21:22.326724 2016
+ 354 | Mon May 16 13:21:22.326724 2016
+ 355 | Mon May 16 14:21:22.326724 2016
+(9 rows)
+
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
+ id  |                d                
+-----+---------------------------------
+ 371 | Tue May 17 06:21:22.326724 2016
+ 406 | Wed May 18 17:21:22.326724 2016
+ 415 | Thu May 19 02:21:22.326724 2016
+ 428 | Thu May 19 15:21:22.326724 2016
+ 457 | Fri May 20 20:21:22.326724 2016
+ 458 | Fri May 20 21:21:22.326724 2016
+ 484 | Sat May 21 23:21:22.326724 2016
+ 496 | Sun May 22 11:21:22.326724 2016
+(8 rows)
+
+RESET enable_indexscan;
+RESET enable_indexonlyscan;
+RESET enable_bitmapscan;
+SET enable_seqscan = off;
+EXPLAIN (costs off)
+SELECT count(*) FROM tsts WHERE t @@ 'wr|qh';
+                    QUERY PLAN                     
+---------------------------------------------------
+ Aggregate
+   ->  Seq Scan on tsts
+         Filter: (t @@ '''wr'' | ''qh'''::tsquery)
+(3 rows)
+
+SELECT count(*) FROM tsts WHERE t @@ 'wr|qh';
+ count 
+-------
+   158
+(1 row)
+
+SELECT count(*) FROM tsts WHERE t @@ 'wr&qh';
+ count 
+-------
+    17
+(1 row)
+
+SELECT count(*) FROM tsts WHERE t @@ 'eq&yt';
+ count 
+-------
+     6
+(1 row)
+
+SELECT count(*) FROM tsts WHERE t @@ 'eq|yt';
+ count 
+-------
+    98
+(1 row)
+
+SELECT count(*) FROM tsts WHERE t @@ '(eq&yt)|(wr&qh)';
+ count 
+-------
+    23
+(1 row)
+
+SELECT count(*) FROM tsts WHERE t @@ '(eq|yt)&(wr|qh)';
+ count 
+-------
+    39
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Limit
+   ->  Sort
+         Sort Key: ((d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+         ->  Seq Scan on tsts
+               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
+(5 rows)
+
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ id  |                d                |   ?column?    
+-----+---------------------------------+---------------
+ 355 | Mon May 16 14:21:22.326724 2016 |      2.673276
+ 354 | Mon May 16 13:21:22.326724 2016 |   3602.673276
+ 371 | Tue May 17 06:21:22.326724 2016 |  57597.326724
+ 406 | Wed May 18 17:21:22.326724 2016 | 183597.326724
+ 415 | Thu May 19 02:21:22.326724 2016 | 215997.326724
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, d, d <=| '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=| '2016-05-16 14:21:25' LIMIT 5;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Limit
+   ->  Sort
+         Sort Key: ((d <=| 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+         ->  Seq Scan on tsts
+               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
+(5 rows)
+
+SELECT id, d, d <=| '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=| '2016-05-16 14:21:25' LIMIT 5;
+ id  |                d                |   ?column?    
+-----+---------------------------------+---------------
+ 355 | Mon May 16 14:21:22.326724 2016 |      2.673276
+ 354 | Mon May 16 13:21:22.326724 2016 |   3602.673276
+ 252 | Thu May 12 07:21:22.326724 2016 | 370802.673276
+ 232 | Wed May 11 11:21:22.326724 2016 | 442802.673276
+ 168 | Sun May 08 19:21:22.326724 2016 | 673202.673276
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d |=> '2016-05-16 14:21:25' LIMIT 5;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Limit
+   ->  Sort
+         Sort Key: ((d |=> 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+         ->  Seq Scan on tsts
+               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
+(5 rows)
+
+SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d |=> '2016-05-16 14:21:25' LIMIT 5;
+ id  |                d                |   ?column?    
+-----+---------------------------------+---------------
+ 371 | Tue May 17 06:21:22.326724 2016 |  57597.326724
+ 406 | Wed May 18 17:21:22.326724 2016 | 183597.326724
+ 415 | Thu May 19 02:21:22.326724 2016 | 215997.326724
+ 428 | Thu May 19 15:21:22.326724 2016 | 262797.326724
+ 457 | Fri May 20 20:21:22.326724 2016 | 367197.326724
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
+ Limit
+   ->  Sort
+         Sort Key: ((d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+         ->  Seq Scan on tsts
+(4 rows)
+
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ id  |                d                |  ?column?   
+-----+---------------------------------+-------------
+ 355 | Mon May 16 14:21:22.326724 2016 |    2.673276
+ 356 | Mon May 16 15:21:22.326724 2016 | 3597.326724
+ 354 | Mon May 16 13:21:22.326724 2016 | 3602.673276
+ 357 | Mon May 16 16:21:22.326724 2016 | 7197.326724
+ 353 | Mon May 16 12:21:22.326724 2016 | 7202.673276
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Sort
+   Sort Key: d
+   ->  Seq Scan on tsts
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d <= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+(4 rows)
+
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
+ id  |                d                
+-----+---------------------------------
+  16 | Mon May 02 11:21:22.326724 2016
+  39 | Tue May 03 10:21:22.326724 2016
+  71 | Wed May 04 18:21:22.326724 2016
+ 135 | Sat May 07 10:21:22.326724 2016
+ 168 | Sun May 08 19:21:22.326724 2016
+ 232 | Wed May 11 11:21:22.326724 2016
+ 252 | Thu May 12 07:21:22.326724 2016
+ 354 | Mon May 16 13:21:22.326724 2016
+ 355 | Mon May 16 14:21:22.326724 2016
+(9 rows)
+
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Sort
+   Sort Key: d
+   ->  Seq Scan on tsts
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d >= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+(4 rows)
+
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
+ id  |                d                
+-----+---------------------------------
+ 371 | Tue May 17 06:21:22.326724 2016
+ 406 | Wed May 18 17:21:22.326724 2016
+ 415 | Thu May 19 02:21:22.326724 2016
+ 428 | Thu May 19 15:21:22.326724 2016
+ 457 | Fri May 20 20:21:22.326724 2016
+ 458 | Fri May 20 21:21:22.326724 2016
+ 484 | Sat May 21 23:21:22.326724 2016
+ 496 | Sun May 22 11:21:22.326724 2016
+(8 rows)
+
+SET enable_bitmapscan=OFF;
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Sort
+   Sort Key: d
+   ->  Seq Scan on tsts
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d <= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+(4 rows)
+
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
+ id  |                d                
+-----+---------------------------------
+  16 | Mon May 02 11:21:22.326724 2016
+  39 | Tue May 03 10:21:22.326724 2016
+  71 | Wed May 04 18:21:22.326724 2016
+ 135 | Sat May 07 10:21:22.326724 2016
+ 168 | Sun May 08 19:21:22.326724 2016
+ 232 | Wed May 11 11:21:22.326724 2016
+ 252 | Thu May 12 07:21:22.326724 2016
+ 354 | Mon May 16 13:21:22.326724 2016
+ 355 | Mon May 16 14:21:22.326724 2016
+(9 rows)
+
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
+                                                       QUERY PLAN                                                       
+------------------------------------------------------------------------------------------------------------------------
+ Sort
+   Sort Key: d
+   ->  Seq Scan on tsts
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d >= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+(4 rows)
+
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
+ id  |                d                
+-----+---------------------------------
+ 371 | Tue May 17 06:21:22.326724 2016
+ 406 | Wed May 18 17:21:22.326724 2016
+ 415 | Thu May 19 02:21:22.326724 2016
+ 428 | Thu May 19 15:21:22.326724 2016
+ 457 | Fri May 20 20:21:22.326724 2016
+ 458 | Fri May 20 21:21:22.326724 2016
+ 484 | Sat May 21 23:21:22.326724 2016
+ 496 | Sun May 22 11:21:22.326724 2016
+(8 rows)
+
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d ASC LIMIT 3;
+ id |                d                
+----+---------------------------------
+ 16 | Mon May 02 11:21:22.326724 2016
+ 39 | Tue May 03 10:21:22.326724 2016
+ 71 | Wed May 04 18:21:22.326724 2016
+(3 rows)
+
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d DESC LIMIT 3;
+ id  |                d                
+-----+---------------------------------
+ 355 | Mon May 16 14:21:22.326724 2016
+ 354 | Mon May 16 13:21:22.326724 2016
+ 252 | Thu May 12 07:21:22.326724 2016
+(3 rows)
+
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d ASC LIMIT 3;
+ id  |                d                
+-----+---------------------------------
+ 371 | Tue May 17 06:21:22.326724 2016
+ 406 | Wed May 18 17:21:22.326724 2016
+ 415 | Thu May 19 02:21:22.326724 2016
+(3 rows)
+
+SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d DESC LIMIT 3;
+ id  |                d                
+-----+---------------------------------
+ 496 | Sun May 22 11:21:22.326724 2016
+ 484 | Sat May 21 23:21:22.326724 2016
+ 458 | Fri May 20 21:21:22.326724 2016
+(3 rows)
+
