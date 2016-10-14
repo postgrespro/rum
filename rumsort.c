@@ -4089,11 +4089,13 @@ copytup_rumkey(Tuplesortstate *state, SortTuple *stup, void *tup)
 static void
 writetup_rumkey(Tuplesortstate *state, int tapenum, SortTuple *stup)
 {
-	RumKey *item = (RumKey *) stup->tuple;
-	unsigned int writtenlen = sizeof(*item);
+	RumKey	   *item = (RumKey *) stup->tuple;
+	unsigned int writtenlen = sizeof(*item) + sizeof(unsigned int);
 
 	LogicalTapeWrite(state->tapeset, tapenum,
-					 (void *) item, writtenlen);
+					 (void *) &writtenlen, sizeof(writtenlen));
+	LogicalTapeWrite(state->tapeset, tapenum,
+					 (void *) item, sizeof(*item));
 	if (state->randomAccess)	/* need trailing length word? */
 		LogicalTapeWrite(state->tapeset, tapenum,
 						 (void *) &writtenlen, sizeof(writtenlen));
@@ -4106,18 +4108,19 @@ static void
 readtup_rumkey(Tuplesortstate *state, SortTuple *stup,
 			int tapenum, unsigned int len)
 {
-	RumKey *item = (RumKey *) palloc(sizeof(RumKey));
+	unsigned int tuplen = len - sizeof(unsigned int);
+	RumKey	   *item = (RumKey *) palloc(sizeof(RumKey));
 
-	Assert(len == sizeof(RumKey));
+	Assert(tuplen == sizeof(RumKey));
 
 	USEMEM(state, GetMemoryChunkSpace(item));
 	LogicalTapeReadExact(state->tapeset, tapenum,
-						 (void *) item, len);
+						 (void *) item, tuplen);
 	stup->isnull1 = true;
 	stup->tuple = item;
 
 	if (state->randomAccess)	/* need trailing length word? */
 		LogicalTapeReadExact(state->tapeset, tapenum,
-							 &len, sizeof(len));
+							 &tuplen, sizeof(tuplen));
 }
 
