@@ -40,7 +40,7 @@ PG_FUNCTION_INFO_V1(rum_ts_join_pos);
 PG_FUNCTION_INFO_V1(tsquery_to_distance_query);
 
 static int	count_pos(char *ptr, int len);
-static char *decompress_pos(char *ptr, uint16 *pos);
+static char *decompress_pos(char *ptr, WordEntryPos *pos);
 
 typedef struct
 {
@@ -317,7 +317,7 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 #define LOWERMASK 0x1F
 
 static int
-compress_pos(char *target, uint16 *pos, int npos)
+compress_pos(char *target, WordEntryPos *pos, int npos)
 {
 	int			i;
 	uint16		prev = 0,
@@ -350,7 +350,7 @@ compress_pos(char *target, uint16 *pos, int npos)
 }
 
 static char *
-decompress_pos(char *ptr, uint16 *pos)
+decompress_pos(char *ptr, WordEntryPos *pos)
 {
 	int			i;
 	uint8		v;
@@ -1328,13 +1328,14 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 				count2 = count_pos(in2, VARSIZE_ANY_EXHDR(addInfo2)),
 				countRes = 0,
 				i1 = 0, i2 = 0, size;
-	WordEntryPos pos1, pos2, *pos;
+	WordEntryPos pos1 = 0,
+				pos2 = 0,
+			   *pos;
 
 	result = palloc(VARHDRSZ + sizeof(WordEntryPos) * (count1 + count2));
 	pos = palloc(sizeof(WordEntryPos) * (count1 + count2));
 
 	Assert(count1 > 0 && count2 > 0);
-
 
 	in1 = decompress_pos(in1, &pos1);
 	in2 = decompress_pos(in2, &pos2);
