@@ -419,7 +419,7 @@ rumtuple_get_key(RumState * rumstate, IndexTuple tuple,
 	}
 
 	if (isnull)
-		*category = RumGetNullCategory(tuple, rumstate);
+		*category = RumGetNullCategory(tuple);
 	else
 		*category = RUM_CAT_NORM_KEY;
 

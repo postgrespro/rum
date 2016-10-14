@@ -211,14 +211,10 @@ typedef signed char RumNullCategory;
 #define RumCategoryOffset(itup,rumstate) \
 	(IndexInfoFindDataOffset((itup)->t_info) + \
 	 ((rumstate)->oneCol ? 0 : sizeof(int16)))
-/*#define RumGetNullCategory(itup,rumstate) \
-	(*((RumNullCategory *) ((char*)(itup) + RumCategoryOffset(itup,rumstate))))
-  #define RumSetNullCategory(itup,rumstate,c) \
-	(*((RumNullCategory *) ((char*)(itup) + RumCategoryOffset(itup,rumstate))) = (c))*/
 
-#define RumGetNullCategory(itup,rumstate) \
+#define RumGetNullCategory(itup) \
 	  (*((RumNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(RumNullCategory))))
-#define RumSetNullCategory(itup,rumstate,c) \
+#define RumSetNullCategory(itup,c) \
 	  (*((RumNullCategory *) ((char*)(itup) + IndexTupleSize(itup) - sizeof(RumNullCategory))) = (c))
 
 /*

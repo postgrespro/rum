@@ -68,6 +68,7 @@ static IndexTuple
 RumFormInteriorTuple(IndexTuple itup, Page page, BlockNumber childblk)
 {
 	IndexTuple	nitup;
+	RumNullCategory category;
 
 	if (RumPageIsLeaf(page) && !RumIsPostingTree(itup))
 	{
@@ -90,6 +91,14 @@ RumFormInteriorTuple(IndexTuple itup, Page page, BlockNumber childblk)
 
 	/* Now insert the correct downlink */
 	RumSetDownlink(nitup, childblk);
+
+	category = RumGetNullCategory(itup);
+	if (category == RUM_CAT_NULL_KEY || category == RUM_CAT_EMPTY_ITEM ||
+		category == RUM_CAT_NULL_ITEM)
+	{
+		nitup->t_info |= INDEX_NULL_MASK;
+		RumSetNullCategory(nitup, category);
+	}
 
 	return nitup;
 }

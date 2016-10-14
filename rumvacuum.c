@@ -203,7 +203,7 @@ RumFormTuple(RumState * rumstate,
 	if (category != RUM_CAT_NORM_KEY)
 	{
 		Assert(IndexTupleHasNulls(itup));
-		RumSetNullCategory(itup, rumstate, category);
+		RumSetNullCategory(itup, category);
 	}
 	return itup;
 }
