@@ -160,7 +160,8 @@ rumvalidate(Oid opclassoid)
 											opcintype, opcintype, INT2OID);
 				break;
 			case RUM_ADDINFO_JOIN:
-				ok = true; /* XXX */
+				ok = check_amproc_signature(procform->amproc, BYTEAOID, false,
+											2, 2, opckeytype, opckeytype);
 				break;
 			default:
 				ereport(INFO,

@@ -1319,19 +1319,19 @@ rum_tsvector_config(PG_FUNCTION_ARGS)
 Datum
 rum_ts_join_pos(PG_FUNCTION_ARGS)
 {
-	Datum	addInfo1 = PG_GETARG_DATUM(0);
-	Datum	addInfo2 = PG_GETARG_DATUM(1);
-	char	*in1 = VARDATA_ANY(addInfo1),
-			*in2 = VARDATA_ANY(addInfo2);
-	bytea	*result;
-	int		count1 = count_pos(in1, VARSIZE_ANY_EXHDR(addInfo1)),
-			count2 = count_pos(in2, VARSIZE_ANY_EXHDR(addInfo2)),
-			countRes = 0,
-			i1 = 0, i2 = 0, size;
-	uint16	pos1, pos2, *pos;
+	Datum		addInfo1 = PG_GETARG_DATUM(0);
+	Datum		addInfo2 = PG_GETARG_DATUM(1);
+	char	   *in1 = VARDATA_ANY(addInfo1),
+			   *in2 = VARDATA_ANY(addInfo2);
+	bytea	   *result;
+	int			count1 = count_pos(in1, VARSIZE_ANY_EXHDR(addInfo1)),
+				count2 = count_pos(in2, VARSIZE_ANY_EXHDR(addInfo2)),
+				countRes = 0,
+				i1 = 0, i2 = 0, size;
+	WordEntryPos pos1, pos2, *pos;
 
-	result = palloc(VARHDRSZ + sizeof(uint16) * (count1 + count2));
-	pos = palloc(sizeof(uint16) * (count1 + count2));
+	result = palloc(VARHDRSZ + sizeof(WordEntryPos) * (count1 + count2));
+	pos = palloc(sizeof(WordEntryPos) * (count1 + count2));
 
 	Assert(count1 > 0 && count2 > 0);
 
