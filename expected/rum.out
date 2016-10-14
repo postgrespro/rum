@@ -307,7 +307,7 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
  ?column? |                                    t                                     |                                                    a                                                     
 ----------+--------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------
   8.22467 | so well that only a fragment, as it were, gave way. It still hangs as if | 'fragment':6 'gave':10 'hang':14 'still':13 'way':11 'well':2
-  8.22467 | wine, but wouldn’t you divide with your neighbors! The columns in the    | 'column':11 'divid':6 'neighbor':9 'wine':1 'wouldn':3
+  8.22467 | wine, but wouldn't you divide with your neighbors! The columns in the    | 'column':11 'divid':6 'neighbor':9 'wine':1 'wouldn':3
   8.22467 | not say, but you wrote as if you knew it by sight as well as by heart.   | 'heart':17 'knew':9 'say':2 'sight':12 'well':14 'wrote':5
   16.4493 | little series of pictures. Have you ever been here, I wonder? You did    | 'ever':7 'littl':1 'pictur':4 'seri':2 'wonder':11
   16.4493 | itself. Put on your "specs" and look at the castle, half way up the      | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
@@ -343,7 +343,7 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'b:*'), *
   16.4493 | look. The situation is most beautiful. It lies, you know, at the         | 'beauti':6 'know':10 'lie':8 'look':1 'situat':3
   16.4493 | entrance of the Black Forest, among picturesque, thickly-wooded hills,   | 'among':6 'black':4 'entranc':1 'forest':5 'hill':11 'picturesqu':7 'thick':9 'thickly-wood':8 'wood':10
   16.4493 | town with angry, headlong speed. There is an avenue along its bank of    | 'along':10 'angri':3 'avenu':9 'bank':12 'headlong':4 'speed':5 'town':1
-  16.4493 | like, "I’ll do my bidding gently," and as surely, if I get there. But    | 'bid':6 'gentl':7 'get':13 'like':1 'll':3 'sure':10
+  16.4493 | like, "I'll do my bidding gently," and as surely, if I get there. But    | 'bid':6 'gentl':7 'get':13 'like':1 'll':3 'sure':10
   16.4493 | _berg_, "the Jettenhuhl, a wooded spur of the Konigestuhl." Look at it   | 'berg':1 'jettenhuhl':3 'konigestuhl':9 'look':10 'spur':6 'wood':5
   16.4493 | Gesprente Thurm is the one that was blown up by the French. The          | 'blown':8 'french':12 'gesprent':1 'one':5 'thurm':2
   16.4493 | portico that shows in the Schlosshof are the four brought from           | 'brought':10 'four':9 'portico':1 'schlosshof':6 'show':3
