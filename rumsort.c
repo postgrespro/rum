@@ -1157,7 +1157,7 @@ rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess,
 	state->nKeys = nKeys;
 
 	TRACE_POSTGRESQL_SORT_START(INDEX_SORT,
-								enforceUnique,
+								false,	/* no unique check */
 								state->nKeys,
 								workMem,
 								randomAccess);
@@ -1190,7 +1190,7 @@ rum_tuplesort_begin_rumkey(int workMem, FmgrInfo *cmp)
 #endif
 
 	TRACE_POSTGRESQL_SORT_START(INDEX_SORT,
-								enforceUnique,
+								false,	/* no unique check */
 								2,
 								workMem,
 								false);
