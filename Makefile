@@ -13,6 +13,8 @@ PGFILEDESC = "RUM index access method"
 
 REGRESS = rum ruminv timestamp orderby altorder
 
+LDFLAGS_SL += $(filter -lm, $(LIBS))
+
 ifdef USE_PGXS
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
