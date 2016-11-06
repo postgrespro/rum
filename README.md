@@ -1,3 +1,5 @@
+[![Postgres Professional](img/PGpro-logo.png)](https://postgrespro.com/)
+
 # RUM - RUM access method
 
 ## Introduction
