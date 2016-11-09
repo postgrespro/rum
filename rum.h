@@ -243,7 +243,7 @@ typedef signed char RumNullCategory;
  */
 #define RumGetDownlink(itup)	RumItemPointerGetBlockNumber(&(itup)->t_tid)
 #define RumSetDownlink(itup,blkno)	ItemPointerSet(&(itup)->t_tid, blkno, InvalidOffsetNumber)
-CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
+
 
 /*
  * Data (posting tree) pages

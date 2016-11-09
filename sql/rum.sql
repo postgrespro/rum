@@ -100,17 +100,13 @@ DELETE FROM tst WHERE i = 5;
 VACUUM tst;
 INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(14001,15000) i;
 
---  set enable_bitmapscan=off;
---  explain (costs off)
---  SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
-	--  FROM test_rum
-	--  WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
-	--  ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
---  SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
-	--  FROM test_rum
-	--  WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
-	--  ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
---  SELECT a <=> to_tsquery('pg_catalog.english', 'b:*'), *
-	--  FROM test_rum
-	--  WHERE a @@ to_tsquery('pg_catalog.english', 'b:*')
-	--  ORDER BY a <=> to_tsquery('pg_catalog.english', 'b:*');
+set enable_bitmapscan=off;
+explain (costs off)
+SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
+SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');

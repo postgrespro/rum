@@ -27,7 +27,6 @@
 
 #include <math.h>
 
-PG_FUNCTION_INFO_V1(rum_cmp_tslexeme);
 PG_FUNCTION_INFO_V1(rum_extract_tsvector);
 PG_FUNCTION_INFO_V1(rum_extract_tsquery);
 PG_FUNCTION_INFO_V1(rum_tsvector_config);
@@ -505,16 +504,10 @@ rum_extract_tsvector(PG_FUNCTION_ARGS)
 
 		for (i = 0; i < vector->size; i++)
 		{
-			text	   *txt;
-			bytea	   *hash_value;
 			bytea	   *posData;
 			int			posDataSize;
 
-			txt = cstring_to_text_with_len(STRPTR(vector) + we->pos, we->len);
-			hash_value = (bytea *) palloc(VARHDRSZ + sizeof(int32));
-			SET_VARSIZE(hash_value, VARHDRSZ + sizeof(int32));
-			*VARDATA(hash_value) = DirectFunctionCall1(hashtext, PointerGetDatum(txt));
-			entries[i] = PointerGetDatum(hash_value);
+			entries[i] = hash_any((const unsigned char *) (STRPTR(vector) + we->pos), we->len);
 
 			if (we->haspos)
 			{
@@ -592,15 +585,9 @@ rum_extract_tsquery(PG_FUNCTION_ARGS)
 
 		for (i = 0; i < (*nentries); i++)
 		{
-			text	   *txt;
-			bytea	   *hash_value;
-
-			txt = cstring_to_text_with_len(GETOPERAND(query) + operands[i]->distance,
-										   operands[i]->length);
-			hash_value = (bytea *) palloc(VARHDRSZ + sizeof(int32));
-			SET_VARSIZE(hash_value, VARHDRSZ + sizeof(int32));
-			*VARDATA(hash_value) = DirectFunctionCall1(hashtext, PointerGetDatum(txt));
-			entries[i] = PointerGetDatum(hash_value);
+			entries[i] = hash_any(
+					(const unsigned char *) (GETOPERAND(query) + operands[i]->distance),
+					operands[i]->length);
 			partialmatch[i] = operands[i]->prefix;
 			(*extra_data)[i] = (Pointer) map_item_operand;
 		}
@@ -1399,18 +1386,4 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 	SET_VARSIZE(result, size);
 
 	PG_RETURN_BYTEA_P(result);
-}
-
-Datum
-rum_cmp_tslexeme(PG_FUNCTION_ARGS)
-{
-	bytea	   *arg1 = PG_GETARG_BYTEA_P(0);
-	bytea	   *arg2 = PG_GETARG_BYTEA_P(1);
-	int32		a = *VARDATA(arg1);
-	int32		b = *VARDATA(arg2);
-	int			cmp;
-
-	cmp = (a > b) ? 1 : ((a == b) ? 0 : -1);
-
-	PG_RETURN_INT32(cmp);
 }

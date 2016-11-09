@@ -11,6 +11,7 @@
 
 #include "postgres.h"
 
+#include "access/hash.h"
 #include "catalog/pg_type.h"
 #include "tsearch/ts_type.h"
 #include "tsearch/ts_utils.h"
@@ -274,11 +275,14 @@ extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 
 		for (index = 0; index < context->index; index++)
 		{
-			text	   *entry;
+			int32		entry;
+			int32		operand_hash;
 
-			entry = DatumGetByteaP(context->entries[index]);
-			if (VARSIZE_ANY_EXHDR(entry) == wrap->length &&
-				!memcmp(context->operand + wrap->distance, VARDATA_ANY(entry), wrap->length))
+			entry = DatumGetInt32(context->entries[index]);
+			operand_hash = hash_any(
+					(const unsigned char *) (context->operand + wrap->distance),
+					wrap->length);
+			if (entry == operand_hash)
 				break;
 		}
 
@@ -287,7 +291,9 @@ extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 			index = context->index;
 			addinfo = (bytea *) palloc(VARHDRSZ + 2 * Max(level, 1) * MAX_ENCODED_LEN);
 			ptr = (unsigned char *) VARDATA(addinfo);
-			context->entries[index] = PointerGetDatum(cstring_to_text_with_len(context->operand + wrap->distance, wrap->length));
+			context->entries[index] = hash_any(
+					(const unsigned char *) (context->operand + wrap->distance),
+					wrap->length);
 			context->addInfo[index] = PointerGetDatum(addinfo);
 			context->addInfoIsNull[index] = false;
 			context->index++;
@@ -419,12 +425,6 @@ ruminv_extract_tsquery(PG_FUNCTION_ARGS)
 	}
 	*nentries = count;
 
-/*	elog(NOTICE, "%d", *nentries);
-	for (i = 0; i < *nentries; i++)
-	{
-		elog(NOTICE, "%s", text_to_cstring(DatumGetPointer((entries)[i])));
-	}*/
-
 	PG_FREE_IF_COPY(query, 0);
 	PG_RETURN_POINTER(entries);
 }
@@ -460,10 +460,9 @@ ruminv_extract_tsvector(PG_FUNCTION_ARGS)
 
 		for (i = 0; i < vector->size; i++)
 		{
-			text	   *txt;
-
-			txt = cstring_to_text_with_len(STRPTR(vector) + we[i].pos, we[i].len);
-			entries[i] = PointerGetDatum(txt);
+			entries[i] = hash_any(
+					(const unsigned char *) (STRPTR(vector) + we[i].pos),
+					we[i].len);
 			(*nullFlags)[i] = false;
 		}
 		(*nullFlags)[*nentries - 1] = true;

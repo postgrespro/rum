@@ -80,17 +80,12 @@ RETURNS bytea
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE FUNCTION rum_cmp_tslexeme(bytea, bytea)
-RETURNS integer
-AS 'MODULE_PATHNAME'
-LANGUAGE C IMMUTABLE STRICT;
-
 CREATE OPERATOR CLASS rum_tsvector_ops
 FOR TYPE tsvector USING rum
 AS
         OPERATOR        1       @@ (tsvector, tsquery),
         OPERATOR        2       <=> (tsvector, tsquery) FOR ORDER BY pg_catalog.float_ops,
-        FUNCTION        1       rum_cmp_tslexeme(bytea, bytea),
+        FUNCTION        1       btint4cmp(integer, integer),
         FUNCTION        2       rum_extract_tsvector(tsvector,internal,internal,internal,internal),
         FUNCTION        3       rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal),
         FUNCTION        4       rum_tsquery_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
@@ -99,7 +94,7 @@ AS
         FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         FUNCTION        8       rum_tsquery_distance(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),
         FUNCTION        10      rum_ts_join_pos(internal, internal),
-        STORAGE         bytea;
+        STORAGE         integer;
 -- timestamp ops
 
 CREATE FUNCTION timestamp_distance(timestamp, timestamp)
@@ -205,13 +200,13 @@ FOR TYPE tsvector USING rum
 AS
         OPERATOR        1       @@ (tsvector, tsquery),
         --support function
-        FUNCTION        1       gin_cmp_tslexeme(text, text),
+        FUNCTION        1       btint4cmp(integer, integer),
         FUNCTION        2       rum_extract_tsvector(tsvector,internal,internal,internal,internal),
         FUNCTION        3       rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal),
         FUNCTION        4       rum_tsquery_timestamp_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         FUNCTION        5       gin_cmp_prefix(text,text,smallint,internal),
         FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
-        STORAGE         text;
+        STORAGE         integer;
 
 -- timestamptz ops
 
@@ -281,13 +276,13 @@ FOR TYPE tsvector USING rum
 AS
         OPERATOR        1       @@ (tsvector, tsquery),
         --support function
-        FUNCTION        1       gin_cmp_tslexeme(text, text),
+        FUNCTION        1       btint4cmp(integer, integer),
         FUNCTION        2       rum_extract_tsvector(tsvector,internal,internal,internal,internal),
         FUNCTION        3       rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal),
         FUNCTION        4       rum_tsquery_timestamp_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         FUNCTION        5       gin_cmp_prefix(text,text,smallint,internal),
         FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
-        STORAGE         text;
+        STORAGE         integer;
 
 -- inversed 
 
@@ -315,10 +310,10 @@ CREATE OPERATOR CLASS rum_tsquery_ops
 DEFAULT FOR TYPE tsquery USING rum
 AS
         OPERATOR        1       @@ (tsquery, tsvector),
-        FUNCTION        1       gin_cmp_tslexeme(text, text),
+        FUNCTION        1       btint4cmp(integer, integer),
         FUNCTION        2       ruminv_extract_tsquery(tsquery,internal,internal,internal,internal),
         FUNCTION        3       ruminv_extract_tsvector(tsvector,internal,smallint,internal,internal,internal,internal),
         FUNCTION        4       ruminv_tsvector_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         FUNCTION        6       ruminv_tsquery_config(internal),
-        STORAGE         text;
+        STORAGE         integer;
 
