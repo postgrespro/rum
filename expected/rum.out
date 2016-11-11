@@ -304,3 +304,4 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
+ERROR:  Compare with prefix expressions isn't supported

@@ -89,7 +89,6 @@ AS
         FUNCTION        2       rum_extract_tsvector(tsvector,internal,internal,internal,internal),
         FUNCTION        3       rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal),
         FUNCTION        4       rum_tsquery_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
-        FUNCTION        5       gin_cmp_prefix(text,text,smallint,internal),
         FUNCTION        6       rum_tsvector_config(internal),
         FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         FUNCTION        8       rum_tsquery_distance(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),

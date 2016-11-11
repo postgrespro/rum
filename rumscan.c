@@ -207,9 +207,16 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 			/* set up normal entry using extractQueryFn's outputs */
 			queryKey = queryValues[i];
 			queryCategory = queryCategories[i];
-			isPartialMatch =
-				(rumstate->canPartialMatch[attnum - 1] && partial_matches)
-				? partial_matches[i] : false;
+
+			/*
+			 * check inconsistence related to impossibility to do partial match
+			 * and existance of prefix expression in tsquery
+			 */
+			if (partial_matches && partial_matches[i] &&
+					!rumstate->canPartialMatch[attnum - 1])
+				elog(ERROR, "Compare with prefix expressions isn't supported");
+
+			isPartialMatch = (partial_matches) ? partial_matches[i] : false;
 			this_extra = (extra_data) ? extra_data[i] : NULL;
 		}
 		else
