@@ -1,9 +1,8 @@
-CREATE EXTENSION rum;
 CREATE TABLE test_rum( t text, a tsvector );
 CREATE TRIGGER tsvectorupdate
 BEFORE UPDATE OR INSERT ON test_rum
 FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('a', 'pg_catalog.english', 't');
-CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
+CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_hash_ops);
 \copy test_rum(t) from 'data/rum.data';
 CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_timestamp_ops);
 ERROR:  additional information attribute "a" is not found in index
@@ -304,51 +303,6 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
- ?column? |                                    t                                     |                                                    a                                                     
-----------+--------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------
-  8.22467 | so well that only a fragment, as it were, gave way. It still hangs as if | 'fragment':6 'gave':10 'hang':14 'still':13 'way':11 'well':2
-  8.22467 | wine, but wouldn't you divide with your neighbors! The columns in the    | 'column':11 'divid':6 'neighbor':9 'wine':1 'wouldn':3
-  8.22467 | not say, but you wrote as if you knew it by sight as well as by heart.   | 'heart':17 'knew':9 'say':2 'sight':12 'well':14 'wrote':5
-  16.4493 | little series of pictures. Have you ever been here, I wonder? You did    | 'ever':7 'littl':1 'pictur':4 'seri':2 'wonder':11
-  16.4493 | itself. Put on your "specs" and look at the castle, half way up the      | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-  16.4493 | _berg_, "the Jettenhuhl, a wooded spur of the Konigestuhl." Look at it   | 'berg':1 'jettenhuhl':3 'konigestuhl':9 'look':10 'spur':6 'wood':5
-  16.4493 | thickness of the walls, twenty-one feet, and the solid masonry, held it  | 'feet':8 'held':13 'masonri':12 'one':7 'solid':11 'thick':1 'twenti':6 'twenty-on':5 'wall':4
-  16.4493 | ornamental building, and I wish you could see it, if you have not seen   | 'build':2 'could':7 'ornament':1 'see':8 'seen':14 'wish':5
-  16.4493 | thinking--"to go or not to go?" We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
-  16.4493 | curious spectacle, but on the whole had "the banquet-hall deserted"      | 'banquet':10 'banquet-hal':9 'curious':1 'desert':12 'hall':11 'spectacl':2 'whole':6
-  16.4493 | As a reward for your reformation I write to you on this precious sheet.  | 'precious':13 'reform':6 'reward':3 'sheet':14 'write':8
-  16.4493 | entrance of the Black Forest, among picturesque, thickly-wooded hills,   | 'among':6 'black':4 'entranc':1 'forest':5 'hill':11 'picturesqu':7 'thick':9 'thickly-wood':8 'wood':10
-  16.4493 | You see I have come to be wonderfully attached to Heidelberg, the        | 'attach':9 'come':5 'heidelberg':11 'see':2 'wonder':8
-  16.4493 | my appreciation of you in a more complimentary way than by sending this  | 'appreci':2 'complimentari':8 'send':12 'way':9
-(14 rows)
-
-SELECT a <=> to_tsquery('pg_catalog.english', 'b:*'), *
-	FROM test_rum
-	WHERE a @@ to_tsquery('pg_catalog.english', 'b:*')
-	ORDER BY a <=> to_tsquery('pg_catalog.english', 'b:*');
- ?column? |                                    t                                     |                                                    a                                                     
-----------+--------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------
-  8.22467 | been trying my best to get all those "passes" into my brain. Now, thanks | 'best':4 'brain':12 'get':6 'pass':9 'thank':14 'tri':2
-  8.22467 | All the above information, I beg you to believe, I do not intend you     | 'beg':6 'believ':9 'inform':4 'intend':13
-  8.22467 | curious spectacle, but on the whole had "the banquet-hall deserted"      | 'banquet':10 'banquet-hal':9 'curious':1 'desert':12 'hall':11 'spectacl':2 'whole':6
-  8.22467 | oaks, limes and maples, bordered with flower-beds and shrubberies, and   | 'bed':9 'border':5 'flower':8 'flower-b':7 'lime':2 'mapl':4 'oak':1 'shrubberi':11
-  13.1595 | foo bar foo the over foo qq bar                                          | 'bar':2,8 'foo':1,3,6 'qq':7
-  16.4493 | ornamental building, and I wish you could see it, if you have not seen   | 'build':2 'could':7 'ornament':1 'see':8 'seen':14 'wish':5
-  16.4493 | the--nearest guide-book!                                                 | 'book':5 'guid':4 'guide-book':3 'nearest':2
-  16.4493 | to your letter, I have them all in the handiest kind of a bunch. Ariel   | 'ariel':15 'bunch':14 'handiest':10 'kind':11 'letter':3
-  16.4493 | beautiful, the quaint, the historically poetic, learned and picturesque  | 'beauti':1 'histor':5 'learn':7 'picturesqu':9 'poetic':6 'quaint':3
-  16.4493 | there are dreadful reports of floods and roads caved in and bridges      | 'bridg':12 'cave':9 'dread':3 'flood':6 'report':4 'road':8
-  16.4493 | the Conversationhaus, the bazaar, mingling with the throng, listening to | 'bazaar':4 'conversationhaus':2 'listen':9 'mingl':5 'throng':8
-  16.4493 | the band, and comparing what it is with what it was. It was a gay and    | 'band':2 'compar':4 'gay':15
-  16.4493 | look. The situation is most beautiful. It lies, you know, at the         | 'beauti':6 'know':10 'lie':8 'look':1 'situat':3
-  16.4493 | entrance of the Black Forest, among picturesque, thickly-wooded hills,   | 'among':6 'black':4 'entranc':1 'forest':5 'hill':11 'picturesqu':7 'thick':9 'thickly-wood':8 'wood':10
-  16.4493 | town with angry, headlong speed. There is an avenue along its bank of    | 'along':10 'angri':3 'avenu':9 'bank':12 'headlong':4 'speed':5 'town':1
-  16.4493 | like, "I'll do my bidding gently," and as surely, if I get there. But    | 'bid':6 'gentl':7 'get':13 'like':1 'll':3 'sure':10
-  16.4493 | _berg_, "the Jettenhuhl, a wooded spur of the Konigestuhl." Look at it   | 'berg':1 'jettenhuhl':3 'konigestuhl':9 'look':10 'spur':6 'wood':5
-  16.4493 | Gesprente Thurm is the one that was blown up by the French. The          | 'blown':8 'french':12 'gesprent':1 'one':5 'thurm':2
-  16.4493 | portico that shows in the Schlosshof are the four brought from           | 'brought':10 'four':9 'portico':1 'schlosshof':6 'show':3
-  16.4493 | the few that escaped destruction in 1693. It is a beautiful, highly      | '1693':7 'beauti':11 'destruct':5 'escap':4 'high':12
-(20 rows)
-
+ERROR:  Compare with prefix expressions isn't supported
 DROP TABLE test_rum CASCADE;
 DROP TABLE tst CASCADE;
