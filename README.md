@@ -229,9 +229,15 @@ SELECT * FROM query
  'black'          | color
  'black' & 'hole' | color
 (2 rows)
-
-
 ```
+
+## Todo
+
+- Allow multiple additional information (lexemes positions + timestamp).
+- Add support for arrays.
+- Improve ranking function to support TF/IDF.
+- Improve insert time.
+- Improve GENERIC WAL to support shift (PostgreSQL core changes).
 
 ## Authors
 
