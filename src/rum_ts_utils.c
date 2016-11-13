@@ -490,6 +490,14 @@ SortAndUniqItems(TSQuery q, int *size)
 	return res;
 }
 
+/*
+ * Extracting tsvector lexems.
+ */
+
+/*
+ * Extracts tsvector lexemes from **vector**. Uses **build_tsvector_entry**
+ * callback to extract entry.
+ */
 static Datum *
 rum_extract_tsvector_internal(TSVector	vector,
 							  int32	   *nentries,
@@ -515,6 +523,7 @@ rum_extract_tsvector_internal(TSVector	vector,
 			bytea	   *posData;
 			int			posDataSize;
 
+			/* Extract entry using specified method */
 			entries[i] = build_tsvector_entry(vector, we);
 
 			if (we->haspos)
@@ -540,6 +549,10 @@ rum_extract_tsvector_internal(TSVector	vector,
 	return entries;
 }
 
+/*
+ * Used as callback for rum_extract_tsvector_internal().
+ * Just extract entry from tsvector.
+ */
 static Datum
 build_tsvector_entry(TSVector vector, WordEntry *we)
 {
@@ -549,6 +562,10 @@ build_tsvector_entry(TSVector vector, WordEntry *we)
 	return PointerGetDatum(txt);
 }
 
+/*
+ * Used as callback for rum_extract_tsvector_internal.
+ * Returns hashed entry from tsvector.
+ */
 static Datum
 build_tsvector_hash_entry(TSVector vector, WordEntry *we)
 {
@@ -559,6 +576,9 @@ build_tsvector_hash_entry(TSVector vector, WordEntry *we)
 	return Int32GetDatum(hash_value);
 }
 
+/*
+ * Extracts lexemes from tsvector with additional information.
+ */
 Datum
 rum_extract_tsvector(PG_FUNCTION_ARGS)
 {
@@ -575,6 +595,9 @@ rum_extract_tsvector(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(entries);
 }
 
+/*
+ * Extracts hashed lexemes from tsvector with additional information.
+ */
 Datum
 rum_extract_tsvector_hash(PG_FUNCTION_ARGS)
 {
@@ -592,6 +615,14 @@ rum_extract_tsvector_hash(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(entries);
 }
 
+/*
+ * Extracting tsquery lexemes.
+ */
+
+/*
+ * Extracts tsquery lexemes from **query**. Uses **build_tsquery_entry**
+ * callback to extract lexeme.
+ */
 static Datum *
 rum_extract_tsquery_internal(TSQuery query,
 							 int32 *nentries,
@@ -640,11 +671,6 @@ rum_extract_tsquery_internal(TSQuery query,
 
 		for (i = 0; i < (*nentries); i++)
 		{
-			text       *txt;
-
-			txt = cstring_to_text_with_len(GETOPERAND(query) + operands[i]->distance,
-										   operands[i]->length);
-			entries[i] = PointerGetDatum(txt);
 			entries[i] = build_tsquery_entry(query, operands[i]);
 			partialmatch[i] = operands[i]->prefix;
 			(*extra_data)[i] = (Pointer) map_item_operand;
@@ -679,6 +705,9 @@ rum_extract_tsquery_internal(TSQuery query,
 	return entries;
 }
 
+/*
+ * Extract lexeme from tsquery.
+ */
 static Datum
 build_tsquery_entry(TSQuery query, QueryOperand *operand)
 {
@@ -689,6 +718,9 @@ build_tsquery_entry(TSQuery query, QueryOperand *operand)
 	return PointerGetDatum(txt);
 }
 
+/*
+ * Extract hashed lexeme from tsquery.
+ */
 static Datum
 build_tsquery_hash_entry(TSQuery query, QueryOperand *operand)
 {
@@ -700,6 +732,9 @@ build_tsquery_hash_entry(TSQuery query, QueryOperand *operand)
 	return hash_value;
 }
 
+/*
+ * Extracts lexemes from tsquery with information about prefix search syntax.
+ */
 Datum
 rum_extract_tsquery(PG_FUNCTION_ARGS)
 {
@@ -723,6 +758,10 @@ rum_extract_tsquery(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(entries);
 }
 
+/*
+ * Extracts hashed lexemes from tsquery with information about prefix search
+ * syntax.
+ */
 Datum
 rum_extract_tsquery_hash(PG_FUNCTION_ARGS)
 {
@@ -745,6 +784,10 @@ rum_extract_tsquery_hash(PG_FUNCTION_ARGS)
 
 	PG_RETURN_POINTER(entries);
 }
+
+/*
+ * Functions used for ranking.
+ */
 
 static int
 compareDocR(const void *va, const void *vb)
@@ -1297,6 +1340,10 @@ calc_score(float4 *arrdata, TSVector txt, TSQuery query, int method)
 	return (float4) Wdoc;
 }
 
+/*
+ * Calculates distance inside index. Uses additional information with lexemes
+ * positions.
+ */
 Datum
 rum_tsquery_distance(PG_FUNCTION_ARGS)
 {
@@ -1320,6 +1367,9 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 		PG_RETURN_FLOAT8(1.0 / res);
 }
 
+/*
+ * Implementation of <=> operator. Uses default normalization method.
+ */
 Datum
 rum_ts_distance_tt(PG_FUNCTION_ARGS)
 {
@@ -1337,6 +1387,9 @@ rum_ts_distance_tt(PG_FUNCTION_ARGS)
 		PG_RETURN_FLOAT4(1.0 / res);
 }
 
+/*
+ * Implementation of <=> operator. Uses specified normalization method.
+ */
 Datum
 rum_ts_distance_ttf(PG_FUNCTION_ARGS)
 {
@@ -1355,6 +1408,9 @@ rum_ts_distance_ttf(PG_FUNCTION_ARGS)
 		PG_RETURN_FLOAT4(1.0 / res);
 }
 
+/*
+ * Implementation of <=> operator. Uses specified normalization method.
+ */
 Datum
 rum_ts_distance_td(PG_FUNCTION_ARGS)
 {
@@ -1401,6 +1457,9 @@ rum_ts_distance_td(PG_FUNCTION_ARGS)
 		PG_RETURN_FLOAT4(1.0 / res);
 }
 
+/*
+ * Casts tsquery to rum_distance_query type.
+ */
 Datum
 tsquery_to_distance_query(PG_FUNCTION_ARGS)
 {
@@ -1426,6 +1485,9 @@ tsquery_to_distance_query(PG_FUNCTION_ARGS)
 	PG_RETURN_DATUM(HeapTupleGetDatum(htup));
 }
 
+/*
+ * Specifies additional information type for operator class.
+ */
 Datum
 rum_tsvector_config(PG_FUNCTION_ARGS)
 {
