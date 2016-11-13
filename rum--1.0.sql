@@ -3,11 +3,17 @@ RETURNS index_am_handler
 AS 'MODULE_PATHNAME'
 LANGUAGE C;
 
--- Access method
+/*
+ * RUM access method
+ */
+
 CREATE ACCESS METHOD rum TYPE INDEX HANDLER rumhandler;
 
--- tsvector opclasses
+/*
+ * RUM built-in types, operators and functions
+ */
 
+-- Type used in distance calculations with normalization argument
 CREATE TYPE rum_distance_query AS (query tsquery, method int);
 
 CREATE FUNCTION tsquery_to_distance_query(tsquery)
@@ -45,22 +51,52 @@ CREATE OPERATOR <=> (
         PROCEDURE = rum_ts_distance
 );
 
+CREATE FUNCTION rum_timestamp_distance(timestamp, timestamp)
+RETURNS float8
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR <=> (
+        PROCEDURE = rum_timestamp_distance,
+        LEFTARG = timestamp,
+        RIGHTARG = timestamp,
+        COMMUTATOR = <=>
+);
+
+CREATE FUNCTION rum_timestamp_left_distance(timestamp, timestamp)
+RETURNS float8
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR <=| (
+        PROCEDURE = rum_timestamp_left_distance,
+        LEFTARG = timestamp,
+        RIGHTARG = timestamp,
+        COMMUTATOR = |=>
+);
+
+CREATE FUNCTION rum_timestamp_right_distance(timestamp, timestamp)
+RETURNS float8
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE OPERATOR |=> (
+        PROCEDURE = rum_timestamp_right_distance,
+        LEFTARG = timestamp,
+        RIGHTARG = timestamp,
+        COMMUTATOR = <=|
+);
+
+/*
+ * rum_tsvector_ops operator class
+ */
+
 CREATE FUNCTION rum_extract_tsvector(tsvector,internal,internal,internal,internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE FUNCTION rum_extract_tsvector_hash(tsvector,internal,internal,internal,internal)
-RETURNS internal
-AS 'MODULE_PATHNAME'
-LANGUAGE C IMMUTABLE STRICT;
-
 CREATE FUNCTION rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal)
-RETURNS internal
-AS 'MODULE_PATHNAME'
-LANGUAGE C IMMUTABLE STRICT;
-
-CREATE FUNCTION rum_extract_tsquery_hash(tsquery,internal,smallint,internal,internal,internal,internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
@@ -85,13 +121,14 @@ RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE FUNCTION rum_ts_join_pos(internal, internal) -- to prevent calling from SQL
+-- To prevent calling from SQL
+CREATE FUNCTION rum_ts_join_pos(internal, internal)
 RETURNS bytea
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR CLASS rum_tsvector_ops
-FOR TYPE tsvector USING rum
+DEFAULT FOR TYPE tsvector USING rum
 AS
         OPERATOR        1       @@ (tsvector, tsquery),
         OPERATOR        2       <=> (tsvector, tsquery) FOR ORDER BY pg_catalog.float_ops,
@@ -105,6 +142,22 @@ AS
         FUNCTION        8       rum_tsquery_distance(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),
         FUNCTION        10      rum_ts_join_pos(internal, internal),
         STORAGE         text;
+
+/*
+ * rum_tsvector_hash_ops operator class.
+ *
+ * Stores hash of entries as keys in index.
+ */
+
+CREATE FUNCTION rum_extract_tsvector_hash(tsvector,internal,internal,internal,internal)
+RETURNS internal
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION rum_extract_tsquery_hash(tsquery,internal,smallint,internal,internal,internal,internal)
+RETURNS internal
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR CLASS rum_tsvector_hash_ops
 FOR TYPE tsvector USING rum
@@ -120,44 +173,10 @@ AS
         FUNCTION        8       rum_tsquery_distance(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),
         FUNCTION        10      rum_ts_join_pos(internal, internal),
         STORAGE         integer;
--- timestamp ops
 
-CREATE FUNCTION timestamp_distance(timestamp, timestamp)
-RETURNS float8
-AS 'MODULE_PATHNAME'
-LANGUAGE C IMMUTABLE STRICT;
-
-CREATE OPERATOR <=> (
-        PROCEDURE = timestamp_distance,
-        LEFTARG = timestamp,
-        RIGHTARG = timestamp,
-        COMMUTATOR = <=>
-);
-
-CREATE FUNCTION timestamp_left_distance(timestamp, timestamp)
-RETURNS float8
-AS 'MODULE_PATHNAME'
-LANGUAGE C IMMUTABLE STRICT;
-
-CREATE OPERATOR <=| (
-        PROCEDURE = timestamp_left_distance,
-        LEFTARG = timestamp,
-        RIGHTARG = timestamp,
-        COMMUTATOR = |=>
-);
-
-CREATE FUNCTION timestamp_right_distance(timestamp, timestamp)
-RETURNS float8
-AS 'MODULE_PATHNAME'
-LANGUAGE C IMMUTABLE STRICT;
-
-CREATE OPERATOR |=> (
-        PROCEDURE = timestamp_right_distance,
-        LEFTARG = timestamp,
-        RIGHTARG = timestamp,
-        COMMUTATOR = <=|
-);
-
+/*
+ * rum_timestamp_ops operator class
+ */
 
 -- timestamp operator class
 
@@ -191,7 +210,7 @@ RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
 
-CREATE OPERATOR CLASS timestamp_ops
+CREATE OPERATOR CLASS rum_timestamp_ops
 DEFAULT FOR TYPE timestamp USING rum
 AS
         OPERATOR        1       <,
@@ -213,7 +232,11 @@ AS
         OPERATOR        22      |=> (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
 STORAGE         timestamp;
 
---together
+/*
+ * rum_tsvector_timestamp_ops operator class.
+ *
+ * Stores timestamp with tsvector.
+ */
 
 CREATE FUNCTION rum_tsquery_timestamp_consistent(internal, smallint, tsvector, integer, internal, internal, internal, internal)
 RETURNS bool
@@ -233,6 +256,10 @@ AS
         FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         STORAGE         text;
 
+/*
+ * rum_tsvector_hash_timestamp_ops operator class
+ */
+
 CREATE OPERATOR CLASS rum_tsvector_hash_timestamp_ops
 FOR TYPE tsvector USING rum
 AS
@@ -245,46 +272,47 @@ AS
         FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         STORAGE         integer;
 
--- timestamptz ops
+/*
+ * rum_timestamptz_ops operator class
+ */
 
-CREATE FUNCTION timestamptz_distance(timestamptz, timestamptz)
+CREATE FUNCTION rum_timestamptz_distance(timestamptz, timestamptz)
 RETURNS float8
-AS 'MODULE_PATHNAME', 'timestamp_distance'
+AS 'MODULE_PATHNAME', 'rum_timestamp_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <=> (
-        PROCEDURE = timestamptz_distance,
+        PROCEDURE = rum_timestamptz_distance,
         LEFTARG = timestamptz,
         RIGHTARG = timestamptz,
         COMMUTATOR = <=>
 );
 
-CREATE FUNCTION timestamptz_left_distance(timestamptz, timestamptz)
+CREATE FUNCTION rum_timestamptz_left_distance(timestamptz, timestamptz)
 RETURNS float8
-AS 'MODULE_PATHNAME', 'timestamp_left_distance'
+AS 'MODULE_PATHNAME', 'rum_timestamp_left_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <=| (
-        PROCEDURE = timestamptz_left_distance,
+        PROCEDURE = rum_timestamptz_left_distance,
         LEFTARG = timestamptz,
         RIGHTARG = timestamptz,
         COMMUTATOR = |=>
 );
 
-CREATE FUNCTION timestamptz_right_distance(timestamptz, timestamptz)
+CREATE FUNCTION rum_timestamptz_right_distance(timestamptz, timestamptz)
 RETURNS float8
-AS 'MODULE_PATHNAME', 'timestamp_right_distance'
+AS 'MODULE_PATHNAME', 'rum_timestamp_right_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR |=> (
-        PROCEDURE = timestamptz_right_distance,
+        PROCEDURE = rum_timestamptz_right_distance,
         LEFTARG = timestamptz,
         RIGHTARG = timestamptz,
         COMMUTATOR = <=|
 );
 
-
-CREATE OPERATOR CLASS timestamptz_ops
+CREATE OPERATOR CLASS rum_timestamptz_ops
 DEFAULT FOR TYPE timestamptz USING rum
 AS
         OPERATOR        1       <,
@@ -299,14 +327,18 @@ AS
         FUNCTION        4       rum_timestamp_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal),
         FUNCTION        5       rum_timestamp_compare_prefix(timestamp,timestamp,smallint,internal),
         FUNCTION        6       rum_timestamp_config(internal),
-        -- support to timestamptz disttance in rum_tsvector_timestamptz_ops
+        -- support to timestamptz distance in rum_tsvector_timestamptz_ops
         FUNCTION        9       rum_timestamp_outer_distance(timestamp, timestamp, smallint),
         OPERATOR        20      <=> (timestamptz,timestamptz) FOR ORDER BY pg_catalog.float_ops,
         OPERATOR        21      <=| (timestamptz,timestamptz) FOR ORDER BY pg_catalog.float_ops,
         OPERATOR        22      |=> (timestamptz,timestamptz) FOR ORDER BY pg_catalog.float_ops,
 STORAGE         timestamptz;
 
---together
+/*
+ * rum_tsvector_timestamptz_ops operator class.
+ *
+ * Stores tsvector with timestamptz.
+ */
 
 CREATE OPERATOR CLASS rum_tsvector_timestamptz_ops
 FOR TYPE tsvector USING rum
@@ -321,6 +353,10 @@ AS
         FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         STORAGE         text;
 
+/*
+ * rum_tsvector_hash_timestamptz_ops operator class
+ */
+
 CREATE OPERATOR CLASS rum_tsvector_hash_timestamptz_ops
 FOR TYPE tsvector USING rum
 AS
@@ -333,7 +369,11 @@ AS
         FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         STORAGE         integer;
 
--- inversed 
+/*
+ * rum_tsquery_ops operator class.
+ *
+ * Used for inversed text search.
+ */
 
 CREATE FUNCTION ruminv_extract_tsquery(tsquery,internal,internal,internal,internal)
 RETURNS internal
@@ -365,4 +405,3 @@ AS
         FUNCTION        4       ruminv_tsvector_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
         FUNCTION        6       ruminv_tsquery_config(internal),
         STORAGE         text;
-

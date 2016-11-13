@@ -149,9 +149,9 @@ rum_timestamp_consistent(PG_FUNCTION_ARGS)
 	PG_RETURN_BOOL(true);
 }
 
-PG_FUNCTION_INFO_V1(timestamp_distance);
+PG_FUNCTION_INFO_V1(rum_timestamp_distance);
 Datum
-timestamp_distance(PG_FUNCTION_ARGS)
+rum_timestamp_distance(PG_FUNCTION_ARGS)
 {
 	Timestamp	dt1 = PG_GETARG_TIMESTAMP(0);
 	Timestamp	dt2 = PG_GETARG_TIMESTAMP(1);
@@ -174,9 +174,9 @@ timestamp_distance(PG_FUNCTION_ARGS)
 	PG_RETURN_FLOAT8(diff);
 }
 
-PG_FUNCTION_INFO_V1(timestamp_left_distance);
+PG_FUNCTION_INFO_V1(rum_timestamp_left_distance);
 Datum
-timestamp_left_distance(PG_FUNCTION_ARGS)
+rum_timestamp_left_distance(PG_FUNCTION_ARGS)
 {
 	Timestamp	dt1 = PG_GETARG_TIMESTAMP(0);
 	Timestamp	dt2 = PG_GETARG_TIMESTAMP(1);
@@ -199,9 +199,9 @@ timestamp_left_distance(PG_FUNCTION_ARGS)
 	PG_RETURN_FLOAT8(diff);
 }
 
-PG_FUNCTION_INFO_V1(timestamp_right_distance);
+PG_FUNCTION_INFO_V1(rum_timestamp_right_distance);
 Datum
-timestamp_right_distance(PG_FUNCTION_ARGS)
+rum_timestamp_right_distance(PG_FUNCTION_ARGS)
 {
 	Timestamp	dt1 = PG_GETARG_TIMESTAMP(0);
 	Timestamp	dt2 = PG_GETARG_TIMESTAMP(1);
@@ -234,17 +234,17 @@ rum_timestamp_outer_distance(PG_FUNCTION_ARGS)
 	switch (strategy)
 	{
 		case RUM_TMST_DISTANCE:
-			diff = DirectFunctionCall2(timestamp_distance,
+			diff = DirectFunctionCall2(rum_timestamp_distance,
 									   PG_GETARG_DATUM(0),
 									   PG_GETARG_DATUM(1));
 			break;
 		case RUM_TMST_LEFT_DISTANCE:
-			diff = DirectFunctionCall2(timestamp_left_distance,
+			diff = DirectFunctionCall2(rum_timestamp_left_distance,
 									   PG_GETARG_DATUM(0),
 									   PG_GETARG_DATUM(1));
 			break;
 		case RUM_TMST_RIGHT_DISTANCE:
-			diff = DirectFunctionCall2(timestamp_right_distance,
+			diff = DirectFunctionCall2(rum_timestamp_right_distance,
 									   PG_GETARG_DATUM(0),
 									   PG_GETARG_DATUM(1));
 			break;
