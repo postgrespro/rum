@@ -1,11 +1,11 @@
 # contrib/rum/Makefile
 
 MODULE_big = rum
-OBJS = rumsort.o rum_ts_utils.o rumtsquery.o \
-	rumbtree.o rumbulk.o rumdatapage.o \
-	rumentrypage.o rumget.o ruminsert.o \
-	rumscan.o rumutil.o rumvacuum.o rumvalidate.o \
-	rum_timestamp.o $(WIN32RES)
+OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
+	src/rumbtree.o src/rumbulk.o src/rumdatapage.o \
+	src/rumentrypage.o src/rumget.o src/ruminsert.o \
+	src/rumscan.o src/rumutil.o src/rumvacuum.o src/rumvalidate.o \
+	src/rum_timestamp.o $(WIN32RES)
 
 EXTENSION = rum
 DATA = rum--1.0.sql
