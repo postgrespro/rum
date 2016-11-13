@@ -61,14 +61,14 @@ Typical installation procedure may look like this:
 
 ## Operator classes
 
-**rum** provides next operator classes
+**rum** provides next operator classes.
 
 ### rum_tsvector_ops
 
 For type: `tsvector`
 
 This operator class stores `tsvector` lexemes with positional information. Supports
-ordering by `&lt;=&gt;` operator and prefix search. There is the example.
+ordering by `<=>` operator and prefix search. There is the example.
 
 Let us assume we have the table:
 
@@ -99,7 +99,7 @@ CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 And we can execute the following queries:
 
 ```sql
-=# SELECT t, a <=> to_tsquery('english', 'beautiful | place') AS rank
+SELECT t, a <=> to_tsquery('english', 'beautiful | place') AS rank
     FROM test_rum
     WHERE a @@ to_tsquery('english', 'beautiful | place')
     ORDER BY a <=> to_tsquery('english', 'beautiful | place');
@@ -110,7 +110,7 @@ And we can execute the following queries:
  It looks like a beautiful place | 0.0607927
 (3 rows)
 
-=# SELECT t, a <=> to_tsquery('english', 'place | situation') AS rank
+SELECT t, a <=> to_tsquery('english', 'place | situation') AS rank
     FROM test_rum
     WHERE a @@ to_tsquery('english', 'place | situation')
     ORDER BY a <=> to_tsquery('english', 'place | situation');
@@ -126,29 +126,29 @@ And we can execute the following queries:
 For type: `tsvector`
 
 This operator class stores hash of `tsvector` lexemes with positional information.
-Supports ordering by `&lt;=&gt;` operator. But **doesn't** support prefix search.
+Supports ordering by `<=>` operator. But **doesn't** support prefix search.
 
 ### rum_timestamp_ops
 
 For type: `timestamp`
 
 Operator class provides fast search and ordering by timestamp fields. Supports
-ordering by `&lt;=&gt;`, `&lt;=&#124;` and `&#124;=&gt;` operators. Can be used
-with `rum_tsvector_timestamp_ops` operator class.
+ordering by `<=>`, `<=|` and `|=>` operators. Can be used with
+`rum_tsvector_timestamp_ops` operator class.
 
 ### rum_timestamptz_ops
 
 For type: `timestamptz`
 
 Operator class provides fast search and ordering by timestamptz fields. Supports
-ordering by `&lt;=&gt;`, `&lt;=&#124;` and `&#124;=&gt;` operators. Can be used
-with `rum_tsvector_timestamptz_ops` operator class.
+ordering by `<=>`, `<=|` and `|=>` operators. Can be used with
+`rum_tsvector_timestamptz_ops` operator class.
 
 ### rum_tsvector_timestamp_ops
 
 For type: `tsvector`
 
-This operator class stores `tsvector` lexems with timestamp field. There is the example:
+This operator class stores `tsvector` lexems with timestamp field. There is the example.
 
 Let us assume we have the table:
 ```sql
@@ -163,7 +163,7 @@ CREATE INDEX tsts_idx ON tsts USING rum (t rum_tsvector_timestamp_ops, d)
 Now we can execute the following queries:
 ```sql
 EXPLAIN (costs off)
-SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+    SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
                                     QUERY PLAN                                     
 -----------------------------------------------------------------------------------
  Limit
@@ -223,7 +223,7 @@ CREATE INDEX query_idx ON query USING rum(q);
 Now we can execute the following fast query:
 ```sql
 SELECT * FROM query
-WHERE to_tsvector('black holes never exists before we think about them') @@ q;
+    WHERE to_tsvector('black holes never exists before we think about them') @@ q;
         q         |  tag  
 ------------------+-------
  'black'          | color
