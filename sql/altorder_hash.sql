@@ -2,7 +2,7 @@ CREATE TABLE atsts (id int, t tsvector, d timestamp);
 
 \copy atsts from 'data/tsts.data'
 
-CREATE INDEX atsts_idx ON atsts USING rum (t rum_tsvector_timestamp_ops, d)
+CREATE INDEX atsts_idx ON atsts USING rum (t rum_tsvector_hash_timestamp_ops, d)
 	WITH (attach = 'd', to = 't', order_by_attach='t');
 
 

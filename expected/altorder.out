@@ -323,3 +323,4 @@ SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER
  496 | Sun May 22 11:21:22.326724 2016
 (8 rows)
 
+DROP TABLE atsts CASCADE;

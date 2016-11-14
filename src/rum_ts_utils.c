@@ -52,6 +52,16 @@ static Datum build_tsquery_hash_entry(TSQuery query, QueryOperand *operand);
 typedef Datum (*TSVectorEntryBuilder)(TSVector vector, WordEntry *we);
 typedef Datum (*TSQueryEntryBuilder)(TSQuery query, QueryOperand *operand);
 
+static Datum *rum_extract_tsvector_internal(TSVector vector, int32 *nentries,
+							  				Datum **addInfo,
+											bool **addInfoIsNull,
+							  				TSVectorEntryBuilder build_tsvector_entry);
+static Datum *rum_extract_tsquery_internal(TSQuery query, int32 *nentries,
+							 			   bool **ptr_partialmatch,
+										   Pointer **extra_data,
+										   int32 *searchMode,
+										   TSQueryEntryBuilder build_tsquery_entry);
+
 typedef struct
 {
 	QueryItem  *first_item;
