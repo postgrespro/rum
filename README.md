@@ -13,7 +13,7 @@ on the `GIN` access methods code.
 - Slow ranking. It is need position information about lexems to ranking. `GIN`
 index doesn't store positions of lexems. So after index scan we need additional
 heap scan to retreive lexems positions.
-- There isn't phrase search with `GIN` index. This problem relates with previous
+- Slow phrase search with `GIN` index. This problem relates with previous
 problem. It is need position information to perform phrase search.
 - Slow ordering by timestamp. `GIN` index can't store some related information
 in index with lexemes. So it is necessary to perform additional heap scan.
