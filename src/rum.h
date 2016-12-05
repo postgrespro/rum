@@ -495,7 +495,7 @@ extern void rumPrepareEntryScan(RumBtree btree, OffsetNumber attnum,
 					RumState * rumstate);
 extern void rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
 				 Page page, Page lpage, Page rpage);
-extern IndexTuple rumPageGetLinkItup(Buffer buf, Page page);
+extern IndexTuple rumPageGetLinkItup(RumBtree btree, Buffer buf, Page page);
 extern void rumReadTuple(RumState * rumstate, OffsetNumber attnum,
 			 IndexTuple itup, RumKey * items);
 extern void rumReadTuplePointers(RumState * rumstate, OffsetNumber attnum,
