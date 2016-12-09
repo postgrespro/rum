@@ -12,7 +12,7 @@ DATA = rum--1.0.sql
 PGFILEDESC = "RUM index access method"
 
 REGRESS = rum rum_hash ruminv timestamp orderby orderby_hash altorder \
-	altorder_hash
+	altorder_hash limits
 
 LDFLAGS_SL += $(filter -lm, $(LIBS))
 

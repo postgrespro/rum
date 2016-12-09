@@ -233,10 +233,19 @@ typedef signed char RumNullCategory;
 #define RumSetPostingOffset(itup,n) ItemPointerSetBlockNumber(&(itup)->t_tid,n)
 #define RumGetPosting(itup)			((Pointer) ((char*)(itup) + RumGetPostingOffset(itup)))
 
+/*
+ * Maximum size of an item on entry tree page. Make sure that we fit at least
+ * three items on each page. (On regular B-tree indexes, we must fit at least
+ * three items: two data items and the "high key". In RUM entry tree, we don't
+ * currently store the high key explicitly, we just use the rightmost item on
+ * the page, so it would actually be enough to fit two items.)
+ */
 #define RumMaxItemSize \
-	MAXALIGN_DOWN(((BLCKSZ - SizeOfPageHeaderData - \
-		MAXALIGN(sizeof(RumPageOpaqueData))) / 6 - \
-		sizeof(RumKey) /* right bound */))
+	Min(INDEX_SIZE_MASK, \
+		MAXALIGN_DOWN(((BLCKSZ - \
+						MAXALIGN(SizeOfPageHeaderData + 3 * sizeof(ItemIdData)) - \
+						MAXALIGN(sizeof(RumPageOpaqueData))) / 3)))
+
 
 /*
  * Access macros for non-leaf entry tuples
