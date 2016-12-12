@@ -884,7 +884,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 		 */
 		while(42)
 		{
-			int			cmp = 0;
+			int			cmp;
 
 			/* get next item to copy if we pushed it on previous loop */
 			if (copyItemEmpty == true && off <= maxoff)
@@ -932,7 +932,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				break;
 			}
 
-			if (cmp <= 0 && ItemPointerIsValid(&copyItem.iptr))
+			if (cmp <= 0)
 			{
 				ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
 											 &copyItem,
