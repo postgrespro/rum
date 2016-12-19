@@ -161,15 +161,14 @@ RumFormTuple(RumState * rumstate,
 	}
 	newsize = MAXALIGN(newsize);
 
-	if (newsize > Min(INDEX_SIZE_MASK, RumMaxItemSize))
+	if (newsize > RumMaxItemSize)
 	{
 		if (errorTooBig)
 			ereport(ERROR,
 					(errcode(ERRCODE_PROGRAM_LIMIT_EXCEEDED),
 			errmsg("index row size %lu exceeds maximum %lu for index \"%s\"",
 				   (unsigned long) newsize,
-				   (unsigned long) Min(INDEX_SIZE_MASK,
-									   RumMaxItemSize),
+				   (unsigned long) RumMaxItemSize,
 				   RelationGetRelationName(rumstate->index))));
 		pfree(itup);
 		return NULL;
