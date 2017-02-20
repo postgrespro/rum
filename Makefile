@@ -10,7 +10,7 @@ OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
 EXTENSION = rum
 DATA = rum--1.0.sql
 PGFILEDESC = "RUM index access method"
-INCLUDES = src/rum.h
+INCLUDES = src/rum.h src/rumsort.h
 
 REGRESS = rum rum_hash ruminv timestamp orderby orderby_hash altorder \
 	altorder_hash limits
@@ -34,4 +34,4 @@ wal-check: temp-install
 install: installincludes
 
 installincludes:
-	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(INCLUDES)) '$(DESTDIR)$(includedir)/'
+	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(INCLUDES)) '$(DESTDIR)$(includedir)/server/'
