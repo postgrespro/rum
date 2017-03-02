@@ -34,4 +34,4 @@ wal-check: temp-install
 install: installincludes
 
 installincludes:
-	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(INCLUDES)) '$(DESTDIR)$(includedir)/server/'
+	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(INCLUDES)) '$(DESTDIR)$(includedir_server)/'
