@@ -833,11 +833,8 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 			 * It's needed to go by right link. During that we should refind
 			 * first ItemPointer greater that stored
 			 */
-			if ((ScanDirectionIsForward(entry->scanDirection) && RumPageRightMost(page))
-				||
+			if ((ScanDirectionIsForward(entry->scanDirection) && RumPageRightMost(page)) ||
 				(ScanDirectionIsBackward(entry->scanDirection) && RumPageLeftMost(page)))
-
-
 			{
 				UnlockReleaseBuffer(entry->buffer);
 				ItemPointerSetInvalid(&entry->curRumKey.iptr);
@@ -895,6 +892,7 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 			}
 
 			entry->curRumKey = entry->list[entry->offset];
+			entry->offset += entry->scanDirection;
 			return;
 		}
 	}
@@ -1039,8 +1037,8 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
 
 	Assert(entry->nlist > 0);
 
-	entry->offset++;
-	entry->curRumKey = entry->list[entry->offset - 1];
+	entry->curRumKey = entry->list[entry->offset];
+	entry->offset += entry->scanDirection;
 
 	/*
 	 * Done with this entry, go to the next for the future.
@@ -1601,6 +1599,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumKey *item,
 
 end:
 	entry->curRumKey = entry->list[entry->offset];
+	entry->offset += entry->scanDirection;
 	return true;
 }
 
