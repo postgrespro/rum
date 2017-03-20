@@ -137,6 +137,8 @@ class PglistTests(unittest.TestCase):
                 816114
             )
 
+            self.node.safe_psql("pglist", "DROP INDEX pglist_rum_idx");
+
         except Exception as e:
             self.printlog(os.path.join(self.node.logs_dir, "postgresql.log"))
             raise e
