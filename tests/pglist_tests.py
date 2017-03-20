@@ -83,21 +83,14 @@ class PglistTests(unittest.TestCase):
         """Tests SELECT constructions to 'pglist' base"""
         try:
             self.init_pglist_data(self.node)
-            indexes = self.node.execute(
-                "pglist",
-                "SELECT count(*) FROM pg_class c "
-                "  JOIN pg_index i ON i.indexrelid = c.oid"
-                "  JOIN pg_class c2 ON i.indrelid = c2.oid"
-                "  WHERE c.relkind = 'i' AND c2.relname = 'pglist' AND "
-                "    c.relname = 'rumidx_orderby_sent'")
-            if indexes[0][0] == 0:
-                print("Creating index 'rumidx_orderby_sent'")
 
-                self.node.safe_psql(
-                    "pglist",
-                    "CREATE INDEX rumidx_orderby_sent ON pglist USING rum ("
-                    "  fts rum_tsvector_timestamp_ops, sent) "
-                    "  WITH (attach=sent, to=fts, order_by_attach=t)")
+            print("Creating index 'rumidx_orderby_sent'")
+
+            self.node.safe_psql(
+                "pglist",
+                "CREATE INDEX rumidx_orderby_sent ON pglist USING rum ("
+                "  fts rum_tsvector_timestamp_ops, sent) "
+                "  WITH (attach=sent, to=fts, order_by_attach=t)")
 
             print("Running tests")
 
@@ -121,6 +114,29 @@ class PglistTests(unittest.TestCase):
                 ),
                 b'222813\n'
             )
+
+            self.node.safe_psql("pglist", "DROP INDEX rumidx_orderby_sent");
+
+            print("Creating index 'pglist_rum_idx'")
+
+            self.node.safe_psql(
+                "pglist",
+                "CREATE INDEX pglist_rum_idx ON pglist USING rum ("
+                "  fts rum_tsvector_ops)")
+
+            print("Running tests")
+
+            self.assertEqual(
+                self.node.execute(
+                    "pglist",
+                    "SELECT id FROM pglist "
+                    "WHERE fts @@ to_tsquery('english', 'postgres:*') "
+                    "ORDER BY fts <=> to_tsquery('english', 'postgres:*') "
+                    "LIMIT 9"
+                )[0][0],
+                816114
+            )
+
         except Exception as e:
             self.printlog(os.path.join(self.node.logs_dir, "postgresql.log"))
             raise e

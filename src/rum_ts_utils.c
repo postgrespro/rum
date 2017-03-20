@@ -1519,13 +1519,13 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 	bytea	   *result;
 	int			count1 = count_pos(in1, VARSIZE_ANY_EXHDR(addInfo1)),
 				count2 = count_pos(in2, VARSIZE_ANY_EXHDR(addInfo2)),
-				countRes = 0,
-				i1 = 0, i2 = 0, size;
+				countRes = 0;
+	int			i1 = 0, i2 = 0;
+	Size		size;
 	WordEntryPos pos1 = 0,
 				pos2 = 0,
 			   *pos;
 
-	result = palloc(VARHDRSZ + sizeof(WordEntryPos) * (count1 + count2));
 	pos = palloc(sizeof(WordEntryPos) * (count1 + count2));
 
 	Assert(count1 > 0 && count2 > 0);
@@ -1576,6 +1576,11 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 			in2 = decompress_pos(in2, &pos2);
 		i2++;
 	}
+
+	Assert(countRes <= (count1 + count2));
+
+	size = VARHDRSZ + 2 * sizeof(WordEntryPos) * countRes;
+	result = palloc(size);
 
 	size = compress_pos(result->vl_dat, pos, countRes) + VARHDRSZ;
 	SET_VARSIZE(result, size);
