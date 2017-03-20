@@ -539,8 +539,14 @@ rum_extract_tsvector_internal(TSVector	vector,
 			if (we->haspos)
 			{
 				posVec = _POSVECPTR(vector, we);
+
+				/*
+				 * In some cases compressed positions may take more memory than
+				 * uncompressed positions. So allocate memory with a margin.
+				 */
 				posDataSize = VARHDRSZ + 2 * posVec->npos * sizeof(WordEntryPos);
 				posData = (bytea *) palloc(posDataSize);
+
 				posDataSize = compress_pos(posData->vl_dat, posVec->pos, posVec->npos) + VARHDRSZ;
 				SET_VARSIZE(posData, posDataSize);
 
@@ -1579,6 +1585,10 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 
 	Assert(countRes <= (count1 + count2));
 
+	/*
+	 * In some cases compressed positions may take more memory than
+	 * uncompressed positions. So allocate memory with a margin.
+	 */
 	size = VARHDRSZ + 2 * sizeof(WordEntryPos) * countRes;
 	result = palloc(size);
 
