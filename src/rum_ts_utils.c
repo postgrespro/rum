@@ -26,6 +26,11 @@
 
 #include <math.h>
 
+/* Use TS_EXEC_PHRASE_AS_AND when TS_EXEC_PHRASE_NO_POS is not defined */
+#ifndef TS_EXEC_PHRASE_NO_POS
+#define TS_EXEC_PHRASE_NO_POS TS_EXEC_PHRASE_AS_AND
+#endif
+
 PG_FUNCTION_INFO_V1(rum_extract_tsvector);
 PG_FUNCTION_INFO_V1(rum_extract_tsvector_hash);
 PG_FUNCTION_INFO_V1(rum_extract_tsquery);
@@ -177,7 +182,7 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 
 		res = TS_execute(GETQUERY(query),
 						 &gcv,
-						 TS_EXEC_PHRASE_AS_AND,
+						 TS_EXEC_PHRASE_NO_POS,
 						 pre_checkcondition_rum);
 	}
 
@@ -326,7 +331,7 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 		gcv.recheckPhrase = true;
 
 		res = TS_execute(GETQUERY(query), &gcv,
-						 TS_EXEC_CALC_NOT | TS_EXEC_PHRASE_AS_AND,
+						 TS_EXEC_CALC_NOT | TS_EXEC_PHRASE_NO_POS,
 						 checkcondition_rum);
 	}
 

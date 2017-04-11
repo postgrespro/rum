@@ -21,6 +21,9 @@
 #include "catalog/pg_type.h"
 #include "utils/builtins.h"
 #include "utils/catcache.h"
+#if PG_VERSION_NUM >= 100000
+#include "utils/regproc.h"
+#endif
 #include "utils/syscache.h"
 
 #include "rum.h"

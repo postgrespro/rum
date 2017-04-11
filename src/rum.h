@@ -427,7 +427,11 @@ extern IndexBuildResult *rumbuild(Relation heap, Relation index,
 extern void rumbuildempty(Relation index);
 extern bool ruminsert(Relation index, Datum *values, bool *isnull,
 		  ItemPointer ht_ctid, Relation heapRel,
-		  IndexUniqueCheck checkUnique);
+		  IndexUniqueCheck checkUnique
+#if PG_VERSION_NUM >= 100000
+		  , struct IndexInfo *indexInfo
+#endif
+		  );
 extern void rumEntryInsert(RumState * rumstate,
 			   OffsetNumber attnum, Datum key, RumNullCategory category,
 			   RumKey * items, uint32 nitem, GinStatsData *buildStats);

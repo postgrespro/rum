@@ -154,6 +154,11 @@ bool		trace_sort = false;
 bool		optimize_bounded_sort = true;
 #endif
 
+#if PG_VERSION_NUM < 100000
+/* Provide fallback for old version of tape interface for 9.6 */
+#define LogicalTapeRewindForRead(x, y, z) LogicalTapeRewind((x), (y), false)
+#define LogicalTapeRewindForWrite(x, y) LogicalTapeRewind((x), (y), true)
+#endif
 
 /*
  * The objects we actually sort are SortTuple structs.  These contain
@@ -299,6 +304,9 @@ struct Tuplesortstate
 	int			memtupcount;	/* number of tuples currently present */
 	int			memtupsize;		/* allocated length of memtuples array */
 	bool		growmemtuples;	/* memtuples' growth still underway? */
+
+	/* Buffer size to use for reading input tapes, during merge. */
+	size_t		read_buffer_size;
 
 	/*
 	 * While building initial runs, this is the current output run number
@@ -2364,6 +2372,8 @@ mergeruns(Tuplesortstate *state)
 				svTape,
 				svRuns,
 				svDummy;
+	int			numTapes;
+	int			numInputTapes;
 
 	Assert(state->status == TSS_BUILDRUNS);
 	Assert(state->memtupcount == 0);
@@ -2383,9 +2393,33 @@ mergeruns(Tuplesortstate *state)
 		return;
 	}
 
+	/*
+	 * If we had fewer runs than tapes, refund the memory that we imagined we
+	 * would need for the tape buffers of the unused tapes.
+	 *
+	 * numTapes and numInputTapes reflect the actual number of tapes we will
+	 * use.  Note that the output tape's tape number is maxTapes - 1, so the
+	 * tape numbers of the used tapes are not consecutive, and you cannot just
+	 * loop from 0 to numTapes to visit all used tapes!
+	 */
+	if (state->Level == 1)
+	{
+		numInputTapes = state->currentRun;
+		numTapes = numInputTapes + 1;
+		FREEMEM(state, (state->maxTapes - numTapes) * TAPE_BUFFER_OVERHEAD);
+	}
+	else
+	{
+		numInputTapes = state->tapeRange;
+		numTapes = state->maxTapes;
+	}
+
+	state->read_buffer_size = Max(state->availMem / numInputTapes, 0);
+	USEMEM(state, state->read_buffer_size * numInputTapes);
+
 	/* End of step D2: rewind all output tapes to prepare for merging */
 	for (tapenum = 0; tapenum < state->tapeRange; tapenum++)
-		LogicalTapeRewind(state->tapeset, tapenum, false);
+		LogicalTapeRewindForRead(state->tapeset, tapenum, state->read_buffer_size);
 
 	for (;;)
 	{
@@ -2448,11 +2482,10 @@ mergeruns(Tuplesortstate *state)
 		if (--state->Level == 0)
 			break;
 		/* rewind output tape T to use as new input */
-		LogicalTapeRewind(state->tapeset, state->tp_tapenum[state->tapeRange],
-						  false);
+		LogicalTapeRewindForRead(state->tapeset, state->tp_tapenum[state->tapeRange],
+								 state->read_buffer_size);
 		/* rewind used-up input tape P, and prepare it for write pass */
-		LogicalTapeRewind(state->tapeset, state->tp_tapenum[state->tapeRange - 1],
-						  true);
+		LogicalTapeRewindForWrite(state->tapeset, state->tp_tapenum[state->tapeRange - 1]);
 		state->tp_runs[state->tapeRange - 1] = 0;
 
 		/*
@@ -2818,9 +2851,9 @@ rum_tuplesort_rescan(Tuplesortstate *state)
 			state->markpos_eof = false;
 			break;
 		case TSS_SORTEDONTAPE:
-			LogicalTapeRewind(state->tapeset,
-							  state->result_tape,
-							  false);
+			LogicalTapeRewindForRead(state->tapeset,
+									 state->result_tape,
+									 state->read_buffer_size);
 			state->eof_reached = false;
 			state->markpos_block = 0L;
 			state->markpos_offset = 0;
@@ -2883,11 +2916,18 @@ rum_tuplesort_restorepos(Tuplesortstate *state)
 			state->eof_reached = state->markpos_eof;
 			break;
 		case TSS_SORTEDONTAPE:
+#if PG_VERSION_NUM < 100000
 			if (!LogicalTapeSeek(state->tapeset,
 								 state->result_tape,
 								 state->markpos_block,
 								 state->markpos_offset))
 				elog(ERROR, "rum_tuplesort_restorepos failed");
+#else
+			LogicalTapeSeek(state->tapeset,
+							state->result_tape,
+							state->markpos_block,
+							state->markpos_offset);
+#endif
 			state->eof_reached = state->markpos_eof;
 			break;
 		default:
