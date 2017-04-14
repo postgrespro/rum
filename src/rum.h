@@ -22,6 +22,11 @@
 
 #include "rumsort.h"
 
+/* RUM distance strategies */
+#define RUM_DISTANCE			20
+#define RUM_LEFT_DISTANCE		21
+#define RUM_RIGHT_DISTANCE		22
+
 /*
  * Page opaque data in a inverted index page.
  *

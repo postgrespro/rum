@@ -4,3 +4,7 @@
 4. Compression addInfo
 5. Remove FROM_STRATEGY ugly magick 
 
+
+BTREE:
+1 fix changes in rum--1.0.sql
+2 adding using as addinfo
