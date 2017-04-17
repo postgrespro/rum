@@ -70,11 +70,11 @@ my $opclass_base_template=<<EOT;
 CREATE OPERATOR CLASS rum_TYPEIDENT_ops
 DEFAULT FOR TYPE TYPENAME USING rum
 AS
-	OPERATOR	1	  <	(TYPECMPTYPE, TYPECMPTYPE),
-	OPERATOR	2	  <=(TYPECMPTYPE, TYPECMPTYPE),
-	OPERATOR	3	  =	(TYPECMPTYPE, TYPECMPTYPE),
-	OPERATOR	4	  >=(TYPECMPTYPE, TYPECMPTYPE),
-	OPERATOR	5	  >	(TYPECMPTYPE, TYPECMPTYPE),
+	OPERATOR	1	  <		TYPESOPARG,
+	OPERATOR	2	  <=	TYPESOPARG,
+	OPERATOR	3	  =		TYPESOPARG,
+	OPERATOR	4	  >=	TYPESOPARG,
+	OPERATOR	5	  >		TYPESOPARG,
 	FUNCTION	1	  TYPECMPFUNC(TYPECMPTYPE,TYPECMPTYPE),
 	FUNCTION	2	  rum_TYPESUBIDENT_extract_value(TYPESUBNAME, internal),
 	FUNCTION	3	  rum_TYPESUBIDENT_extract_query(TYPESUBNAME, internal, int2, internal, internal),
@@ -89,11 +89,11 @@ my $opclass_distance_template=<<EOT;
 CREATE OPERATOR CLASS rum_TYPEIDENT_ops
 DEFAULT FOR TYPE TYPENAME USING rum
 AS
-	OPERATOR	1	<	(TYPECMPTYPE, TYPECMPTYPE),
-	OPERATOR	2	<=	(TYPECMPTYPE, TYPECMPTYPE),
-	OPERATOR	3	=	(TYPECMPTYPE, TYPECMPTYPE),
-	OPERATOR	4	>=	(TYPECMPTYPE, TYPECMPTYPE),
-	OPERATOR	5	>	(TYPECMPTYPE, TYPECMPTYPE),
+	OPERATOR	1	<	TYPESOPARG,
+	OPERATOR	2	<=	TYPESOPARG,
+	OPERATOR	3	=	TYPESOPARG,
+	OPERATOR	4	>=	TYPESOPARG,
+	OPERATOR	5	>	TYPESOPARG,
 	OPERATOR	20	<=> (TYPENAME,TYPENAME) FOR ORDER BY pg_catalog.float_ops,
 	OPERATOR	21	<=| (TYPENAME,TYPENAME) FOR ORDER BY pg_catalog.float_ops,
 	OPERATOR	22	|=> (TYPENAME,TYPENAME) FOR ORDER BY pg_catalog.float_ops,
@@ -113,6 +113,7 @@ my @opinfo = map {
 		$_->{TYPECMPTYPE} = $_->{TYPENAME} if !exists $_->{TYPECMPTYPE};
 		$_->{TYPESUBNAME} = $_->{TYPENAME} if !exists $_->{TYPESUBNAME};
 		$_->{TYPESUBIDENT}= $_->{TYPEIDENT} if ! exists $_->{TYPESUBIDENT};
+		$_->{TYPESOPARG}= '' if ! exists $_->{TYPESOPARG};
 		$_
 	} (
 	# timestamp/tz aren't here: they are in rum--1.0.sql
@@ -198,7 +199,8 @@ my @opinfo = map {
 	{
 		TYPENAME	=>	'cidr',
 		TYPECMPFUNC	=>	'network_cmp',
-		TYPECMPTYPE	=> 'inet',
+		TYPECMPTYPE	=>	'inet',
+		TYPESOPARG	=>	'(inet, inet)',
 		func_tmpl	=>	\$func_base_template,
 		opclass_tmpl=>	\$opclass_base_template,
 	},
@@ -211,9 +213,10 @@ my @opinfo = map {
 	{
 		TYPENAME	=>	'varchar',
 		TYPECMPFUNC	=>	'bttextcmp',
-		TYPECMPTYPE	=> 'text',
-		TYPESUBIDENT=> 'text',
-		TYPESUBNAME => 'text',
+		TYPECMPTYPE	=>	'text',
+		TYPESUBIDENT=>	'text',
+		TYPESUBNAME =>	'text',
+		TYPESOPARG	=>	'(text, text)',
 		opclass_tmpl=>	\$opclass_base_template,
 	},
 	{

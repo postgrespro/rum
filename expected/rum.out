@@ -350,5 +350,3 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'b:*'), *
   16.4493 | the few that escaped destruction in 1693. It is a beautiful, highly      | '1693':7 'beauti':11 'destruct':5 'escap':4 'high':12
 (20 rows)
 
-DROP TABLE test_rum CASCADE;
-DROP TABLE tst CASCADE;
