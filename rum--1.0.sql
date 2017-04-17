@@ -51,37 +51,37 @@ CREATE OPERATOR <=> (
         PROCEDURE = rum_ts_distance
 );
 
-CREATE FUNCTION rum_distance_timestamp(timestamp, timestamp)
+CREATE FUNCTION rum_timestamp_distance(timestamp, timestamp)
 RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <=> (
-        PROCEDURE = rum_distance_timestamp,
+        PROCEDURE = rum_timestamp_distance,
         LEFTARG = timestamp,
         RIGHTARG = timestamp,
         COMMUTATOR = <=>
 );
 
-CREATE FUNCTION rum_left_distance_timestamp(timestamp, timestamp)
+CREATE FUNCTION rum_timestamp_left_distance(timestamp, timestamp)
 RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <=| (
-        PROCEDURE = rum_left_distance_timestamp,
+        PROCEDURE = rum_timestamp_left_distance,
         LEFTARG = timestamp,
         RIGHTARG = timestamp,
         COMMUTATOR = |=>
 );
 
-CREATE FUNCTION rum_right_distance_timestamp(timestamp, timestamp)
+CREATE FUNCTION rum_timestamp_right_distance(timestamp, timestamp)
 RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR |=> (
-        PROCEDURE = rum_right_distance_timestamp,
+        PROCEDURE = rum_timestamp_right_distance,
         LEFTARG = timestamp,
         RIGHTARG = timestamp,
         COMMUTATOR = <=|
@@ -180,32 +180,32 @@ AS
 
 -- timestamp operator class
 
-CREATE FUNCTION rum_extract_value_timestamp(timestamp,internal,internal,internal,internal)
+CREATE FUNCTION rum_timestamp_extract_value(timestamp,internal,internal,internal,internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
 
-CREATE FUNCTION rum_compare_prefix_timestamp(timestamp,timestamp,smallint,internal)
+CREATE FUNCTION rum_timestamp_compare_prefix(timestamp,timestamp,smallint,internal)
 RETURNS int4
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
 
-CREATE FUNCTION rum_config_timestamp(internal)
+CREATE FUNCTION rum_timestamp_config(internal)
 RETURNS void
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE FUNCTION rum_extract_query_timestamp(timestamp,internal,smallint,internal,internal,internal,internal)
+CREATE FUNCTION rum_timestamp_extract_query(timestamp,internal,smallint,internal,internal,internal,internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
 
-CREATE FUNCTION rum_btree_consistent(internal,smallint,internal,int,internal,internal,internal,internal)
+CREATE FUNCTION rum_timestamp_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal)
 RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
 
-CREATE FUNCTION rum_outer_distance_timestamp(timestamp, timestamp, smallint)
+CREATE FUNCTION rum_timestamp_outer_distance(timestamp, timestamp, smallint)
 RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
@@ -220,13 +220,13 @@ AS
         OPERATOR        5       >,
         --support
         FUNCTION        1       timestamp_cmp(timestamp,timestamp),
-        FUNCTION        2       rum_extract_value_timestamp(timestamp,internal,internal,internal,internal),
-        FUNCTION        3       rum_extract_query_timestamp(timestamp,internal,smallint,internal,internal,internal,internal),
-        FUNCTION        4       rum_btree_consistent(internal,smallint,internal,int,internal,internal,internal,internal),
-        FUNCTION        5       rum_compare_prefix_timestamp(timestamp,timestamp,smallint,internal),
-        FUNCTION        6       rum_config_timestamp(internal),
+        FUNCTION        2       rum_timestamp_extract_value(timestamp,internal,internal,internal,internal),
+        FUNCTION        3       rum_timestamp_extract_query(timestamp,internal,smallint,internal,internal,internal,internal),
+        FUNCTION        4       rum_timestamp_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal),
+        FUNCTION        5       rum_timestamp_compare_prefix(timestamp,timestamp,smallint,internal),
+        FUNCTION        6       rum_timestamp_config(internal),
         -- support to timestamp disttance in rum_tsvector_timestamp_ops
-        FUNCTION        9       rum_outer_distance_timestamp(timestamp, timestamp, smallint),
+        FUNCTION        9       rum_timestamp_outer_distance(timestamp, timestamp, smallint),
         OPERATOR        20      <=> (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
         OPERATOR        21      <=| (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
         OPERATOR        22      |=> (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
@@ -276,37 +276,37 @@ AS
  * rum_timestamptz_ops operator class
  */
 
-CREATE FUNCTION rum_distance_timestamptz(timestamptz, timestamptz)
+CREATE FUNCTION rum_timestamptz_distance(timestamptz, timestamptz)
 RETURNS float8
-AS 'MODULE_PATHNAME', 'rum_distance_timestamp'
+AS 'MODULE_PATHNAME', 'rum_timestamp_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <=> (
-        PROCEDURE = rum_distance_timestamptz,
+        PROCEDURE = rum_timestamptz_distance,
         LEFTARG = timestamptz,
         RIGHTARG = timestamptz,
         COMMUTATOR = <=>
 );
 
-CREATE FUNCTION rum_left_distance_timestamptz(timestamptz, timestamptz)
+CREATE FUNCTION rum_timestamptz_left_distance(timestamptz, timestamptz)
 RETURNS float8
-AS 'MODULE_PATHNAME', 'rum_left_distance_timestamp'
+AS 'MODULE_PATHNAME', 'rum_timestamp_left_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR <=| (
-        PROCEDURE = rum_left_distance_timestamptz,
+        PROCEDURE = rum_timestamptz_left_distance,
         LEFTARG = timestamptz,
         RIGHTARG = timestamptz,
         COMMUTATOR = |=>
 );
 
-CREATE FUNCTION rum_right_distance_timestamptz(timestamptz, timestamptz)
+CREATE FUNCTION rum_timestamptz_right_distance(timestamptz, timestamptz)
 RETURNS float8
-AS 'MODULE_PATHNAME', 'rum_right_distance_timestamp'
+AS 'MODULE_PATHNAME', 'rum_timestamp_right_distance'
 LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR |=> (
-        PROCEDURE = rum_right_distance_timestamptz,
+        PROCEDURE = rum_timestamptz_right_distance,
         LEFTARG = timestamptz,
         RIGHTARG = timestamptz,
         COMMUTATOR = <=|
@@ -322,13 +322,13 @@ AS
         OPERATOR        5       >,
         --support
         FUNCTION        1       timestamptz_cmp(timestamptz,timestamptz),
-        FUNCTION        2       rum_extract_value_timestamp(timestamp,internal,internal,internal,internal),
-        FUNCTION        3       rum_extract_query_timestamp(timestamp,internal,smallint,internal,internal,internal,internal),
-        FUNCTION        4       rum_btree_consistent(internal,smallint,internal,int,internal,internal,internal,internal),
-        FUNCTION        5       rum_compare_prefix_timestamp(timestamp,timestamp,smallint,internal),
-        FUNCTION        6       rum_config_timestamp(internal),
+        FUNCTION        2       rum_timestamp_extract_value(timestamp,internal,internal,internal,internal),
+        FUNCTION        3       rum_timestamp_extract_query(timestamp,internal,smallint,internal,internal,internal,internal),
+        FUNCTION        4       rum_timestamp_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal),
+        FUNCTION        5       rum_timestamp_compare_prefix(timestamp,timestamp,smallint,internal),
+        FUNCTION        6       rum_timestamp_config(internal),
         -- support to timestamptz distance in rum_tsvector_timestamptz_ops
-        FUNCTION        9       rum_outer_distance_timestamp(timestamp, timestamp, smallint),
+        FUNCTION        9       rum_timestamp_outer_distance(timestamp, timestamp, smallint),
         OPERATOR        20      <=> (timestamptz,timestamptz) FOR ORDER BY pg_catalog.float_ops,
         OPERATOR        21      <=| (timestamptz,timestamptz) FOR ORDER BY pg_catalog.float_ops,
         OPERATOR        22      |=> (timestamptz,timestamptz) FOR ORDER BY pg_catalog.float_ops,

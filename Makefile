@@ -43,8 +43,8 @@ all: rum--1.1.sql
 rum--1.1.sql:  rum--1.0.sql rum--1.0--1.1.sql
 	cat rum--1.0.sql rum--1.0--1.1.sql > rum--1.1.sql
 
-rum--1.0--1.1.sql: Makefile gen_rum_sql.pl
-	perl gen_rum_sql.pl > rum--1.0--1.1.sql
+rum--1.0--1.1.sql: Makefile gen_rum_sql--1.0--1.1.pl
+	perl gen_rum_sql--1.0--1.1.pl > rum--1.0--1.1.sql
 
 install: installincludes
 

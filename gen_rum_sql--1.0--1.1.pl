@@ -2,17 +2,17 @@ use strict;
 use warnings;
 
 my $func_base_template=<<EOT;
-CREATE FUNCTION rum_extract_value_TYPEIDENT(TYPENAME, internal)
+CREATE FUNCTION rum_TYPEIDENT_extract_value(TYPENAME, internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
 
-CREATE FUNCTION rum_compare_prefix_TYPEIDENT(TYPENAME, TYPENAME, int2, internal)
+CREATE FUNCTION rum_TYPEIDENT_compare_prefix(TYPENAME, TYPENAME, int2, internal)
 RETURNS int4
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
 
-CREATE FUNCTION rum_extract_query_TYPEIDENT(TYPENAME, internal, int2, internal, internal)
+CREATE FUNCTION rum_TYPEIDENT_extract_query(TYPENAME, internal, int2, internal, internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
@@ -21,7 +21,7 @@ EOT
 
 my $opclass_base_template=<<EOT;
 
-CREATE OPERATOR CLASS TYPEIDENT_ops
+CREATE OPERATOR CLASS rum_TYPEIDENT_ops
 DEFAULT FOR TYPE TYPENAME USING rum
 AS
 	OPERATOR	1	  <	(TYPECMPTYPE, TYPECMPTYPE),
@@ -30,10 +30,10 @@ AS
 	OPERATOR	4	  >=(TYPECMPTYPE, TYPECMPTYPE),
 	OPERATOR	5	  >	(TYPECMPTYPE, TYPECMPTYPE),
 	FUNCTION	1	  TYPECMPFUNC(TYPECMPTYPE,TYPECMPTYPE),
-	FUNCTION	2	  rum_extract_value_TYPESUBIDENT(TYPESUBNAME, internal),
-	FUNCTION	3	  rum_extract_query_TYPESUBIDENT(TYPESUBNAME, internal, int2, internal, internal),
+	FUNCTION	2	  rum_TYPESUBIDENT_extract_value(TYPESUBNAME, internal),
+	FUNCTION	3	  rum_TYPESUBIDENT_extract_query(TYPESUBNAME, internal, int2, internal, internal),
 	FUNCTION	4	  rum_btree_consistent(internal,smallint,internal,int,internal,internal,internal,internal),
-	FUNCTION	5	  rum_compare_prefix_TYPESUBIDENT(TYPESUBNAME,TYPESUBNAME,int2, internal),
+	FUNCTION	5	  rum_TYPESUBIDENT_compare_prefix(TYPESUBNAME,TYPESUBNAME,int2, internal),
 STORAGE		 TYPENAME;
 
 EOT
@@ -184,6 +184,15 @@ EOT
 	},
 );
 
+##############Generate!!!
+
+print <<EOT;
+CREATE FUNCTION rum_btree_consistent(internal,smallint,internal,int,internal,internal,internal,internal)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE C STRICT IMMUTABLE;
+EOT
+
 foreach my $t (@opinfo)
 {
 	print	"/*--------------------$t->{TYPENAME}-----------------------*/\n\n";
@@ -204,3 +213,11 @@ foreach my $t (@opinfo)
 		print $x;
 	}
 }
+
+# Drop doesn't work
+#print <<EOT;
+#ALTER OPERATOR FAMILY rum_timestamp_ops USING rum DROP FUNCTION 4
+#	(timestamp, timestamp); -- strange definition
+#ALTER OPERATOR FAMILY rum_timestamp_ops USING rum ADD  FUNCTION 4
+#	rum_btree_consistent(internal,smallint,internal,int,internal,internal,internal,internal);
+#EOT

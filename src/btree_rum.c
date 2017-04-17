@@ -178,34 +178,35 @@ rum_btree_consistent(PG_FUNCTION_ARGS)
 	PG_RETURN_BOOL(true);
 }
 
+
 /*** RUM_SUPPORT macro defines the datatype specific functions ***/
 
 #define RUM_SUPPORT(type, is_varlena, leftmostvalue, typecmp)				\
-PG_FUNCTION_INFO_V1(rum_extract_value_##type);								\
+PG_FUNCTION_INFO_V1(rum_##type##_extract_value);							\
 Datum																		\
-rum_extract_value_##type(PG_FUNCTION_ARGS)									\
+rum_##type##_extract_value(PG_FUNCTION_ARGS)								\
 {																			\
 	return rum_btree_extract_value(fcinfo, is_varlena);						\
 }	\
-PG_FUNCTION_INFO_V1(rum_extract_query_##type);								\
+PG_FUNCTION_INFO_V1(rum_##type##_extract_query);							\
 Datum																		\
-rum_extract_query_##type(PG_FUNCTION_ARGS)									\
+rum_##type##_extract_query(PG_FUNCTION_ARGS)								\
 {																			\
 	return rum_btree_extract_query(fcinfo,									\
 								   is_varlena, leftmostvalue, typecmp);		\
 }	\
-PG_FUNCTION_INFO_V1(rum_compare_prefix_##type);								\
+PG_FUNCTION_INFO_V1(rum_##type##_compare_prefix);							\
 Datum																		\
-rum_compare_prefix_##type(PG_FUNCTION_ARGS)									\
+rum_##type##_compare_prefix(PG_FUNCTION_ARGS)								\
 {																			\
 	return rum_btree_compare_prefix(fcinfo);								\
 }
 
 #define RUM_SUPPORT_DIST(type, is_varlena, leftmostvalue, typecmp, isinfinite, subtract) \
 RUM_SUPPORT(type, is_varlena, leftmostvalue, typecmp)						\
-PG_FUNCTION_INFO_V1(rum_config_##type);										\
+PG_FUNCTION_INFO_V1(rum_##type##_config);									\
 Datum																		\
-rum_config_##type(PG_FUNCTION_ARGS)											\
+rum_##type##_config(PG_FUNCTION_ARGS)										\
 {																			\
 	RumConfig  *config = (RumConfig *) PG_GETARG_POINTER(0);				\
 																			\
@@ -221,9 +222,9 @@ rum_config_##type(PG_FUNCTION_ARGS)											\
 																			\
 	PG_RETURN_VOID();														\
 }	\
-PG_FUNCTION_INFO_V1(rum_distance_##type);									\
+PG_FUNCTION_INFO_V1(rum_##type##_distance);									\
 Datum																		\
-rum_distance_##type(PG_FUNCTION_ARGS)										\
+rum_##type##_distance(PG_FUNCTION_ARGS)										\
 {																			\
 	Datum	a = PG_GETARG_DATUM(0);											\
 	Datum	b = PG_GETARG_DATUM(1);											\
@@ -246,9 +247,9 @@ rum_distance_##type(PG_FUNCTION_ARGS)										\
 																			\
 	PG_RETURN_FLOAT8(diff);													\
 }																			\
-PG_FUNCTION_INFO_V1(rum_left_distance_##type);								\
+PG_FUNCTION_INFO_V1(rum_##type##_left_distance);							\
 Datum																		\
-rum_left_distance_##type(PG_FUNCTION_ARGS)									\
+rum_##type##_left_distance(PG_FUNCTION_ARGS)								\
 {																			\
 	Datum	a = PG_GETARG_DATUM(0);											\
 	Datum	b = PG_GETARG_DATUM(1);											\
@@ -271,9 +272,9 @@ rum_left_distance_##type(PG_FUNCTION_ARGS)									\
 																			\
 	PG_RETURN_FLOAT8(diff);													\
 }																			\
-PG_FUNCTION_INFO_V1(rum_right_distance_##type);								\
+PG_FUNCTION_INFO_V1(rum_##type##_right_distance);							\
 Datum																		\
-rum_right_distance_##type(PG_FUNCTION_ARGS)									\
+rum_##type##_right_distance(PG_FUNCTION_ARGS)								\
 {																			\
 	Datum	a = PG_GETARG_DATUM(0);											\
 	Datum	b = PG_GETARG_DATUM(1);											\
@@ -296,9 +297,9 @@ rum_right_distance_##type(PG_FUNCTION_ARGS)									\
 																			\
 	PG_RETURN_FLOAT8(diff);													\
 }																			\
-PG_FUNCTION_INFO_V1(rum_outer_distance_##type);								\
+PG_FUNCTION_INFO_V1(rum_##type##_outer_distance);							\
 Datum																		\
-rum_outer_distance_##type(PG_FUNCTION_ARGS)									\
+rum_##type##_outer_distance(PG_FUNCTION_ARGS)								\
 {																			\
 	StrategyNumber	strategy = PG_GETARG_UINT16(2);							\
 	Datum			diff;													\
@@ -306,17 +307,17 @@ rum_outer_distance_##type(PG_FUNCTION_ARGS)									\
 	switch (strategy)														\
 	{																		\
 		 case RUM_DISTANCE:													\
-			diff = DirectFunctionCall2(rum_distance_##type,					\
+			diff = DirectFunctionCall2(rum_##type##_distance,				\
 									   PG_GETARG_DATUM(0),					\
 									   PG_GETARG_DATUM(1));					\
 			break;															\
 		 case RUM_LEFT_DISTANCE:											\
-			diff = DirectFunctionCall2(rum_left_distance_##type,			\
+			diff = DirectFunctionCall2(rum_##type##_left_distance,			\
 									   PG_GETARG_DATUM(0),					\
 									   PG_GETARG_DATUM(1));					\
 			break;															\
 		 case RUM_RIGHT_DISTANCE:											\
-			diff = DirectFunctionCall2(rum_right_distance_##type,			\
+			diff = DirectFunctionCall2(rum_##type##_right_distance,			\
 									   PG_GETARG_DATUM(0),					\
 									   PG_GETARG_DATUM(1));					\
 			break;															\
@@ -613,3 +614,15 @@ leftmostvalue_numeric(void)
 }
 
 RUM_SUPPORT(numeric, true, leftmostvalue_numeric, rum_numeric_cmp)
+
+/* Compatibility with rum-1.0, but see gen_rum_sql--1.0--1.1.pl */
+PG_FUNCTION_INFO_V1(rum_timestamp_consistent);
+Datum
+rum_timestamp_consistent(PG_FUNCTION_ARGS)
+{
+	bool	*recheck = (bool *) PG_GETARG_POINTER(5);
+
+	*recheck = false;
+	PG_RETURN_BOOL(true);
+}
+
