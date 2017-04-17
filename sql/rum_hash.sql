@@ -7,7 +7,7 @@ CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_hash_ops);
 
 \copy test_rum(t) from 'data/rum.data';
 
-CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_timestamp_ops);
+CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_addon_ops);
 
 SET enable_seqscan=off;
 

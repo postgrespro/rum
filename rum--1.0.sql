@@ -243,6 +243,9 @@ RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
+/*
+ *	!!!deprecated, use rum_tsvector_hash_addon_ops!!!
+ */
 CREATE OPERATOR CLASS rum_tsvector_timestamp_ops
 FOR TYPE tsvector USING rum
 AS
@@ -258,6 +261,7 @@ AS
 
 /*
  * rum_tsvector_hash_timestamp_ops operator class
+ *	!!!deprecated, use rum_tsvector_hash_addon_ops!!!
  */
 
 CREATE OPERATOR CLASS rum_tsvector_hash_timestamp_ops
