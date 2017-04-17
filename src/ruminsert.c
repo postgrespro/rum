@@ -99,9 +99,9 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
  * are making a leaf-level key entry containing a posting list of nipd items.
  * If the caller is actually trying to make a posting-tree entry, non-leaf
  * entry, or pending-list entry, it should pass nipd = 0 and then overwrite
- * the t_tid fields as necessary.  In any case, ipd can be NULL to skip
+ * the t_tid fields as necessary.  In any case, items can be NULL to skip
  * copying any itempointers into the posting list; the caller is responsible
- * for filling the posting list afterwards, if ipd = NULL and nipd > 0.
+ * for filling the posting list afterwards, if items = NULL and nipd > 0.
  */
 static IndexTuple
 RumFormTuple(RumState * rumstate,
@@ -347,7 +347,6 @@ buildFreshLeafTuple(RumState * rumstate,
 
 		if (size >= RumDataPageSize)
 			itemsCount--;
-
 
 		/*
 		 * Build posting-tree-only result tuple.  We do this first so as to

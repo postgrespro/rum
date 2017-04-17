@@ -409,7 +409,7 @@ rumMergeItemPointers(RumState * rumstate, AttrNumber attno, RumKey * dst,
 
 /*
  * Checks, should we move to right link...
- * Compares inserting itemp pointer with right bound of current page
+ * Compares inserting item pointer with right bound of current page
  */
 static bool
 dataIsMoveRight(RumBtree btree, Page page)
@@ -909,7 +909,9 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				if (stopAppend)
 					 /* there is no free space on page */
 					break;
-				else if (RumPageRightMost(page))
+				else if (RumPageRightMost(page) ||
+						 /* Insert item in the end of the page */
+						 off > maxoff)
 					/* force insertion of new item */
 					cmp = 1;
 				else if ((cmp = compareRumKey(btree->rumstate, btree->entryAttnum,
@@ -1211,7 +1213,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	OffsetNumber separator;
 	RumKey*		bound;
 	Page		newlPage = PageGetTempPageCopy(BufferGetPage(lbuf));
-	RumKey		 oldbound = *RumDataPageGetRightBound(newlPage);
+	RumKey		oldbound = *RumDataPageGetRightBound(newlPage);
 	int			sizeofitem = sizeof(PostingItem);
 	OffsetNumber maxoff = RumPageGetOpaque(newlPage)->maxoff;
 	Size		pageSize = PageGetPageSize(newlPage);
