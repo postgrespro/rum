@@ -73,4 +73,3 @@ EXPLAIN (costs off)
 SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
 SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
 
-DROP TABLE atsts CASCADE;

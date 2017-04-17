@@ -279,10 +279,6 @@ AS
 	FUNCTION	7	rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
 	STORAGE	 text;
 
-/*
- * rum_tsvector_hash_timestamp_ops operator class
- */
-
 CREATE OPERATOR CLASS rum_tsvector_hash_addon_ops
 FOR TYPE tsvector USING rum
 AS
