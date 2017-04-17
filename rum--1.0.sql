@@ -200,7 +200,7 @@ RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
 
-CREATE FUNCTION rum_btree_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal)
+CREATE FUNCTION rum_btree_consistent(internal,smallint,internal,int,internal,internal,internal,internal)
 RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
@@ -222,7 +222,7 @@ AS
         FUNCTION        1       timestamp_cmp(timestamp,timestamp),
         FUNCTION        2       rum_extract_value_timestamp(timestamp,internal,internal,internal,internal),
         FUNCTION        3       rum_extract_query_timestamp(timestamp,internal,smallint,internal,internal,internal,internal),
-        FUNCTION        4       rum_btree_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal),
+        FUNCTION        4       rum_btree_consistent(internal,smallint,internal,int,internal,internal,internal,internal),
         FUNCTION        5       rum_compare_prefix_timestamp(timestamp,timestamp,smallint,internal),
         FUNCTION        6       rum_config_timestamp(internal),
         -- support to timestamp disttance in rum_tsvector_timestamp_ops
@@ -324,7 +324,7 @@ AS
         FUNCTION        1       timestamptz_cmp(timestamptz,timestamptz),
         FUNCTION        2       rum_extract_value_timestamp(timestamp,internal,internal,internal,internal),
         FUNCTION        3       rum_extract_query_timestamp(timestamp,internal,smallint,internal,internal,internal,internal),
-        FUNCTION        4       rum_btree_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal),
+        FUNCTION        4       rum_btree_consistent(internal,smallint,internal,int,internal,internal,internal,internal),
         FUNCTION        5       rum_compare_prefix_timestamp(timestamp,timestamp,smallint,internal),
         FUNCTION        6       rum_config_timestamp(internal),
         -- support to timestamptz distance in rum_tsvector_timestamptz_ops

@@ -19,7 +19,7 @@ REGRESS = rum rum_hash ruminv timestamp orderby orderby_hash altorder \
     macaddr inet cidr text varchar char bytea bit varbit \
     numeric
 
-EXTRA_CLEAN += rum--1.1.sql
+EXTRA_CLEAN += rum--1.1.sql rum--1.0--1.1.sql
 
 LDFLAGS_SL += $(filter -lm, $(LIBS))
 
@@ -43,6 +43,8 @@ all: rum--1.1.sql
 rum--1.1.sql:  rum--1.0.sql rum--1.0--1.1.sql
 	cat rum--1.0.sql rum--1.0--1.1.sql > rum--1.1.sql
 
+rum--1.0--1.1.sql: Makefile gen_rum_sql.pl
+	perl gen_rum_sql.pl > rum--1.0--1.1.sql
 
 install: installincludes
 
