@@ -619,6 +619,7 @@ typedef struct RumScanKeyData
 	bool		recheckCurItem;
 	bool		isFinished;
 	bool		orderBy;
+	bool		willSort; /* just a copy of RumScanOpaqueData.willSort */
 	ScanDirection	scanDirection;
 
 	RumScanKey	*addInfoKeys;
@@ -706,6 +707,7 @@ typedef struct RumScanOpaqueData
 	RumKey		key;
 	bool		firstCall;
 	bool		isVoidRes;		/* true if query is unsatisfiable */
+	bool		willSort;
 	RumScanType	scanType;
 	TIDBitmap  *tbm;
 
