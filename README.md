@@ -59,6 +59,9 @@ Typical installation procedure may look like this:
 | timestamp &lt;=&#124; timestamp | float8 | Returns distance only for left timestamps.
 | timestamp &#124;=&gt; timestamp | float8 | Returns distance only for right timestamps.
 
+Last three operations also works for types int2, int4, int8, float4, float8,
+money and oid.
+
 ## Operator classes
 
 **rum** provides next operator classes.
@@ -128,27 +131,25 @@ For type: `tsvector`
 This operator class stores hash of `tsvector` lexemes with positional information.
 Supports ordering by `<=>` operator. But **doesn't** support prefix search.
 
-### rum_timestamp_ops
+### rum_TYPE_ops
 
-For type: `timestamp`
+For types: int2, int4, int8, float4, float8, money, oid, time, timetz, date,
+interval, macaddr, inet, cidr, text, varchar, char, bytea, bit, varbit,
+numeric, timestamp, timestamptz
 
-Operator class provides fast search and ordering by timestamp fields. Supports
-ordering by `<=>`, `<=|` and `|=>` operators. Can be used with
-`rum_tsvector_timestamp_ops` operator class.
+Supported operations: `<`, `<=`, `=`, `>=`, `>` for all types and
+`<=>`, `<=|` and `|=>` for int2, int4, int8, float4, float8, money, oid,
+timestamp and timestamptz types. 
 
-### rum_timestamptz_ops
+Supports ordering by `<=>`, `<=|` and `|=>` operators. Can be used with
+`rum_tsvector_addon_ops` operator class.
 
-For type: `timestamptz`
-
-Operator class provides fast search and ordering by timestamptz fields. Supports
-ordering by `<=>`, `<=|` and `|=>` operators. Can be used with
-`rum_tsvector_timestamptz_ops` operator class.
-
-### rum_tsvector_timestamp_ops
+### rum_tsvector_addon_ops
 
 For type: `tsvector`
 
-This operator class stores `tsvector` lexems with timestamp field. There is the example.
+This operator class stores `tsvector` lexems with any supported by module
+field. There is the example.
 
 Let us assume we have the table:
 ```sql
@@ -156,7 +157,7 @@ CREATE TABLE tsts (id int, t tsvector, d timestamp);
 
 \copy tsts from 'rum/data/tsts.data'
 
-CREATE INDEX tsts_idx ON tsts USING rum (t rum_tsvector_timestamp_ops, d)
+CREATE INDEX tsts_idx ON tsts USING rum (t rum_tsvector_addon_ops, d)
     WITH (attach = 'd', to = 't');
 ```
 
@@ -183,24 +184,13 @@ SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY 
 (5 rows)
 ```
 
-### rum_tsvector_timestamptz_ops
+### rum_tsvector_hash_addon_ops
 
 For type: `tsvector`
 
-See comments for `rum_tsvector_timestamp_ops` operator class.
+This operator class stores hash of `tsvector` lexems with any supported by module
+field.
 
-### rum_tsvector_hash_timestamp_ops
-
-For type: `tsvector`
-
-This operator class stores hash of `tsvector` lexems with timestamp field.
-**Doesn't** support prefix search.
-
-### rum_tsvector_hash_timestamptz_ops
-
-For type: `tsvector`
-
-This operator class stores hash of `tsvector` lexems with timestamptz field.
 **Doesn't** support prefix search.
 
 ### rum_tsquery_ops

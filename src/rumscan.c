@@ -170,6 +170,8 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 			elog(ERROR, "extractQuery should return only one value for ordering");
 		if (rumstate->canOuterOrdering[attnum - 1] == false)
 			elog(ERROR, "doesn't support ordering as additional info");
+		if (rumstate->origTupdesc->attrs[rumstate->attrnOrderByColumn - 1]->attbyval == false)
+			elog(ERROR, "doesn't support order by over pass-by-reference column");
 
 		key->useAddToColumn = true;
 		key->attnum = rumstate->attrnAddToColumn;
@@ -182,6 +184,8 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 		key->entryRes = NULL;
 		key->addInfo = NULL;
 		key->addInfoIsNull = NULL;
+
+		so->willSort = true;
 
 		return;
 	}
@@ -526,6 +530,7 @@ rumNewScanKey(IndexScanDesc scan)
 	so->tbm = NULL;
 	so->entriesIncrIndex = -1;
 	so->norderbys = scan->numberOfOrderBys;
+	so->willSort = false;
 
 	/*
 	 * Allocate all the scan key information in the key context. (If
@@ -590,6 +595,8 @@ rumNewScanKey(IndexScanDesc scan)
 			if (key->attnumOrig == so->rumstate.attrnOrderByColumn)
 				 hasAddOnFilter |= haofHasAddOnRestriction;
 		}
+
+		key->willSort = so->willSort;
 	}
 
 	if ((hasAddOnFilter & haofHasAddToRestriction) &&

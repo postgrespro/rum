@@ -5,7 +5,7 @@ BEFORE UPDATE OR INSERT ON test_rum
 FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('a', 'pg_catalog.english', 't');
 CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 \copy test_rum(t) from 'data/rum.data';
-CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_timestamp_ops);
+CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_addon_ops);
 ERROR:  additional information attribute "a" is not found in index
 SET enable_seqscan=off;
 explain (costs off)
@@ -350,5 +350,3 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'b:*'), *
   16.4493 | the few that escaped destruction in 1693. It is a beautiful, highly      | '1693':7 'beauti':11 'destruct':5 'escap':4 'high':12
 (20 rows)
 
-DROP TABLE test_rum CASCADE;
-DROP TABLE tst CASCADE;

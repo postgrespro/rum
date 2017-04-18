@@ -1,0 +1,309 @@
+set enable_seqscan=off;
+CREATE TABLE test_text (
+	i text
+);
+INSERT INTO test_text VALUES ('a'),('ab'),('abc'),('abb'),('axy'),('xyz');
+CREATE INDEX idx_text ON test_text USING rum (i);
+SELECT * FROM test_text WHERE i<'abc' ORDER BY i;
+  i  
+-----
+ a
+ ab
+ abb
+(3 rows)
+
+SELECT * FROM test_text WHERE i<='abc' ORDER BY i;
+  i  
+-----
+ a
+ ab
+ abb
+ abc
+(4 rows)
+
+SELECT * FROM test_text WHERE i='abc' ORDER BY i;
+  i  
+-----
+ abc
+(1 row)
+
+SELECT * FROM test_text WHERE i>='abc' ORDER BY i;
+  i  
+-----
+ abc
+ axy
+ xyz
+(3 rows)
+
+SELECT * FROM test_text WHERE i>'abc' ORDER BY i;
+  i  
+-----
+ axy
+ xyz
+(2 rows)
+
+CREATE TABLE test_text_o AS SELECT id::text, t FROM tsts;
+SELECT id FROM test_text_o WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
+ id  
+-----
+ 135
+ 16
+ 168
+ 232
+ 252
+ 354
+ 355
+ 371
+ 39
+(9 rows)
+
+SELECT id FROM test_text_o WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
+ id  
+-----
+ 406
+ 415
+ 428
+ 457
+ 458
+ 484
+ 496
+ 71
+(8 rows)
+
+CREATE INDEX test_text_o_idx ON test_text_o USING rum
+    (t rum_tsvector_addon_ops, id)
+    WITH (attach = 'id', to = 't');
+RESET enable_indexscan;
+RESET enable_indexonlyscan;
+SET enable_bitmapscan=OFF;
+SET enable_seqscan = off;
+EXPLAIN (costs off)
+SELECT id FROM test_text_o WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_text_o_idx on test_text_o
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::text))
+(4 rows)
+
+SELECT id FROM test_text_o WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
+ id  
+-----
+ 135
+ 16
+ 168
+ 232
+ 252
+ 354
+ 355
+ 371
+ 39
+(9 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_text_o WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_text_o_idx on test_text_o
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::text))
+(4 rows)
+
+SELECT id FROM test_text_o WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
+ id  
+-----
+ 406
+ 415
+ 428
+ 457
+ 458
+ 484
+ 496
+ 71
+(8 rows)
+
+CREATE TABLE test_text_a AS SELECT id::text, t FROM tsts;
+CREATE INDEX test_text_a_idx ON test_text_a USING rum
+	(t rum_tsvector_addon_ops, id)
+	WITH (attach = 'id', to = 't', order_by_attach='t');
+EXPLAIN (costs off)
+SELECT count(*) FROM test_text_a WHERE id < '400';
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Aggregate
+   ->  Index Scan using test_text_a_idx on test_text_a
+         Index Cond: (id < '400'::text)
+(3 rows)
+
+SELECT count(*) FROM test_text_a WHERE id < '400';
+ count 
+-------
+   337
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_text_a_idx on test_text_a
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::text))
+(4 rows)
+
+SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
+ id  
+-----
+ 135
+ 16
+ 168
+ 232
+ 252
+ 354
+ 355
+ 371
+ 39
+(9 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_text_a_idx on test_text_a
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::text))
+(4 rows)
+
+SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
+ id  
+-----
+ 406
+ 415
+ 428
+ 457
+ 458
+ 484
+ 496
+ 71
+(8 rows)
+
+CREATE TABLE test_text_h_o AS SELECT id::text, t FROM tsts;
+CREATE INDEX test_text_h_o_idx ON test_text_h_o USING rum
+	(t rum_tsvector_hash_addon_ops, id)
+	WITH (attach = 'id', to = 't');
+EXPLAIN (costs off)
+SELECT id FROM test_text_h_o WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_text_h_o_idx on test_text_h_o
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::text))
+(4 rows)
+
+SELECT id FROM test_text_h_o WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
+ id  
+-----
+ 135
+ 16
+ 168
+ 232
+ 252
+ 354
+ 355
+ 371
+ 39
+(9 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_text_h_o WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_text_h_o_idx on test_text_h_o
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::text))
+(4 rows)
+
+SELECT id FROM test_text_h_o WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
+ id  
+-----
+ 406
+ 415
+ 428
+ 457
+ 458
+ 484
+ 496
+ 71
+(8 rows)
+
+CREATE TABLE test_text_h_a AS SELECT id::text, t FROM tsts;
+CREATE INDEX test_text_h_a_idx ON test_text_h_a USING rum
+	(t rum_tsvector_hash_addon_ops, id)
+	WITH (attach = 'id', to = 't', order_by_attach='t');
+EXPLAIN (costs off)
+SELECT count(*) FROM test_text_h_a WHERE id < '400';
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Aggregate
+   ->  Index Scan using test_text_h_a_idx on test_text_h_a
+         Index Cond: (id < '400'::text)
+(3 rows)
+
+SELECT count(*) FROM test_text_h_a WHERE id < '400';
+ count 
+-------
+   337
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_text_h_a_idx on test_text_h_a
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::text))
+(4 rows)
+
+SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
+ id  
+-----
+ 135
+ 16
+ 168
+ 232
+ 252
+ 354
+ 355
+ 371
+ 39
+(9 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
+                                   QUERY PLAN                                    
+---------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_text_h_a_idx on test_text_h_a
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::text))
+(4 rows)
+
+SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
+ id  
+-----
+ 406
+ 415
+ 428
+ 457
+ 458
+ 484
+ 496
+ 71
+(8 rows)
+

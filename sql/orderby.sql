@@ -2,7 +2,7 @@ CREATE TABLE tsts (id int, t tsvector, d timestamp);
 
 \copy tsts from 'data/tsts.data'
 
-CREATE INDEX tsts_idx ON tsts USING rum (t rum_tsvector_timestamp_ops, d)
+CREATE INDEX tsts_idx ON tsts USING rum (t rum_tsvector_addon_ops, d)
 	WITH (attach = 'd', to = 't');
 
 
@@ -77,4 +77,3 @@ SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER 
 SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d ASC LIMIT 3;
 SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d DESC LIMIT 3;
 
-DROP TABLE tsts CASCADE;

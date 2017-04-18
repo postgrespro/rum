@@ -9,7 +9,7 @@ CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 
 \copy test_rum(t) from 'data/rum.data';
 
-CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_timestamp_ops);
+CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_addon_ops);
 
 SET enable_seqscan=off;
 
@@ -115,5 +115,3 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'b:*'), *
 	WHERE a @@ to_tsquery('pg_catalog.english', 'b:*')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'b:*');
 
-DROP TABLE test_rum CASCADE;
-DROP TABLE tst CASCADE;

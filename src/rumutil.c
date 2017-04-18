@@ -345,13 +345,6 @@ initRumState(RumState * state, Relation index)
 		else
 			state->supportCollation[i] = DEFAULT_COLLATION_OID;
 	}
-
-	if (AttributeNumberIsValid(state->attrnOrderByColumn))
-	{
-		/* Follow FIXME comment(s) to understand */
-		if (origTupdesc->attrs[state->attrnOrderByColumn - 1]->attbyval == false)
-			elog(ERROR, "currently, RUM doesn't support order by over pass-by-reference column");
-	}
 }
 
 /*

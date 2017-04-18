@@ -1,0 +1,650 @@
+set enable_seqscan=off;
+CREATE TABLE test_int8 (
+	i int8
+);
+INSERT INTO test_int8 VALUES (-2),(-1),(0),(1),(2),(3);
+CREATE INDEX idx_int8 ON test_int8 USING rum (i);
+SELECT * FROM test_int8 WHERE i<1::int8 ORDER BY i;
+ i  
+----
+ -2
+ -1
+  0
+(3 rows)
+
+SELECT * FROM test_int8 WHERE i<=1::int8 ORDER BY i;
+ i  
+----
+ -2
+ -1
+  0
+  1
+(4 rows)
+
+SELECT * FROM test_int8 WHERE i=1::int8 ORDER BY i;
+ i 
+---
+ 1
+(1 row)
+
+SELECT * FROM test_int8 WHERE i>=1::int8 ORDER BY i;
+ i 
+---
+ 1
+ 2
+ 3
+(3 rows)
+
+SELECT * FROM test_int8 WHERE i>1::int8 ORDER BY i;
+ i 
+---
+ 2
+ 3
+(2 rows)
+
+CREATE TABLE test_int8_o AS SELECT id::int8, t FROM tsts;
+CREATE INDEX test_int8_o_idx ON test_int8_o USING rum
+	(t rum_tsvector_addon_ops, id)
+	WITH (attach = 'id', to = 't');
+RESET enable_seqscan;
+SET enable_indexscan=OFF;
+SET enable_indexonlyscan=OFF;
+SET enable_bitmapscan=OFF;
+SELECT id, id <=> 400 FROM test_int8_o WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 371 |       29
+ 355 |       45
+(5 rows)
+
+SELECT id, id <=| 400 FROM test_int8_o WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 371 |       29
+ 355 |       45
+ 354 |       46
+ 252 |      148
+ 232 |      168
+(5 rows)
+
+SELECT id, id |=> 400 FROM test_int8_o WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 457 |       57
+ 458 |       58
+(5 rows)
+
+SELECT id FROM test_int8_o WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
+ id  
+-----
+  16
+  39
+  71
+ 135
+ 168
+ 232
+ 252
+ 354
+ 355
+ 371
+(10 rows)
+
+SELECT id FROM test_int8_o WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
+ id  
+-----
+ 406
+ 415
+ 428
+ 457
+ 458
+ 484
+ 496
+(7 rows)
+
+RESET enable_indexscan;
+RESET enable_indexonlyscan;
+RESET enable_bitmapscan;
+SET enable_seqscan = off;
+EXPLAIN (costs off)
+SELECT id, id <=> 400 FROM test_int8_o WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_o_idx on test_int8_o
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id <=> '400'::bigint)
+(4 rows)
+
+SELECT id, id <=> 400 FROM test_int8_o WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 371 |       29
+ 355 |       45
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, id <=| 400 FROM test_int8_o WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_o_idx on test_int8_o
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id <=| '400'::bigint)
+(4 rows)
+
+SELECT id, id <=| 400 FROM test_int8_o WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 371 |       29
+ 355 |       45
+ 354 |       46
+ 252 |      148
+ 232 |      168
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, id |=> 400 FROM test_int8_o WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_o_idx on test_int8_o
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id |=> '400'::bigint)
+(4 rows)
+
+SELECT id, id |=> 400 FROM test_int8_o WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 457 |       57
+ 458 |       58
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_int8_o WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_int8_o_idx on test_int8_o
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::bigint))
+(4 rows)
+
+SELECT id FROM test_int8_o WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
+ id  
+-----
+  16
+  39
+  71
+ 135
+ 168
+ 232
+ 252
+ 354
+ 355
+ 371
+(10 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_int8_o WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_int8_o_idx on test_int8_o
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::bigint))
+(4 rows)
+
+SELECT id FROM test_int8_o WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
+ id  
+-----
+ 406
+ 415
+ 428
+ 457
+ 458
+ 484
+ 496
+(7 rows)
+
+CREATE TABLE test_int8_a AS SELECT id::int8, t FROM tsts;
+CREATE INDEX test_int8_a_idx ON test_int8_a USING rum
+	(t rum_tsvector_addon_ops, id)
+	WITH (attach = 'id', to = 't', order_by_attach='t');
+SET enable_bitmapscan=OFF;
+EXPLAIN (costs off)
+SELECT count(*) FROM test_int8_a WHERE id < 400::int8;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Aggregate
+   ->  Index Scan using test_int8_a_idx on test_int8_a
+         Index Cond: (id < '400'::bigint)
+(3 rows)
+
+SELECT count(*) FROM test_int8_a WHERE id < 400::int8;
+ count 
+-------
+   401
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id, id <=> 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_a_idx on test_int8_a
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id <=> '400'::bigint)
+(4 rows)
+
+SELECT id, id <=> 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 371 |       29
+ 355 |       45
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, id <=| 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_a_idx on test_int8_a
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id <=| '400'::bigint)
+(4 rows)
+
+SELECT id, id <=| 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 371 |       29
+ 355 |       45
+ 354 |       46
+ 252 |      148
+ 232 |      168
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, id |=> 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
+                      QUERY PLAN                       
+-------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_a_idx on test_int8_a
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id |=> '400'::bigint)
+(4 rows)
+
+SELECT id, id |=> 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 457 |       57
+ 458 |       58
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_int8_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_int8_a_idx on test_int8_a
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::bigint))
+(4 rows)
+
+SELECT id FROM test_int8_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
+ id  
+-----
+  16
+  39
+  71
+ 135
+ 168
+ 232
+ 252
+ 354
+ 355
+ 371
+(10 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_int8_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_int8_a_idx on test_int8_a
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::bigint))
+(4 rows)
+
+SELECT id FROM test_int8_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
+ id  
+-----
+ 406
+ 415
+ 428
+ 457
+ 458
+ 484
+ 496
+(7 rows)
+
+CREATE TABLE test_int8_h_o AS SELECT id::int8, t FROM tsts;
+CREATE INDEX test_int8_h_o_idx ON test_int8_h_o USING rum
+	(t rum_tsvector_hash_addon_ops, id)
+	WITH (attach = 'id', to = 't');
+RESET enable_seqscan;
+SET enable_indexscan=OFF;
+SET enable_indexonlyscan=OFF;
+SET enable_bitmapscan=OFF;
+SELECT id, id <=> 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 371 |       29
+ 355 |       45
+(5 rows)
+
+SELECT id, id <=| 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 371 |       29
+ 355 |       45
+ 354 |       46
+ 252 |      148
+ 232 |      168
+(5 rows)
+
+SELECT id, id |=> 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 457 |       57
+ 458 |       58
+(5 rows)
+
+SELECT id FROM test_int8_h_o WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
+ id  
+-----
+  16
+  39
+  71
+ 135
+ 168
+ 232
+ 252
+ 354
+ 355
+ 371
+(10 rows)
+
+SELECT id FROM test_int8_h_o WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
+ id  
+-----
+ 406
+ 415
+ 428
+ 457
+ 458
+ 484
+ 496
+(7 rows)
+
+RESET enable_indexscan;
+RESET enable_indexonlyscan;
+RESET enable_bitmapscan;
+SET enable_seqscan = off;
+EXPLAIN (costs off)
+SELECT id, id <=> 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_h_o_idx on test_int8_h_o
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id <=> '400'::bigint)
+(4 rows)
+
+SELECT id, id <=> 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 371 |       29
+ 355 |       45
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, id <=| 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_h_o_idx on test_int8_h_o
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id <=| '400'::bigint)
+(4 rows)
+
+SELECT id, id <=| 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 371 |       29
+ 355 |       45
+ 354 |       46
+ 252 |      148
+ 232 |      168
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, id |=> 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_h_o_idx on test_int8_h_o
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id |=> '400'::bigint)
+(4 rows)
+
+SELECT id, id |=> 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 457 |       57
+ 458 |       58
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_int8_h_o WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_int8_h_o_idx on test_int8_h_o
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::bigint))
+(4 rows)
+
+SELECT id FROM test_int8_h_o WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
+ id  
+-----
+  16
+  39
+  71
+ 135
+ 168
+ 232
+ 252
+ 354
+ 355
+ 371
+(10 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_int8_h_o WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_int8_h_o_idx on test_int8_h_o
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::bigint))
+(4 rows)
+
+SELECT id FROM test_int8_h_o WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
+ id  
+-----
+ 406
+ 415
+ 428
+ 457
+ 458
+ 484
+ 496
+(7 rows)
+
+CREATE TABLE test_int8_h_a AS SELECT id::int8, t FROM tsts;
+CREATE INDEX test_int8_h_a_idx ON test_int8_h_a USING rum
+	(t rum_tsvector_hash_addon_ops, id)
+	WITH (attach = 'id', to = 't', order_by_attach='t');
+SET enable_bitmapscan=OFF;
+EXPLAIN (costs off)
+SELECT count(*) FROM test_int8_h_a WHERE id < 400::int8;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Aggregate
+   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
+         Index Cond: (id < '400'::bigint)
+(3 rows)
+
+SELECT count(*) FROM test_int8_h_a WHERE id < 400::int8;
+ count 
+-------
+   401
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id, id <=> 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id <=> '400'::bigint)
+(4 rows)
+
+SELECT id, id <=> 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 371 |       29
+ 355 |       45
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, id <=| 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id <=| '400'::bigint)
+(4 rows)
+
+SELECT id, id <=| 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 371 |       29
+ 355 |       45
+ 354 |       46
+ 252 |      148
+ 232 |      168
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id, id |=> 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
+                        QUERY PLAN                         
+-----------------------------------------------------------
+ Limit
+   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (id |=> '400'::bigint)
+(4 rows)
+
+SELECT id, id |=> 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 457 |       57
+ 458 |       58
+(5 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::bigint))
+(4 rows)
+
+SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
+ id  
+-----
+  16
+  39
+  71
+ 135
+ 168
+ 232
+ 252
+ 354
+ 355
+ 371
+(10 rows)
+
+EXPLAIN (costs off)
+SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Sort
+   Sort Key: id
+   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::bigint))
+(4 rows)
+
+SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
+ id  
+-----
+ 406
+ 415
+ 428
+ 457
+ 458
+ 484
+ 496
+(7 rows)
+

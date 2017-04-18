@@ -1,6 +1,6 @@
 CREATE TABLE atsts (id int, t tsvector, d timestamp);
 \copy atsts from 'data/tsts.data'
-CREATE INDEX atsts_idx ON atsts USING rum (t rum_tsvector_timestamp_ops, d)
+CREATE INDEX atsts_idx ON atsts USING rum (t rum_tsvector_addon_ops, d)
 	WITH (attach = 'd', to = 't', order_by_attach='t');
 INSERT INTO atsts VALUES (-1, 't1 t2',  '2016-05-02 02:24:22.326724'); 
 INSERT INTO atsts VALUES (-2, 't1 t2 t3',  '2016-05-02 02:26:22.326724'); 
@@ -323,4 +323,3 @@ SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER
  496 | Sun May 22 11:21:22.326724 2016
 (8 rows)
 
-DROP TABLE atsts CASCADE;

@@ -1,114 +1,114 @@
-CREATE TABLE test_rum( t text, a tsvector );
+CREATE TABLE test_rum_hash( t text, a tsvector );
 CREATE TRIGGER tsvectorupdate
-BEFORE UPDATE OR INSERT ON test_rum
+BEFORE UPDATE OR INSERT ON test_rum_hash
 FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('a', 'pg_catalog.english', 't');
-CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_hash_ops);
-\copy test_rum(t) from 'data/rum.data';
-CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_timestamp_ops);
+CREATE INDEX rumhashidx ON test_rum_hash USING rum (a rum_tsvector_hash_ops);
+\copy test_rum_hash(t) from 'data/rum.data';
+CREATE INDEX failed_rumidx ON test_rum_hash USING rum (a rum_tsvector_addon_ops);
 ERROR:  additional information attribute "a" is not found in index
 SET enable_seqscan=off;
 explain (costs off)
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
                             QUERY PLAN                            
 ------------------------------------------------------------------
  Aggregate
-   ->  Bitmap Heap Scan on test_rum
+   ->  Bitmap Heap Scan on test_rum_hash
          Recheck Cond: (a @@ '''ever'' | ''wrote'''::tsquery)
-         ->  Bitmap Index Scan on rumidx
+         ->  Bitmap Index Scan on rumhashidx
                Index Cond: (a @@ '''ever'' | ''wrote'''::tsquery)
 (5 rows)
 
 explain (costs off)
-SELECT * FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote')
+SELECT * FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote')
 ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
                             QUERY PLAN                            
 ------------------------------------------------------------------
  Sort
    Sort Key: ((a <=> '''ever'' | ''wrote'''::tsquery))
-   ->  Bitmap Heap Scan on test_rum
+   ->  Bitmap Heap Scan on test_rum_hash
          Recheck Cond: (a @@ '''ever'' | ''wrote'''::tsquery)
-         ->  Bitmap Index Scan on rumidx
+         ->  Bitmap Index Scan on rumhashidx
                Index Cond: (a @@ '''ever'' | ''wrote'''::tsquery)
 (6 rows)
 
 explain (costs off)
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
                         QUERY PLAN                         
 -----------------------------------------------------------
  Aggregate
-   ->  Index Scan using rumidx on test_rum
+   ->  Index Scan using rumhashidx on test_rum_hash
          Index Cond: (a @@ '''def'' <-> ''fgr'''::tsquery)
 (3 rows)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
  count 
 -------
      2
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'have&wish');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'have&wish');
  count 
 -------
      1
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'knew&brain');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'knew&brain');
  count 
 -------
      0
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'among');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'among');
  count 
 -------
      1
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'structure&ancient');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'structure&ancient');
  count 
 -------
      1
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(complimentary|sight)&(sending|heart)');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', '(complimentary|sight)&(sending|heart)');
  count 
 -------
      2
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(gave | half) <-> way');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', '(gave | half) <-> way');
  count 
 -------
      2
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '(gave | !half) <-> way');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', '(gave | !half) <-> way');
  count 
 -------
      3
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '!gave & way');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', '!gave & way');
  count 
 -------
      3
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '!gave & wooded & !look');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', '!gave & wooded & !look');
  count 
 -------
      1
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
  count 
 -------
      1
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <2> fgr');
  count 
 -------
@@ -116,7 +116,7 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 (1 row)
 
 SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *
-	FROM test_rum
+	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
  rum_ts_distance |                                    t                                     |                               a                               
@@ -128,7 +128,7 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *
 (4 rows)
 
 SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')), *
-	FROM test_rum
+	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
  rum_ts_distance |                                  t                                  |                            a                            
@@ -141,7 +141,7 @@ SELECT
 	a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
 	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
 	*
-	FROM test_rum
+	FROM test_rum_hash
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
  ?column? | rum_ts_distance |                                  t                                  |                            a                            
 ----------+-----------------+---------------------------------------------------------------------+---------------------------------------------------------
@@ -151,7 +151,7 @@ SELECT
 
 -- Check ranking normalization
 SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0), *
-	FROM test_rum
+	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
  rum_ts_distance |                                    t                                     |                               a                               
@@ -163,7 +163,7 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0), *
 (4 rows)
 
 SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query), *
-	FROM test_rum
+	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
  rum_ts_distance |                                  t                                  |                            a                            
@@ -172,42 +172,42 @@ SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half
          57.5727 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (2 rows)
 
-INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');
-INSERT INTO test_rum (t) VALUES ('345 qwerty copyright');
-INSERT INTO test_rum (t) VALUES ('345 qwerty');
-INSERT INTO test_rum (t) VALUES ('A fat cat has just eaten a rat.');
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'bar');
+INSERT INTO test_rum_hash (t) VALUES ('foo bar foo the over foo qq bar');
+INSERT INTO test_rum_hash (t) VALUES ('345 qwerty copyright');
+INSERT INTO test_rum_hash (t) VALUES ('345 qwerty');
+INSERT INTO test_rum_hash (t) VALUES ('A fat cat has just eaten a rat.');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'bar');
  count 
 -------
      1
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'qwerty&345');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'qwerty&345');
  count 
 -------
      2
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', '345');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', '345');
  count 
 -------
      2
 (1 row)
 
-SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'rat');
+SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'rat');
  count 
 -------
      1
 (1 row)
 
-SELECT a FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'bar') ORDER BY a;
+SELECT a FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'bar') ORDER BY a;
               a               
 ------------------------------
  'bar':2,8 'foo':1,3,6 'qq':7
 (1 row)
 
 -- Check full-index scan with order by
-SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') FROM test_rum ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
+SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') FROM test_rum_hash ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
  ?column? 
 ----------
   16.4493
@@ -268,41 +268,39 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') FROM test_rum ORDER 
  Infinity
 (56 rows)
 
-CREATE TABLE tst (i int4, t tsvector);
-INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(1,100000) i;
-CREATE INDEX tstidx ON tst USING rum (t rum_tsvector_hash_ops);
-DELETE FROM tst WHERE i = 1;
-VACUUM tst;
-INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(10001,11000) i;
-DELETE FROM tst WHERE i = 2;
-VACUUM tst;
-INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(11001,12000) i;
-DELETE FROM tst WHERE i = 3;
-VACUUM tst;
-INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(12001,13000) i;
-DELETE FROM tst WHERE i = 4;
-VACUUM tst;
-INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(13001,14000) i;
-DELETE FROM tst WHERE i = 5;
-VACUUM tst;
-INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(14001,15000) i;
+CREATE TABLE tst_hash (i int4, t tsvector);
+INSERT INTO tst_hash SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(1,100000) i;
+CREATE INDEX tst_hashidx ON tst_hash USING rum (t rum_tsvector_hash_ops);
+DELETE FROM tst_hash WHERE i = 1;
+VACUUM tst_hash;
+INSERT INTO tst_hash SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(10001,11000) i;
+DELETE FROM tst_hash WHERE i = 2;
+VACUUM tst_hash;
+INSERT INTO tst_hash SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(11001,12000) i;
+DELETE FROM tst_hash WHERE i = 3;
+VACUUM tst_hash;
+INSERT INTO tst_hash SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(12001,13000) i;
+DELETE FROM tst_hash WHERE i = 4;
+VACUUM tst_hash;
+INSERT INTO tst_hash SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(13001,14000) i;
+DELETE FROM tst_hash WHERE i = 5;
+VACUUM tst_hash;
+INSERT INTO tst_hash SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(14001,15000) i;
 set enable_bitmapscan=off;
 explain (costs off)
 SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
-	FROM test_rum
+	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
-               QUERY PLAN                
------------------------------------------
- Index Scan using rumidx on test_rum
+                  QUERY PLAN                  
+----------------------------------------------
+ Index Scan using rumhashidx on test_rum_hash
    Index Cond: (a @@ '''w'':*'::tsquery)
    Order By: (a <=> '''w'':*'::tsquery)
 (3 rows)
 
 SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
-	FROM test_rum
+	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
 ERROR:  Compare with prefix expressions isn't supported
-DROP TABLE test_rum CASCADE;
-DROP TABLE tst CASCADE;
