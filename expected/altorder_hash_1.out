@@ -204,15 +204,7 @@ SELECT id, d, d <=> '2016-05-16 14:21:25' FROM atstsh WHERE t @@ 'wr&qh' ORDER B
 (5 rows)
 
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM atstsh WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
- id  |                d                |   ?column?    
------+---------------------------------+---------------
- 355 | Mon May 16 14:21:22.326724 2016 |      2.673276
- 354 | Mon May 16 13:21:22.326724 2016 |   3602.673276
- 371 | Tue May 17 06:21:22.326724 2016 |  57597.326724
- 406 | Wed May 18 17:21:22.326724 2016 | 183597.326724
- 415 | Thu May 19 02:21:22.326724 2016 | 215997.326724
-(5 rows)
-
+ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
 SELECT id, d, d <=| '2016-05-16 14:21:25' FROM atstsh WHERE t @@ 'wr&qh' ORDER BY d <=| '2016-05-16 14:21:25' LIMIT 5;
                                      QUERY PLAN                                      
@@ -225,15 +217,7 @@ SELECT id, d, d <=| '2016-05-16 14:21:25' FROM atstsh WHERE t @@ 'wr&qh' ORDER B
 (5 rows)
 
 SELECT id, d, d <=| '2016-05-16 14:21:25' FROM atstsh WHERE t @@ 'wr&qh' ORDER BY d <=| '2016-05-16 14:21:25' LIMIT 5;
- id  |                d                |   ?column?    
------+---------------------------------+---------------
- 355 | Mon May 16 14:21:22.326724 2016 |      2.673276
- 354 | Mon May 16 13:21:22.326724 2016 |   3602.673276
- 252 | Thu May 12 07:21:22.326724 2016 | 370802.673276
- 232 | Wed May 11 11:21:22.326724 2016 | 442802.673276
- 168 | Sun May 08 19:21:22.326724 2016 | 673202.673276
-(5 rows)
-
+ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
 SELECT id, d, d |=> '2016-05-16 14:21:25' FROM atstsh WHERE t @@ 'wr&qh' ORDER BY d |=> '2016-05-16 14:21:25' LIMIT 5;
                                      QUERY PLAN                                      
@@ -246,15 +230,7 @@ SELECT id, d, d |=> '2016-05-16 14:21:25' FROM atstsh WHERE t @@ 'wr&qh' ORDER B
 (5 rows)
 
 SELECT id, d, d |=> '2016-05-16 14:21:25' FROM atstsh WHERE t @@ 'wr&qh' ORDER BY d |=> '2016-05-16 14:21:25' LIMIT 5;
- id  |                d                |   ?column?    
------+---------------------------------+---------------
- 371 | Tue May 17 06:21:22.326724 2016 |  57597.326724
- 406 | Wed May 18 17:21:22.326724 2016 | 183597.326724
- 415 | Thu May 19 02:21:22.326724 2016 | 215997.326724
- 428 | Thu May 19 15:21:22.326724 2016 | 262797.326724
- 457 | Fri May 20 20:21:22.326724 2016 | 367197.326724
-(5 rows)
-
+ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM atstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
                                      QUERY PLAN                                      
@@ -266,15 +242,7 @@ SELECT id, d, d <=> '2016-05-16 14:21:25' FROM atstsh ORDER BY d <=> '2016-05-16
 (4 rows)
 
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM atstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
- id  |                d                |  ?column?   
------+---------------------------------+-------------
- 355 | Mon May 16 14:21:22.326724 2016 |    2.673276
- 356 | Mon May 16 15:21:22.326724 2016 | 3597.326724
- 354 | Mon May 16 13:21:22.326724 2016 | 3602.673276
- 357 | Mon May 16 16:21:22.326724 2016 | 7197.326724
- 353 | Mon May 16 12:21:22.326724 2016 | 7202.673276
-(5 rows)
-
+ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
 SELECT id, d FROM atstsh WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
                                                        QUERY PLAN                                                       
