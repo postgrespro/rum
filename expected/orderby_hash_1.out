@@ -1,8 +1,7 @@
 CREATE TABLE tstsh (id int, t tsvector, d timestamp);
 \copy tstsh from 'data/tsts.data'
-CREATE INDEX tstsh_idx ON tstsh USING rum (t rum_tsvector_hash_timestamp_ops, d)
+CREATE INDEX tstsh_idx ON tstsh USING rum (t rum_tsvector_hash_addon_ops, d)
 	WITH (attach = 'd', to = 't');
-ERROR:  currently, RUM doesn't support order by over pass-by-reference column
 INSERT INTO tstsh VALUES (-1, 't1 t2',  '2016-05-02 02:24:22.326724'); 
 INSERT INTO tstsh VALUES (-2, 't1 t2 t3',  '2016-05-02 02:26:22.326724'); 
 SELECT count(*) FROM tstsh WHERE t @@ 'wr|qh';
@@ -107,12 +106,14 @@ RESET enable_bitmapscan;
 SET enable_seqscan = off;
 EXPLAIN (costs off)
 SELECT count(*) FROM tstsh WHERE t @@ 'wr|qh';
-                    QUERY PLAN                     
----------------------------------------------------
+                         QUERY PLAN                          
+-------------------------------------------------------------
  Aggregate
-   ->  Seq Scan on tstsh
-         Filter: (t @@ '''wr'' | ''qh'''::tsquery)
-(3 rows)
+   ->  Bitmap Heap Scan on tstsh
+         Recheck Cond: (t @@ '''wr'' | ''qh'''::tsquery)
+         ->  Bitmap Index Scan on tstsh_idx
+               Index Cond: (t @@ '''wr'' | ''qh'''::tsquery)
+(5 rows)
 
 SELECT count(*) FROM tstsh WHERE t @@ 'wr|qh';
  count 
@@ -152,63 +153,59 @@ SELECT count(*) FROM tstsh WHERE t @@ '(eq|yt)&(wr|qh)';
 
 EXPLAIN (costs off)
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
-                                     QUERY PLAN                                      
--------------------------------------------------------------------------------------
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
  Limit
-   ->  Sort
-         Sort Key: ((d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone))
-         ->  Seq Scan on tstsh
-               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
-(5 rows)
+   ->  Index Scan using tstsh_idx on tstsh
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(4 rows)
 
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
 ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
 SELECT id, d, d <=| '2016-05-16 14:21:25' FROM tstsh WHERE t @@ 'wr&qh' ORDER BY d <=| '2016-05-16 14:21:25' LIMIT 5;
-                                     QUERY PLAN                                      
--------------------------------------------------------------------------------------
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
  Limit
-   ->  Sort
-         Sort Key: ((d <=| 'Mon May 16 14:21:25 2016'::timestamp without time zone))
-         ->  Seq Scan on tstsh
-               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
-(5 rows)
+   ->  Index Scan using tstsh_idx on tstsh
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (d <=| 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(4 rows)
 
 SELECT id, d, d <=| '2016-05-16 14:21:25' FROM tstsh WHERE t @@ 'wr&qh' ORDER BY d <=| '2016-05-16 14:21:25' LIMIT 5;
 ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
 SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tstsh WHERE t @@ 'wr&qh' ORDER BY d |=> '2016-05-16 14:21:25' LIMIT 5;
-                                     QUERY PLAN                                      
--------------------------------------------------------------------------------------
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
  Limit
-   ->  Sort
-         Sort Key: ((d |=> 'Mon May 16 14:21:25 2016'::timestamp without time zone))
-         ->  Seq Scan on tstsh
-               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
-(5 rows)
+   ->  Index Scan using tstsh_idx on tstsh
+         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
+         Order By: (d |=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(4 rows)
 
 SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tstsh WHERE t @@ 'wr&qh' ORDER BY d |=> '2016-05-16 14:21:25' LIMIT 5;
 ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
-                                     QUERY PLAN                                      
--------------------------------------------------------------------------------------
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
  Limit
-   ->  Sort
-         Sort Key: ((d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone))
-         ->  Seq Scan on tstsh
-(4 rows)
+   ->  Index Scan using tstsh_idx on tstsh
+         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(3 rows)
 
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
 ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
-                                                       QUERY PLAN                                                       
-------------------------------------------------------------------------------------------------------------------------
+                                                         QUERY PLAN                                                         
+----------------------------------------------------------------------------------------------------------------------------
  Sort
    Sort Key: d
-   ->  Seq Scan on tstsh
-         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d <= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+   ->  Index Scan using tstsh_idx on tstsh
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d <= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
 (4 rows)
 
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
@@ -227,12 +224,12 @@ SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER
 
 EXPLAIN (costs off)
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
-                                                       QUERY PLAN                                                       
-------------------------------------------------------------------------------------------------------------------------
+                                                         QUERY PLAN                                                         
+----------------------------------------------------------------------------------------------------------------------------
  Sort
    Sort Key: d
-   ->  Seq Scan on tstsh
-         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d >= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+   ->  Index Scan using tstsh_idx on tstsh
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d >= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
 (4 rows)
 
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
@@ -251,12 +248,12 @@ SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER
 SET enable_bitmapscan=OFF;
 EXPLAIN (costs off)
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
-                                                       QUERY PLAN                                                       
-------------------------------------------------------------------------------------------------------------------------
+                                                         QUERY PLAN                                                         
+----------------------------------------------------------------------------------------------------------------------------
  Sort
    Sort Key: d
-   ->  Seq Scan on tstsh
-         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d <= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+   ->  Index Scan using tstsh_idx on tstsh
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d <= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
 (4 rows)
 
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
@@ -275,12 +272,12 @@ SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER
 
 EXPLAIN (costs off)
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
-                                                       QUERY PLAN                                                       
-------------------------------------------------------------------------------------------------------------------------
+                                                         QUERY PLAN                                                         
+----------------------------------------------------------------------------------------------------------------------------
  Sort
    Sort Key: d
-   ->  Seq Scan on tstsh
-         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d >= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+   ->  Index Scan using tstsh_idx on tstsh
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d >= 'Mon May 16 14:21:25 2016'::timestamp without time zone))
 (4 rows)
 
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
