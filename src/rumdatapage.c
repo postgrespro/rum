@@ -909,9 +909,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				if (stopAppend)
 					 /* there is no free space on page */
 					break;
-				else if (RumPageRightMost(page) ||
-						 /* Insert item in the end of the page */
-						 off > maxoff)
+				else if (RumPageRightMost(page))
 					/* force insertion of new item */
 					cmp = 1;
 				else if ((cmp = compareRumKey(btree->rumstate, btree->entryAttnum,
