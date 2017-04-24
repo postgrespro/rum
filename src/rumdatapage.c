@@ -520,7 +520,7 @@ convertIndexToKey(RumDataLeafItemIndex *src, RumKey *dst)
 	}
 }
 
-/**
+/*
  * Find item pointer in leaf data page. Returns true if given item pointer is
  * found and false if it's not. Sets offset and iptrOut to last item pointer
  * which is less than given one. Sets ptrOut ahead that item pointer.
@@ -874,6 +874,13 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 			copyPtr = pageCopy + (ptr - page);
 			copyItem.iptr = iptr;
 		}
+		else
+		{
+			/*
+			 * Force insertion of new items until insertion items are less than
+			 * right bound.
+			 */
+		}
 
 		freespace = RumPageGetOpaque(page)->freespace;
 
@@ -907,7 +914,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 			{
 				/* we copied all old items but we have to add more new items */
 				if (stopAppend)
-					 /* there is no free space on page */
+					/* there is no free space on page */
 					break;
 				else if (RumPageRightMost(page))
 					/* force insertion of new item */
@@ -916,7 +923,13 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 											  RumDataPageGetRightBound(page),
 											  btree->items + btree->curitem)) >= 0)
 				{
-					/* force insertion of new item */
+					/*
+					 * Force insertion if current item is greater than last item
+					 * of the page but less than right bound.
+					 */
+					if (off > maxoff)
+						/* force insertion of new item */
+						cmp = 1;
 				}
 				else
 					/* new items should be inserted on next page */
