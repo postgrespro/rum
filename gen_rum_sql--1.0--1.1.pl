@@ -63,6 +63,12 @@ RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT IMMUTABLE;
 
+CREATE FUNCTION rum_TYPEIDENT_config(internal)
+RETURNS void
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+
 EOT
 
 my $opclass_base_template=<<EOT;
@@ -103,6 +109,7 @@ AS
 	FUNCTION	4	rum_btree_consistent(internal,smallint,internal,int,internal,internal,internal,internal),
 	FUNCTION	5	rum_TYPESUBIDENT_compare_prefix(TYPESUBNAME,TYPESUBNAME,int2, internal),
 	-- support to TYPEIDENT distance in rum_tsvector_addon_ops
+	FUNCTION	6	rum_TYPEIDENT_config(internal),
 	FUNCTION	9	rum_TYPEIDENT_outer_distance(TYPENAME, TYPENAME, smallint),
 STORAGE		 TYPENAME;
 
