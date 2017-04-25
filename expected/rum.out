@@ -350,3 +350,15 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'b:*'), *
   16.4493 | the few that escaped destruction in 1693. It is a beautiful, highly      | '1693':7 'beauti':11 'destruct':5 'escap':4 'high':12
 (20 rows)
 
+select  'bjarn:6237 stroustrup:6238'::tsvector <=> 'bjarn <-> stroustrup'::tsquery;
+ ?column? 
+----------
+  8.22467
+(1 row)
+
+SELECT  'stroustrup:5508B,6233B,6238B bjarn:6235B,6237B' <=> 'bjarn <-> stroustrup'::tsquery;
+ ?column? 
+----------
+  2.05617
+(1 row)
+
