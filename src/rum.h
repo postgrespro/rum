@@ -315,18 +315,12 @@ typedef struct
 typedef struct RumOptions
 {
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
-	bool		useFastUpdate;	/* use fast updates? */
 	bool		useAlternativeOrder;
-	int			orderByColumn;
+	int			attachColumn;
 	int			addToColumn;
 }	RumOptions;
 
 #define ALT_ADD_INFO_NULL_FLAG		(0x8000)
-#define RUM_DEFAULT_USE_FASTUPDATE	false
-#define RumGetUseFastUpdate(relation) \
-	((relation)->rd_options ? \
-	 ((RumOptions *) (relation)->rd_options)->useFastUpdate : RUM_DEFAULT_USE_FASTUPDATE)
-
 
 /* Macros for buffer lock/unlock operations */
 #define RUM_UNLOCK	BUFFER_LOCK_UNLOCK
@@ -353,7 +347,7 @@ typedef struct RumState
 	bool		isBuild;
 	bool		oneCol;			/* true if single-column index */
 	bool		useAlternativeOrder;
-	AttrNumber	attrnOrderByColumn;
+	AttrNumber	attrnAttachColumn;
 	AttrNumber	attrnAddToColumn;
 
 	/*

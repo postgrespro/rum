@@ -124,15 +124,15 @@ initRumState(RumState * state, Relation index)
 	state->oneCol = (origTupdesc->natts == 1) ? true : false;
 	state->origTupdesc = origTupdesc;
 
-	state->attrnOrderByColumn = InvalidAttrNumber;
+	state->attrnAttachColumn = InvalidAttrNumber;
 	state->attrnAddToColumn = InvalidAttrNumber;
 	if (index->rd_options)
 	{
 		RumOptions *options = (RumOptions *) index->rd_options;
 
-		if (options->orderByColumn > 0)
+		if (options->attachColumn > 0)
 		{
-			char	   *colname = (char *) options + options->orderByColumn;
+			char	   *colname = (char *) options + options->attachColumn;
 			AttrNumber	attrnOrderByHeapColumn;
 
 			attrnOrderByHeapColumn = get_attnum(index->rd_index->indrelid, colname);
@@ -140,9 +140,9 @@ initRumState(RumState * state, Relation index)
 			if (!AttributeNumberIsValid(attrnOrderByHeapColumn))
 				elog(ERROR, "attribute \"%s\" is not found in table", colname);
 
-			state->attrnOrderByColumn = get_attnum(index->rd_id, colname);
+			state->attrnAttachColumn = get_attnum(index->rd_id, colname);
 
-			if (!AttributeNumberIsValid(state->attrnOrderByColumn))
+			if (!AttributeNumberIsValid(state->attrnAttachColumn))
 				elog(ERROR, "attribute \"%s\" is not found in index", colname);
 		}
 
@@ -162,13 +162,13 @@ initRumState(RumState * state, Relation index)
 				elog(ERROR, "attribute \"%s\" is not found in index", colname);
 		}
 
-		if (!(AttributeNumberIsValid(state->attrnOrderByColumn) &&
+		if (!(AttributeNumberIsValid(state->attrnAttachColumn) &&
 			  AttributeNumberIsValid(state->attrnAddToColumn)))
 			elog(ERROR, "AddTo and OrderBy columns should be defined both");
 
 		if (options->useAlternativeOrder)
 		{
-			if (!(AttributeNumberIsValid(state->attrnOrderByColumn) &&
+			if (!(AttributeNumberIsValid(state->attrnAttachColumn) &&
 				  AttributeNumberIsValid(state->attrnAddToColumn)))
 				elog(ERROR, "to use alternative ordering AddTo and OrderBy should be defined");
 
@@ -197,7 +197,7 @@ initRumState(RumState * state, Relation index)
 				elog(ERROR, "AddTo could should not have AddInfo");
 
 			rumConfig->addInfoTypeOid = origTupdesc->attrs[
-									state->attrnOrderByColumn - 1]->atttypid;
+									state->attrnAttachColumn - 1]->atttypid;
 		}
 
 		if (state->oneCol)
@@ -797,8 +797,7 @@ rumoptions(Datum reloptions, bool validate)
 	RumOptions *rdopts;
 	int			numoptions;
 	static const relopt_parse_elt tab[] = {
-		{"fastupdate", RELOPT_TYPE_BOOL, offsetof(RumOptions, useFastUpdate)},
-		{"attach", RELOPT_TYPE_STRING, offsetof(RumOptions, orderByColumn)},
+		{"attach", RELOPT_TYPE_STRING, offsetof(RumOptions, attachColumn)},
 		{"to", RELOPT_TYPE_STRING, offsetof(RumOptions, addToColumn)},
 		{"order_by_attach", RELOPT_TYPE_BOOL, offsetof(RumOptions, useAlternativeOrder)}
 	};

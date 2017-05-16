@@ -262,7 +262,7 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 	if (rumstate->useAlternativeOrder &&
 		scanEntry->attnumOrig == rumstate->attrnAddToColumn)
 	{
-		cmp = &rumstate->compareFn[rumstate->attrnOrderByColumn - 1];
+		cmp = &rumstate->compareFn[rumstate->attrnAttachColumn - 1];
 	}
 
 	/* Initialize  */
@@ -2090,7 +2090,7 @@ keyGetOrdering(RumState * rumstate, MemoryContext tempCtx, RumScanKey key,
 			return get_float8_infinity();
 
 		return DatumGetFloat8(FunctionCall3(
-				&rumstate->outerOrderingFn[rumstate->attrnOrderByColumn - 1],
+				&rumstate->outerOrderingFn[rumstate->attrnAttachColumn - 1],
 											key->outerAddInfo,
 											key->queryValues[0],
 											UInt16GetDatum(key->strategy)

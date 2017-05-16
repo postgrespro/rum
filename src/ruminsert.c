@@ -538,10 +538,10 @@ rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 	Datum		outerAddInfo = (Datum) 0;
 	bool		outerAddInfoIsNull = true;
 
-	if (AttributeNumberIsValid(buildstate->rumstate.attrnOrderByColumn))
+	if (AttributeNumberIsValid(buildstate->rumstate.attrnAttachColumn))
 	{
-		outerAddInfo = values[buildstate->rumstate.attrnOrderByColumn - 1];
-		outerAddInfoIsNull = isnull[buildstate->rumstate.attrnOrderByColumn - 1];
+		outerAddInfo = values[buildstate->rumstate.attrnAttachColumn - 1];
+		outerAddInfoIsNull = isnull[buildstate->rumstate.attrnAttachColumn - 1];
 	}
 
 	oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
@@ -810,10 +810,10 @@ ruminsert(Relation index, Datum *values, bool *isnull,
 
 	initRumState(&rumstate, index);
 
-	if (AttributeNumberIsValid(rumstate.attrnOrderByColumn))
+	if (AttributeNumberIsValid(rumstate.attrnAttachColumn))
 	{
-		outerAddInfo = values[rumstate.attrnOrderByColumn - 1];
-		outerAddInfoIsNull = isnull[rumstate.attrnOrderByColumn - 1];
+		outerAddInfo = values[rumstate.attrnAttachColumn - 1];
+		outerAddInfoIsNull = isnull[rumstate.attrnAttachColumn - 1];
 	}
 
 	for (i = 0; i < rumstate.origTupdesc->natts; i++)

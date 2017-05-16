@@ -333,7 +333,7 @@ compareRumKey(RumState * state, const AttrNumber attno,
 		if (a->addInfoIsNull == false && b->addInfoIsNull == false)
 		{
 			int			res;
-			AttrNumber	attnum = state->attrnOrderByColumn;
+			AttrNumber	attnum = state->attrnAttachColumn;
 
 			res = DatumGetInt32(FunctionCall2Coll(
 												  &state->compareFn[attnum - 1],
