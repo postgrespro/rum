@@ -709,7 +709,7 @@ startScan(IndexScanDesc scan)
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	RumState   *rumstate = &so->rumstate;
 	uint32		i;
-	RumScanType	scanType = RumRegularScan;
+	RumScanType	scanType = RumFastScan;
 
 	MemoryContextSwitchTo(so->keyCtx);
 	for (i = 0; i < so->totalentries; i++)
@@ -750,8 +750,10 @@ startScan(IndexScanDesc scan)
 		startScanKey(rumstate, so->keys[i]);
 
 	/*
-	 * Check if we can use a fast scan: should exists at least one
-	 * preConsistent method.
+	 * Check if we can use a fast scan.
+	 * Use fast scan iff all keys have preConsistent method. But we can stop
+	 * checking if at least one key have not preConsistent method and use
+	 * regular scan.
 	 */
 	for (i = 0; i < so->nkeys; i++)
 	{
@@ -763,9 +765,10 @@ startScan(IndexScanDesc scan)
 			scanType = RumFullScan;
 			break;
 		}
-		else if (so->rumstate.canPreConsistent[key->attnum - 1])
+		/* Else check keys for preConsistent method */
+		else if (!so->rumstate.canPreConsistent[key->attnum - 1])
 		{
-			scanType = RumFastScan;
+			scanType = RumRegularScan;
 			break;
 		}
 	}

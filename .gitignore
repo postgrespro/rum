@@ -12,3 +12,6 @@ include
 lib
 pip-selfcheck.json
 
+# Generated files
+rum--1.0--1.1.sql
+rum--1.1.sql

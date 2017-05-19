@@ -357,3 +357,73 @@ SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER
  458 | Fri May 20 21:21:22.326724 2016
 (3 rows)
 
+-- Test multicolumn index
+RESET enable_indexscan;
+RESET enable_indexonlyscan;
+RESET enable_bitmapscan;
+SET enable_seqscan = off;
+DROP INDEX tstsh_idx;
+CREATE INDEX tstsh_id_idx ON tsts USING rum (t rum_tsvector_addon_ops, id, d)
+	WITH (attach = 'd', to = 't');
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 1::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Limit
+   ->  Index Scan using tstsh_id_idx on tsts
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id = 1))
+         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(4 rows)
+
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 1::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ id | d 
+----+---
+(0 rows)
+
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 355::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Limit
+   ->  Index Scan using tstsh_id_idx on tsts
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id = 355))
+         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(4 rows)
+
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 355::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ id  |                d                
+-----+---------------------------------
+ 355 | Mon May 16 14:21:22.326724 2016
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2016-05-11 11:21:22.326724'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+                                                            QUERY PLAN                                                            
+----------------------------------------------------------------------------------------------------------------------------------
+ Limit
+   ->  Index Scan using tstsh_id_idx on tsts
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d = 'Wed May 11 11:21:22.326724 2016'::timestamp without time zone))
+         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(4 rows)
+
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2016-05-11 11:21:22.326724'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ id  |                d                
+-----+---------------------------------
+ 232 | Wed May 11 11:21:22.326724 2016
+(1 row)
+
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2000-05-01'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+                                                        QUERY PLAN                                                         
+---------------------------------------------------------------------------------------------------------------------------
+ Limit
+   ->  Index Scan using tstsh_id_idx on tsts
+         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (d = 'Mon May 01 00:00:00 2000'::timestamp without time zone))
+         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(4 rows)
+
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2000-05-01'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ id | d 
+----+---
+(0 rows)
+

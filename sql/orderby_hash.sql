@@ -77,3 +77,30 @@ SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d ASC LIMIT 3;
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d DESC LIMIT 3;
 
+-- Test multicolumn index
+
+RESET enable_indexscan;
+RESET enable_indexonlyscan;
+RESET enable_bitmapscan;
+SET enable_seqscan = off;
+
+DROP INDEX tstsh_idx;
+
+CREATE INDEX tstsh_id_idx ON tsts USING rum (t rum_tsvector_addon_ops, id, d)
+	WITH (attach = 'd', to = 't');
+
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 1::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 1::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 355::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 355::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2016-05-11 11:21:22.326724'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2016-05-11 11:21:22.326724'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+
+EXPLAIN (costs off)
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2000-05-01'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2000-05-01'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
