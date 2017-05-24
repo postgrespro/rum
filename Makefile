@@ -19,8 +19,6 @@ REGRESS = rum rum_hash ruminv timestamp orderby orderby_hash altorder \
     macaddr inet cidr text varchar char bytea bit varbit \
     numeric
 
-EXTRA_CLEAN += rum--1.1.sql rum--1.0--1.1.sql
-
 LDFLAGS_SL += $(filter -lm, $(LIBS))
 
 ifdef USE_PGXS
@@ -36,15 +34,6 @@ endif
 
 wal-check: temp-install
 	$(prove_check)
-
-all: rum--1.1.sql
-
-#9.6 requires 1.1 file but 10.0 could live with 1.0 + 1.0-1.1 files
-rum--1.1.sql:  rum--1.0.sql rum--1.0--1.1.sql
-	cat rum--1.0.sql rum--1.0--1.1.sql > rum--1.1.sql
-
-rum--1.0--1.1.sql: Makefile gen_rum_sql--1.0--1.1.pl
-	perl gen_rum_sql--1.0--1.1.pl > rum--1.0--1.1.sql
 
 install: installincludes
 
