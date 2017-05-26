@@ -381,4 +381,3 @@ SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2000-05-01'::timestamp ORDER 
 
 SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2000-05-01'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
 ERROR:  doesn't support order by over pass-by-reference column
-
