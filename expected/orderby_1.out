@@ -332,7 +332,7 @@ RESET enable_bitmapscan;
 SET enable_seqscan = off;
 DROP INDEX tsts_idx;
 CREATE INDEX tsts_id_idx ON tsts USING rum (t rum_tsvector_addon_ops, id, d)
-  WITH (attach = 'd', to = 't');
+	WITH (attach = 'd', to = 't');
 EXPLAIN (costs off)
 SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 1::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
                                     QUERY PLAN                                     
@@ -344,10 +344,7 @@ SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 1::int ORDER BY d <=> '2016-0
 (4 rows)
 
 SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 1::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
- id | d 
-----+---
-(0 rows)
-
+ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
 SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 355::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
                                     QUERY PLAN                                     
@@ -359,11 +356,7 @@ SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 355::int ORDER BY d <=> '2016
 (4 rows)
 
 SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND id = 355::int ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
- id  |                d                
------+---------------------------------
- 355 | Mon May 16 14:21:22.326724 2016
-(1 row)
-
+ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
 SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2016-05-11 11:21:22.326724'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
                                                             QUERY PLAN                                                            
@@ -375,11 +368,7 @@ SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2016-05-11 11:21:22.326724'::
 (4 rows)
 
 SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2016-05-11 11:21:22.326724'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
- id  |                d                
------+---------------------------------
- 232 | Wed May 11 11:21:22.326724 2016
-(1 row)
-
+ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
 SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2000-05-01'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
                                                         QUERY PLAN                                                         
@@ -391,7 +380,5 @@ SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2000-05-01'::timestamp ORDER 
 (4 rows)
 
 SELECT id, d FROM tsts WHERE t @@ 'wr&qh' AND d = '2000-05-01'::timestamp ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
- id | d 
-----+---
-(0 rows)
+ERROR:  doesn't support order by over pass-by-reference column
 
