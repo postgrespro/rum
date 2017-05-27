@@ -226,7 +226,7 @@ rumDataPageLeafWriteItemPointer(RumState * rumstate, char *ptr, ItemPointer iptr
  */
 Pointer
 rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
-					   RumKey * item, ItemPointer prev, RumState * rumstate)
+					   RumItem * item, ItemPointer prev, RumState * rumstate)
 {
 	Form_pg_attribute attr;
 
@@ -283,7 +283,7 @@ rumDataPageLeafGetItemPointerSize(ItemPointer iptr, ItemPointer prev)
  */
 Size
 rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
-			 RumKey * item, ItemPointer prev, RumState * rumstate, Size size)
+			 RumItem * item, ItemPointer prev, RumState * rumstate, Size size)
 {
 	Form_pg_attribute attr;
 
@@ -324,8 +324,8 @@ rumCompareItemPointers(const ItemPointerData *a, const ItemPointerData *b)
 }
 
 int
-compareRumKey(RumState * state, const AttrNumber attno,
-			  const RumKey * a, const RumKey * b)
+compareRumItem(RumState * state, const AttrNumber attno,
+			  const RumItem * a, const RumItem * b)
 {
 	if (state->useAlternativeOrder && attno == state->attrnAddToColumn)
 	{
@@ -365,18 +365,18 @@ compareRumKey(RumState * state, const AttrNumber attno,
  * Caller is responsible that there is enough space at *dst.
  */
 uint32
-rumMergeItemPointers(RumState * rumstate, AttrNumber attno, RumKey * dst,
-					 RumKey * a, uint32 na, RumKey * b, uint32 nb)
+rumMergeRumItems(RumState * rumstate, AttrNumber attno, RumItem * dst,
+				 RumItem * a, uint32 na, RumItem * b, uint32 nb)
 {
-	RumKey	   *dptr = dst;
-	RumKey	   *aptr = a,
+	RumItem	   *dptr = dst;
+	RumItem	   *aptr = a,
 			   *bptr = b;
 
 	while (aptr - a < na && bptr - b < nb)
 	{
 		int			cmp;
 
-		cmp = compareRumKey(rumstate, attno, aptr, bptr);
+		cmp = compareRumItem(rumstate, attno, aptr, bptr);
 
 		if (cmp > 0)
 		{
@@ -419,10 +419,10 @@ dataIsMoveRight(RumBtree btree, Page page)
 	if (RumPageRightMost(page))
 		return false;
 
-	res = compareRumKey(btree->rumstate,
-						btree->entryAttnum,
-						&btree->items[btree->curitem],
-						RumDataPageGetRightBound(page));
+	res = compareRumItem(btree->rumstate,
+						 btree->entryAttnum,
+						 &btree->items[btree->curitem],
+						 RumDataPageGetRightBound(page));
 
 	return (res > 0) ? true : false;
 }
@@ -476,10 +476,10 @@ dataLocateItem(RumBtree btree, RumBtreeStack * stack)
 		}
 		else
 		{
-			result = compareRumKey(btree->rumstate,
-								   btree->entryAttnum,
-								   &btree->items[btree->curitem],
-								   &pitem->key);
+			result = compareRumItem(btree->rumstate,
+									btree->entryAttnum,
+									&btree->items[btree->curitem],
+									&pitem->item);
 		}
 
 		if (result == 0)
@@ -505,7 +505,7 @@ dataLocateItem(RumBtree btree, RumBtreeStack * stack)
 }
 
 void
-convertIndexToKey(RumDataLeafItemIndex *src, RumKey *dst)
+convertIndexToKey(RumDataLeafItemIndex *src, RumItem *dst)
 {
 	dst->iptr = src->iptr;
 	if (dst->iptr.ip_posid & ALT_ADD_INFO_NULL_FLAG)
@@ -533,7 +533,7 @@ findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
 	OffsetNumber i,
 				maxoff,
 				first = FirstOffsetNumber;
-	RumKey		item;
+	RumItem		item;
 	int			cmp;
 
 	Assert(RumPageIsData(page));
@@ -555,12 +555,12 @@ findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
 
 		if (btree->rumstate->useAlternativeOrder)
 		{
-			RumKey	k;
+			RumItem		k;
 
 			convertIndexToKey(index, &k);
-			cmp = compareRumKey(btree->rumstate,
-								btree->entryAttnum, &k,
-								&btree->items[btree->curitem]);
+			cmp = compareRumItem(btree->rumstate,
+								 btree->entryAttnum, &k,
+								 &btree->items[btree->curitem]);
 
 		}
 		else
@@ -591,8 +591,8 @@ findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
 		ptr = rumDataPageLeafRead(ptr, btree->entryAttnum, &item,
 								  btree->rumstate);
 
-		cmp = compareRumKey(btree->rumstate, btree->entryAttnum,
-							&btree->items[btree->curitem], &item);
+		cmp = compareRumItem(btree->rumstate, btree->entryAttnum,
+							 &btree->items[btree->curitem], &item);
 
 		if (cmp == 0)
 		{
@@ -849,7 +849,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 		Pointer		ptr = RumDataPageGetData(page),
 					copyPtr = NULL;
 		ItemPointerData iptr = {{0, 0}, 0};
-		RumKey		copyItem;
+		RumItem		copyItem;
 		bool		copyItemEmpty = true;
 		char		pageCopy[BLCKSZ];
 		int			maxoff = RumPageGetOpaque(page)->maxoff;
@@ -906,9 +906,9 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				if (stopAppend)
 					cmp = -1; /* force copy */
 				else
-					cmp = compareRumKey(btree->rumstate, btree->entryAttnum,
-										&copyItem,
-										btree->items + btree->curitem);
+					cmp = compareRumItem(btree->rumstate, btree->entryAttnum,
+										 &copyItem,
+										 btree->items + btree->curitem);
 			}
 			else if (btree->curitem < btree->nitem)
 			{
@@ -919,9 +919,9 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 				else if (RumPageRightMost(page))
 					/* force insertion of new item */
 					cmp = 1;
-				else if ((cmp = compareRumKey(btree->rumstate, btree->entryAttnum,
-											  RumDataPageGetRightBound(page),
-											  btree->items + btree->curitem)) >= 0)
+				else if ((cmp = compareRumItem(btree->rumstate, btree->entryAttnum,
+											   RumDataPageGetRightBound(page),
+											   btree->items + btree->curitem)) >= 0)
 				{
 					/*
 					 * Force insertion if current item is greater than last item
@@ -1010,7 +1010,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 		if (ptr - RumDataPageGetData(page) >		\
 			totalsize / 2 && page == newlPage)		\
 		{											\
-			maxLeftIptr = curIptr;					\
+			maxLeftItem = curItem;					\
 			ItemPointerSetMin(&prevIptr);			\
 			RumPageGetOpaque(newlPage)->maxoff = j; \
 			page = rPage;							\
@@ -1047,9 +1047,9 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	Size		pageSize = PageGetPageSize(newlPage);
 	Size		maxItemSize = 0;
 	ItemPointerData		prevIptr;
-	RumKey		maxLeftIptr,
-				curIptr;
-	RumKey		item;
+	RumItem		maxLeftItem,
+				curItem;
+	RumItem		item;
 	int			totalCount = 0;
 	int			maxItemIndex = btree->curitem;
 	static char lpageCopy[BLCKSZ];
@@ -1152,7 +1152,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		{
 			while (btree->curitem < maxItemIndex)
 			{
-				curIptr = btree->items[btree->curitem];
+				curItem = btree->items[btree->curitem];
 				ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
 											 &btree->items[btree->curitem],
 											 &prevIptr, btree->rumstate);
@@ -1168,7 +1168,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		copyPtr = rumDataPageLeafRead(copyPtr, btree->entryAttnum, &item,
 									  btree->rumstate);
 
-		curIptr = item;
+		curItem = item;
 		ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum, &item,
 									 &prevIptr, btree->rumstate);
 		Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
@@ -1182,7 +1182,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	{
 		while (btree->curitem < maxItemIndex)
 		{
-			curIptr = btree->items[btree->curitem];
+			curItem = btree->items[btree->curitem];
 			ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum,
 				  &btree->items[btree->curitem], &prevIptr, btree->rumstate);
 			Assert(RumDataPageFreeSpacePre(page, ptr) >= 0);
@@ -1197,11 +1197,11 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	RumPageGetOpaque(rPage)->maxoff = j - 1;
 
 	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
-	btree->pitem.key = maxLeftIptr;
+	btree->pitem.item = maxLeftItem;
 	btree->rightblkno = BufferGetBlockNumber(rbuf);
 
 	*RumDataPageGetRightBound(rPage) = *RumDataPageGetRightBound(lpageCopy);
-	*RumDataPageGetRightBound(newlPage) = maxLeftIptr;
+	*RumDataPageGetRightBound(newlPage) = maxLeftItem;
 
 	/* Fill indexes at the end of pages */
 	updateItemIndexes(newlPage, btree->entryAttnum, btree->rumstate);
@@ -1222,9 +1222,9 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 {
 	char	   *ptr;
 	OffsetNumber separator;
-	RumKey*		bound;
+	RumItem	   *bound;
 	Page		newlPage = PageGetTempPageCopy(BufferGetPage(lbuf));
-	RumKey		oldbound = *RumDataPageGetRightBound(newlPage);
+	RumItem		oldbound = *RumDataPageGetRightBound(newlPage);
 	int			sizeofitem = sizeof(PostingItem);
 	OffsetNumber maxoff = RumPageGetOpaque(newlPage)->maxoff;
 	Size		pageSize = PageGetPageSize(newlPage);
@@ -1278,16 +1278,16 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
 	if (RumPageIsLeaf(newlPage))
-		btree->pitem.key.iptr = *(ItemPointerData *) RumDataPageGetItem(newlPage,
+		btree->pitem.item.iptr = *(ItemPointerData *) RumDataPageGetItem(newlPage,
 										 RumPageGetOpaque(newlPage)->maxoff);
 	else
-		btree->pitem.key = ((PostingItem *) RumDataPageGetItem(newlPage,
-								   RumPageGetOpaque(newlPage)->maxoff))->key;
+		btree->pitem.item = ((PostingItem *) RumDataPageGetItem(newlPage,
+								   RumPageGetOpaque(newlPage)->maxoff))->item;
 	btree->rightblkno = BufferGetBlockNumber(rbuf);
 
 	/* set up right bound for left page */
 	bound = RumDataPageGetRightBound(newlPage);
-	*bound = btree->pitem.key;
+	*bound = btree->pitem.item;
 
 	/* set up right bound for right page */
 	bound = RumDataPageGetRightBound(rPage);
@@ -1319,7 +1319,7 @@ void
 updateItemIndexes(Page page, OffsetNumber attnum, RumState * rumstate)
 {
 	Pointer		ptr;
-	RumKey		item;
+	RumItem		item;
 	int			j = 0,
 				maxoff,
 				i;
@@ -1375,7 +1375,7 @@ checkLeafDataPage(RumState * rumstate, AttrNumber attnum, Page page)
 	Offset		maxoff,
 				i;
 	char	   *ptr;
-	RumKey		item;
+	RumItem		item;
 	RumDataLeafItemIndex *index,
 			   *previndex = NULL;
 
@@ -1431,11 +1431,11 @@ rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
 	PostingItem li,
 				ri;
 
-	li.key = *RumDataPageGetRightBound(lpage);
+	li.item = *RumDataPageGetRightBound(lpage);
 	PostingItemSetBlockNumber(&li, BufferGetBlockNumber(lbuf));
 	RumDataPageAddItem(page, &li, InvalidOffsetNumber);
 
-	ri.key = *RumDataPageGetRightBound(rpage);
+	ri.item = *RumDataPageGetRightBound(rpage);
 	PostingItemSetBlockNumber(&ri, BufferGetBlockNumber(rbuf));
 	RumDataPageAddItem(page, &ri, InvalidOffsetNumber);
 }
@@ -1492,7 +1492,7 @@ void
 rumInsertItemPointers(RumState * rumstate,
 					  OffsetNumber attnum,
 					  RumPostingTreeScan * gdi,
-					  RumKey * items, uint32 nitem,
+					  RumItem * items, uint32 nitem,
 					  GinStatsData *buildStats)
 {
 	BlockNumber rootBlkno = gdi->stack->blkno;
@@ -1525,12 +1525,12 @@ rumInsertItemPointers(RumState * rumstate,
 }
 
 Buffer
-rumScanBeginPostingTree(RumPostingTreeScan * gdi, RumKey *key)
+rumScanBeginPostingTree(RumPostingTreeScan * gdi, RumItem *item)
 {
-	if (key)
+	if (item)
 	{
 		gdi->btree.fullScan = false;
-		gdi->btree.items = key;
+		gdi->btree.items = item;
 		gdi->btree.curitem = 0;
 		gdi->btree.nitem = 1;
 	}

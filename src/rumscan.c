@@ -108,7 +108,7 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->forceUseBitmap = false;
 
 	scanEntry->buffer = InvalidBuffer;
-	RumItemSetMin(&scanEntry->curRumKey);
+	RumItemSetMin(&scanEntry->curItem);
 	scanEntry->matchSortstate = NULL;
 	scanEntry->stack = NULL;
 	scanEntry->scanWithAddInfo = false;

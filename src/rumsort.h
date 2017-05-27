@@ -31,7 +31,7 @@
  * tuplesort.c.
  */
 typedef struct Tuplesortstate Tuplesortstate;
-struct RumKey;
+struct RumItem;
 
 /*
  * We provide multiple interfaces to what is essentially the same code,
@@ -92,7 +92,7 @@ extern Tuplesortstate *rum_tuplesort_begin_datum(Oid datumType,
 						  int workMem, bool randomAccess);
 extern Tuplesortstate *rum_tuplesort_begin_rum(int workMem,
 						int nKeys, bool randomAccess, bool compareItemPointer);
-extern Tuplesortstate	*rum_tuplesort_begin_rumkey(int workMem,
+extern Tuplesortstate	*rum_tuplesort_begin_rumitem(int workMem,
 													FmgrInfo *cmp);
 
 extern void rum_tuplesort_set_bound(Tuplesortstate *state, int64 bound);
@@ -104,7 +104,7 @@ extern void rum_tuplesort_putindextuple(Tuplesortstate *state, IndexTuple tuple)
 extern void rum_tuplesort_putdatum(Tuplesortstate *state, Datum val,
 					   bool isNull);
 extern void rum_tuplesort_putrum(Tuplesortstate *state, RumSortItem * item);
-extern void rum_tuplesort_putrumkey(Tuplesortstate *state, struct RumKey * item);
+extern void rum_tuplesort_putrumitem(Tuplesortstate *state, struct RumItem * item);
 
 extern void rum_tuplesort_performsort(Tuplesortstate *state);
 
@@ -118,7 +118,7 @@ extern bool rum_tuplesort_getdatum(Tuplesortstate *state, bool forward,
 					   Datum *val, bool *isNull);
 extern RumSortItem *rum_tuplesort_getrum(Tuplesortstate *state, bool forward,
 					 bool *should_free);
-extern struct RumKey *rum_tuplesort_getrumkey(Tuplesortstate *state, bool forward,
+extern struct RumItem *rum_tuplesort_getrumitem(Tuplesortstate *state, bool forward,
 					 bool *should_free);
 
 extern void rum_tuplesort_end(Tuplesortstate *state);

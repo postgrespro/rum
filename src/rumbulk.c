@@ -37,7 +37,7 @@ rumCombineData(RBNode *existing, const RBNode *newdata, void *arg)
 	{
 		accum->allocatedMemory -= GetMemoryChunkSpace(eo->list);
 		eo->maxcount *= 2;
-		eo->list = (RumKey *) repalloc(eo->list, sizeof(RumKey) * eo->maxcount);
+		eo->list = (RumItem *) repalloc(eo->list, sizeof(RumItem) * eo->maxcount);
 		accum->allocatedMemory += GetMemoryChunkSpace(eo->list);
 	}
 
@@ -148,7 +148,7 @@ rumInsertBAEntry(BuildAccumulator *accum,
 	RumEntryAccumulator eatmp;
 	RumEntryAccumulator *ea;
 	bool		isNew;
-	RumKey		item;
+	RumItem		item;
 
 	/*
 	 * For the moment, fill only the fields of eatmp that will be looked at by
@@ -184,7 +184,7 @@ rumInsertBAEntry(BuildAccumulator *accum,
 		 */
 		ea->shouldSort = (accum->rumstate->useAlternativeOrder &&
 						  attnum == accum->rumstate->attrnAddToColumn);
-		ea->list = (RumKey *) palloc(sizeof(RumKey) * DEF_NPTR);
+		ea->list = (RumItem *) palloc(sizeof(RumItem) * DEF_NPTR);
 		ea->list[0].iptr = *heapptr;
 		ea->list[0].addInfo = addInfo;
 		ea->list[0].addInfoIsNull = addInfoIsNull;
@@ -263,9 +263,9 @@ qsortCompareItemPointers(const void *a, const void *b)
 static AttrNumber AttrNumberQsort = 0;
 
 static int
-qsortCompareRumKey(const void *a, const void *b, void *arg)
+qsortCompareRumItem(const void *a, const void *b, void *arg)
 {
-	return compareRumKey(arg, AttrNumberQsort, a, b);
+	return compareRumItem(arg, AttrNumberQsort, a, b);
 }
 
 /* Prepare to read out the rbtree contents using rumGetBAEntry */
@@ -284,13 +284,13 @@ rumBeginBAScan(BuildAccumulator *accum)
  * This consists of a single key datum and a list (array) of one or more
  * heap TIDs in which that key is found.  The list is guaranteed sorted.
  */
-RumKey *
+RumItem *
 rumGetBAEntry(BuildAccumulator *accum,
 			  OffsetNumber *attnum, Datum *key, RumNullCategory * category,
 			  uint32 *n)
 {
 	RumEntryAccumulator *entry;
-	RumKey	   *list;
+	RumItem	   *list;
 
 #if PG_VERSION_NUM >= 100000
 	entry = (RumEntryAccumulator *) rb_iterate(&accum->tree_walk);
@@ -315,10 +315,10 @@ rumGetBAEntry(BuildAccumulator *accum,
 
 		if (accum->rumstate->useAlternativeOrder &&
 			entry->attnum == accum->rumstate->attrnAddToColumn)
-			qsort_arg(list, entry->count, sizeof(RumKey),
-					  qsortCompareRumKey, accum->rumstate);
+			qsort_arg(list, entry->count, sizeof(RumItem),
+					  qsortCompareRumItem, accum->rumstate);
 		else if (entry->shouldSort)
-			qsort(list, entry->count, sizeof(RumKey), qsortCompareItemPointers);
+			qsort(list, entry->count, sizeof(RumItem), qsortCompareItemPointers);
 	}
 
 	return list;

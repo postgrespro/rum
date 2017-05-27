@@ -46,7 +46,7 @@ rumVacuumPostingList(RumVacuumState * gvs, OffsetNumber attnum, Pointer src,
 {
 	OffsetNumber i,
 				j = 0;
-	RumKey		item;
+	RumItem		item;
 	ItemPointerData prevIptr;
 	Pointer		dst = NULL,
 				prev,

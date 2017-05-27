@@ -100,8 +100,8 @@ rumReFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 		 * that requested leaf page is in this subtree only when requested
 		 * item pointer is less than item pointer previous to rightmost.
 		 */
-		if (compareRumKey(btree->rumstate, btree->entryAttnum,
-			  &(((PostingItem *) RumDataPageGetItem(page, maxoff - 1))->key),
+		if (compareRumItem(btree->rumstate, btree->entryAttnum,
+			  &(((PostingItem *) RumDataPageGetItem(page, maxoff - 1))->item),
 								   &btree->items[btree->curitem]) >= 0)
 		{
 			break;

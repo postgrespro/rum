@@ -805,7 +805,7 @@ rumInsertCleanup(RumState * rumstate,
 			(RumPageHasFullRow(page) &&
 			 (accum.allocatedMemory >= maintenance_work_mem * 1024L)))
 		{
-			RumKey	   *items;
+			RumItem	   *items;
 			uint32		nlist;
 			Datum		key;
 			RumNullCategory category;

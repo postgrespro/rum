@@ -39,7 +39,7 @@ typedef struct
  */
 static BlockNumber
 createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
-				  RumKey * items, uint32 nitems)
+				  RumItem * items, uint32 nitems)
 {
 	BlockNumber blkno;
 	Buffer		buffer = RumNewBuffer(index);
@@ -106,7 +106,7 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 static IndexTuple
 RumFormTuple(RumState * rumstate,
 			 OffsetNumber attnum, Datum key, RumNullCategory category,
-			 RumKey * items, uint32 nipd, bool errorTooBig)
+			 RumItem * items, uint32 nipd, bool errorTooBig)
 {
 	Datum		datums[3];
 	bool		isnull[3];
@@ -241,14 +241,14 @@ RumFormTuple(RumState * rumstate,
  */
 static IndexTuple
 addItemPointersToLeafTuple(RumState * rumstate,
-						   IndexTuple old, RumKey * items, uint32 nitem,
+						   IndexTuple old, RumItem * items, uint32 nitem,
 						   GinStatsData *buildStats)
 {
 	OffsetNumber attnum;
 	Datum		key;
 	RumNullCategory category;
 	IndexTuple	res;
-	RumKey	   *newItems,
+	RumItem	   *newItems,
 			   *oldItems;
 	int			oldNPosting,
 				newNPosting;
@@ -259,15 +259,15 @@ addItemPointersToLeafTuple(RumState * rumstate,
 	key = rumtuple_get_key(rumstate, old, &category);
 
 	oldNPosting = RumGetNPosting(old);
-	oldItems = (RumKey *) palloc(sizeof(RumKey) * oldNPosting);
+	oldItems = (RumItem *) palloc(sizeof(RumItem) * oldNPosting);
 
 	newNPosting = oldNPosting + nitem;
-	newItems = (RumKey *) palloc(sizeof(RumKey) * newNPosting);
+	newItems = (RumItem *) palloc(sizeof(RumItem) * newNPosting);
 
 	rumReadTuple(rumstate, attnum, old, oldItems);
 
-	newNPosting = rumMergeItemPointers(rumstate, attnum, newItems,
-									   items, nitem, oldItems, oldNPosting);
+	newNPosting = rumMergeRumItems(rumstate, attnum, newItems,
+								   items, nitem, oldItems, oldNPosting);
 
 
 	/* try to build tuple with room for all the items */
@@ -321,7 +321,7 @@ addItemPointersToLeafTuple(RumState * rumstate,
 static IndexTuple
 buildFreshLeafTuple(RumState * rumstate,
 					OffsetNumber attnum, Datum key, RumNullCategory category,
-					RumKey * items, uint32 nitem, GinStatsData *buildStats)
+					RumItem * items, uint32 nitem, GinStatsData *buildStats)
 {
 	IndexTuple	res;
 
@@ -404,7 +404,7 @@ buildFreshLeafTuple(RumState * rumstate,
 void
 rumEntryInsert(RumState * rumstate,
 			   OffsetNumber attnum, Datum key, RumNullCategory category,
-			   RumKey * items, uint32 nitem,
+			   RumItem * items, uint32 nitem,
 			   GinStatsData *buildStats)
 {
 	RumBtreeData btree;
@@ -555,7 +555,7 @@ rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 	/* If we've maxed out our available memory, dump everything to the index */
 	if (buildstate->accum.allocatedMemory >= maintenance_work_mem * 1024L)
 	{
-		RumKey	   *items;
+		RumItem	   *items;
 		Datum		key;
 		RumNullCategory category;
 		uint32		nlist;
@@ -586,7 +586,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	RumBuildState buildstate;
 	Buffer		RootBuffer,
 				MetaBuffer;
-	RumKey	   *items;
+	RumItem	   *items;
 	Datum		key;
 	RumNullCategory category;
 	uint32		nlist;
@@ -768,7 +768,7 @@ rumHeapTupleInsert(RumState * rumstate, OffsetNumber attnum,
 
 	for (i = 0; i < nentries; i++)
 	{
-		RumKey		insert_item;
+		RumItem		insert_item;
 
 		/* Check existance of additional information attribute in index */
 		if (!addInfoIsNull[i] && !rumstate->addAttrs[attnum - 1])

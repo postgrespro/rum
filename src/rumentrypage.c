@@ -21,10 +21,10 @@
  */
 void
 rumReadTuple(RumState * rumstate, OffsetNumber attnum,
-			 IndexTuple itup, RumKey * items)
+			 IndexTuple itup, RumItem * items)
 {
 	Pointer		ptr = RumGetPosting(itup);
-	RumKey		item;
+	RumItem		item;
 	int			nipd = RumGetNPosting(itup),
 				i;
 
@@ -47,7 +47,7 @@ rumReadTuplePointers(RumState * rumstate, OffsetNumber attnum,
 	Pointer		ptr = RumGetPosting(itup);
 	int			nipd = RumGetNPosting(itup),
 				i;
-	RumKey		item;
+	RumItem		item;
 
 	ItemPointerSetMin(&item.iptr);
 	for (i = 0; i < nipd; i++)
