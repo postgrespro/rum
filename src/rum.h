@@ -682,21 +682,25 @@ typedef enum
 
 typedef struct RumScanOpaqueData
 {
+	/* tempCtx is used to hold consistent and ordering functions data */
 	MemoryContext tempCtx;
-	MemoryContext keyCtx;		/* used to hold key and entry data */
+	/* keyCtx is used to hold key and entry data */
+	MemoryContext keyCtx;
 	RumState	rumstate;
 
-	RumScanKey	*keys;			/* one per scan qualifier expr */
+	RumScanKey *keys;				/* one per scan qualifier expr */
 	uint32		nkeys;
-	int			norderbys;
 
-	RumScanEntry *entries;		/* one per index search condition */
-	RumScanEntry *sortedEntries;	/* one per index search condition */
-	int			entriesIncrIndex;
+	RumScanEntry *entries;			/* one per index search condition */
+	RumScanEntry *sortedEntries;	/* Sorted entries. Used in fast scan */
+	int			entriesIncrIndex;	/* used in fast scan */
 	uint32		totalentries;
-	uint32		allocentries;	/* allocated length of entries[] */
+	uint32		allocentries;		/* allocated length of entries[] and
+									   sortedEntries[] */
 
 	Tuplesortstate *sortstate;
+	int			norderbys;		/* Number of columns in ordering.
+								   Will be assigned to sortstate->nKeys */
 
 	RumKey		key;
 	bool		firstCall;

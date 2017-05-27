@@ -547,7 +547,7 @@ rumNewScanKey(IndexScanDesc scan)
 	oldCtx = MemoryContextSwitchTo(so->keyCtx);
 
 	/* if no scan keys provided, allocate extra EVERYTHING RumScanKey */
-	so->keys = (RumScanKey*)
+	so->keys = (RumScanKey *)
 		palloc((Max(scan->numberOfKeys, 1) + scan->numberOfOrderBys) *
 			   sizeof(*so->keys));
 	so->nkeys = 0;

@@ -2033,6 +2033,7 @@ rumgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	int64		ntids = 0;
 	bool		recheck;
+	RumKey		key;
 
 	/*
 	 * Set up the scan keys, and check for unsatisfiable query.
@@ -2063,14 +2064,16 @@ rumgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 	 */
 	startScan(scan);
 
+	ItemPointerSetInvalid(&key.iptr);
+
 	for (;;)
 	{
 		CHECK_FOR_INTERRUPTS();
 
-		if (!scanGetItem(scan, &so->key, &so->key, &recheck))
+		if (!scanGetItem(scan, &key, &key, &recheck))
 			break;
 
-		tbm_add_tuples(tbm, &so->key.iptr, 1, recheck);
+		tbm_add_tuples(tbm, &key.iptr, 1, recheck);
 		ntids++;
 	}
 
