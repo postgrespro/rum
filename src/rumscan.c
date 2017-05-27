@@ -534,7 +534,6 @@ rumNewScanKey(IndexScanDesc scan)
 
 	so->naturalOrder = NoMovementScanDirection;
 	so->secondPass = false;
-	so->tbm = NULL;
 	so->entriesIncrIndex = -1;
 	so->norderbys = scan->numberOfOrderBys;
 	so->willSort = false;

@@ -702,12 +702,12 @@ typedef struct RumScanOpaqueData
 	int			norderbys;		/* Number of columns in ordering.
 								   Will be assigned to sortstate->nKeys */
 
-	RumItem		item;
+	RumItem		item;			/* current item used in index scan */
 	bool		firstCall;
+
 	bool		isVoidRes;		/* true if query is unsatisfiable */
-	bool		willSort;
+	bool		willSort;		/* is there any columns in ordering */
 	RumScanType	scanType;
-	TIDBitmap  *tbm;
 
 	ScanDirection	naturalOrder;
 	bool			secondPass;

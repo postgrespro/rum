@@ -2044,17 +2044,6 @@ rumgetbitmap(IndexScanDesc scan, TIDBitmap *tbm)
 
 	ntids = 0;
 
-	/*
-	 * First, scan the pending list and collect any matching entries into the
-	 * bitmap.  After we scan a pending item, some other backend could post it
-	 * into the main index, and so we might visit it a second time during the
-	 * main scan.  This is okay because we'll just re-set the same bit in the
-	 * bitmap.  (The possibility of duplicate visits is a major reason why RUM
-	 * can't support the amgettuple API, however.) Note that it would not do
-	 * to scan the main index before the pending list, since concurrent
-	 * cleanup could then make us miss entries entirely.
-	 */
-	so->tbm = tbm;
 	so->entriesIncrIndex = -1;
 
 	/*
