@@ -584,8 +584,10 @@ typedef struct RumScanKeyData
 
 	/* array of check flags, reported to consistentFn */
 	bool	   *entryRes;
+	/* array of additional information, used in consistentFn and orderingFn */
 	Datum	   *addInfo;
 	bool	   *addInfoIsNull;
+	/* additional information, used in outerOrderingFn */
 	bool		useAddToColumn;
 	Datum		outerAddInfo;
 	bool		outerAddInfoIsNull;
@@ -616,7 +618,8 @@ typedef struct RumScanKeyData
 	bool		willSort; /* just a copy of RumScanOpaqueData.willSort */
 	ScanDirection	scanDirection;
 
-	RumScanKey	*addInfoKeys;
+	/* array of keys, used to scan using additional information as keys */
+	RumScanKey *addInfoKeys;
 	int			addInfoNKeys;
 }	RumScanKeyData;
 
@@ -638,9 +641,10 @@ typedef struct RumScanEntryData
 	/* current ItemPointer to heap */
 	RumItem		curItem;
 
-	/* for a partial-match or full-scan query, we accumulate all TIDs here */
-	bool		forceUseBitmap;
-	/* or here if we need to store addinfo */
+	/*
+	 * For a partial-match or full-scan query, we accumulate all TIDs and
+	 * and additional information here
+	 */
 	Tuplesortstate *matchSortstate;
 	RumItem		collectRumItem;
 
@@ -650,16 +654,19 @@ typedef struct RumScanEntryData
 
 	/* used for Posting list and one page in Posting tree */
 	RumItem	   *list;
-	MemoryContext context;
 	int16		nlist;
 	int16		offset;
 
-	ScanDirection	scanDirection;
+	ScanDirection scanDirection;
 	bool		isFinished;
 	bool		reduceResult;
-	bool		preValue;
 	uint32		predictNumberResult;
+
+	/* used to scan posting tree */
 	RumPostingTreeScan *gdi;
+
+	/* used in fast scan in addition to preConsistentFn */
+	bool		preValue;
 
 	/* Find by AddInfo */
 	bool		useMarkAddInfo;

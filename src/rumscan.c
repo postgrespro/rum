@@ -105,7 +105,6 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->strategy = strategy;
 	scanEntry->searchMode = searchMode;
 	scanEntry->attnum = scanEntry->attnumOrig = attnum;
-	scanEntry->forceUseBitmap = false;
 
 	scanEntry->buffer = InvalidBuffer;
 	RumItemSetMin(&scanEntry->curItem);

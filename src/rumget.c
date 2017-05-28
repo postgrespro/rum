@@ -433,8 +433,6 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 			scanEntry->predictNumberResult += RumGetNPosting(itup);
 		}
 
-		if (scanEntry->forceUseBitmap)
-			return true;
 		/*
 		 * Done with this entry, go to the next
 		 */
@@ -529,7 +527,7 @@ restartScanEntry:
 
 	entry->isFinished = TRUE;
 
-	if (entry->isPartialMatch || entry->forceUseBitmap ||
+	if (entry->isPartialMatch ||
 		(entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
 		 !entry->scanWithAddInfo))
 	{
@@ -599,11 +597,6 @@ restartScanEntry:
 													&entry->markAddInfo : NULL);
 
 			entry->gdi = gdi;
-			entry->context = AllocSetContextCreate(CurrentMemoryContext,
-												   "RUM entry temporary context",
-												   ALLOCSET_DEFAULT_MINSIZE,
-												   ALLOCSET_DEFAULT_INITSIZE,
-												   ALLOCSET_DEFAULT_MAXSIZE);
 
 			/*
 			 * We keep buffer pinned because we need to prevent deletion of
@@ -779,7 +772,7 @@ startScan(IndexScanDesc scan)
 		{
 			RumScanEntry entry = so->entries[i];
 
-			if (entry->isPartialMatch || entry->forceUseBitmap)
+			if (entry->isPartialMatch)
 			{
 				scanType = RumRegularScan;
 				break;
@@ -1011,11 +1004,6 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
 
 		entry->buffer = rumScanBeginPostingTree(gdi, NULL);
 		entry->gdi = gdi;
-		entry->context = AllocSetContextCreate(CurrentMemoryContext,
-											   "RUM entry temporary context",
-											   ALLOCSET_DEFAULT_MINSIZE,
-											   ALLOCSET_DEFAULT_INITSIZE,
-											   ALLOCSET_DEFAULT_MAXSIZE);
 
 		/*
 		 * We keep buffer pinned because we need to prevent deletion of
@@ -1266,8 +1254,7 @@ compareCurRumItemScanDirection(RumState *rumstate, RumScanEntry entry,
 							   RumItem *minItem)
 {
 	return compareRumItemScanDirection(rumstate,
-						(entry->forceUseBitmap) ?
-							InvalidAttrNumber : entry->attnumOrig,
+						entry->attnumOrig,
 						entry->scanDirection,
 						&entry->curItem, minItem);
 }
@@ -1632,8 +1619,6 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumItem * item)
 		entry->isFinished = TRUE;
 		return;
 	}
-
-	Assert(!entry->forceUseBitmap);
 
 	/* Try to find in loaded part of page */
 	if ((ScanDirectionIsForward(entry->scanDirection) &&
