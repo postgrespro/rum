@@ -764,12 +764,14 @@ RumPageDeletePostingItem(Page page, OffsetNumber offset)
 				   *sourceptr = RumDataPageGetItem(page, offset + 1);
 
 		memmove(dstptr, sourceptr, sizeof(PostingItem) * (maxoff - offset));
-		/* Adjust pd_lower */
-		((PageHeader) page)->pd_lower = sourceptr - page;
-		Assert(((PageHeader) page)->pd_lower <= ((PageHeader) page)->pd_upper);
 	}
 
 	RumPageGetOpaque(page)->maxoff--;
+
+	/* Adjust pd_lower */
+	((PageHeader) page)->pd_lower =
+		RumDataPageGetItem(page, RumPageGetOpaque(page)->maxoff + 1) - page;
+	Assert(((PageHeader) page)->pd_lower <= ((PageHeader) page)->pd_upper);
 }
 
 /*
@@ -1274,7 +1276,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	/* Adjust pd_lower */
 	((PageHeader) rPage)->pd_lower = (ptr +
 									  (maxoff - separator) * sizeofitem) -
-		rPage;
+									  rPage;
 
 	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
 	if (RumPageIsLeaf(newlPage))

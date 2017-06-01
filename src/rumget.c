@@ -51,7 +51,7 @@ callAddInfoConsistentFn(RumState * rumstate, RumScanKey key)
 
 	key->outerAddInfoIsNull = true;
 
-	if (key->addInfoKeys == false && key->willSort == false)
+	if (key->addInfoKeys == NULL && key->willSort == false)
 		return true;
 
 	for (i = 0; i < key->nentries; i++)

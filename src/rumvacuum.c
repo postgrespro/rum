@@ -239,10 +239,6 @@ rumVacuumPostingTreeLeaves(RumVacuumState * gvs, OffsetNumber attnum,
 					oldMaxOff = RumPageGetOpaque(page)->maxoff;
 		Pointer		cleaned = NULL;
 		Size		newSize;
-		GenericXLogState *state;
-
-		state = GenericXLogStart(gvs->index);
-		page = GenericXLogRegisterBuffer(state, buffer, 0);
 
 		newMaxOff = rumVacuumPostingList(gvs, attnum,
 							   RumDataPageGetData(page), oldMaxOff, &cleaned,
@@ -251,21 +247,26 @@ rumVacuumPostingTreeLeaves(RumVacuumState * gvs, OffsetNumber attnum,
 		/* saves changes about deleted tuple ... */
 		if (oldMaxOff != newMaxOff)
 		{
+			GenericXLogState *state;
+			Page		newPage;
+
+			state = GenericXLogStart(gvs->index);
+
+			newPage = GenericXLogRegisterBuffer(state, buffer, 0);
+
 			if (newMaxOff > 0)
-				memcpy(RumDataPageGetData(page), cleaned, newSize);
+				memcpy(RumDataPageGetData(newPage), cleaned, newSize);
 
 			pfree(cleaned);
-			RumPageGetOpaque(page)->maxoff = newMaxOff;
-			updateItemIndexes(page, attnum, &gvs->rumstate);
+			RumPageGetOpaque(newPage)->maxoff = newMaxOff;
+			updateItemIndexes(newPage, attnum, &gvs->rumstate);
 
 			/* if root is a leaf page, we don't desire further processing */
-			if (!isRoot && RumPageGetOpaque(page)->maxoff < FirstOffsetNumber)
+			if (!isRoot && RumPageGetOpaque(newPage)->maxoff < FirstOffsetNumber)
 				hasVoidPage = TRUE;
 
 			GenericXLogFinish(state);
 		}
-		else
-			GenericXLogAbort(state);
 	}
 	else
 	{
@@ -341,8 +342,6 @@ restart:
 
 	LockBuffer(dBuffer, RUM_UNLOCK);
 
-	state = GenericXLogStart(gvs->index);
-
 	/*
 	 * Lock the pages in the same order as an insertion would, to avoid
 	 * deadlocks: left, then right, then parent.
@@ -360,6 +359,7 @@ restart:
 		UnlockReleaseBuffer(lBuffer);
 		ReleaseBuffer(dBuffer);
 		ReleaseBuffer(rBuffer);
+		ReleaseBuffer(pBuffer);
 		goto restart;
 	}
 	LockBuffer(rBuffer, RUM_EXCLUSIVE);
@@ -367,9 +367,8 @@ restart:
 								 * LockBufferForCleanup() */
 		LockBuffer(pBuffer, RUM_EXCLUSIVE);
 
-	dPage = GenericXLogRegisterBuffer(state, dBuffer, 0);
-	lPage = GenericXLogRegisterBuffer(state, lBuffer, 0);
-	rPage = GenericXLogRegisterBuffer(state, rBuffer, 0);
+	lPage = BufferGetPage(lBuffer);
+	rPage = BufferGetPage(rBuffer);
 
 	/*
 	 * last chance to check
@@ -378,6 +377,8 @@ restart:
 		  RumPageGetOpaque(rPage)->leftlink == deleteBlkno &&
 		  RumPageGetOpaque(dPage)->maxoff < FirstOffsetNumber))
 	{
+		OffsetNumber dMaxoff = RumPageGetOpaque(dPage)->maxoff;
+
 		if (!isParentRoot)
 			LockBuffer(pBuffer, RUM_UNLOCK);
 		ReleaseBuffer(pBuffer);
@@ -385,11 +386,19 @@ restart:
 		UnlockReleaseBuffer(dBuffer);
 		UnlockReleaseBuffer(rBuffer);
 
-		if (RumPageGetOpaque(dPage)->maxoff >= FirstOffsetNumber)
+		if (dMaxoff >= FirstOffsetNumber)
 			return false;
 
 		goto restart;
 	}
+
+	/* At least make the WAL record */
+
+	state = GenericXLogStart(gvs->index);
+
+	dPage = GenericXLogRegisterBuffer(state, dBuffer, 0);
+	lPage = GenericXLogRegisterBuffer(state, lBuffer, 0);
+	rPage = GenericXLogRegisterBuffer(state, rBuffer, 0);
 
 	RumPageGetOpaque(lPage)->rightlink = rightBlkno;
 	RumPageGetOpaque(rPage)->leftlink = leftBlkno;
@@ -484,9 +493,16 @@ rumScanToDelete(RumVacuumState * gvs, BlockNumber blkno, bool isRoot,
 	}
 
 	if (RumPageGetOpaque(page)->maxoff < FirstOffsetNumber && !isRoot)
+	{
+		/*
+		 * Release the buffer because in rumDeletePage() we need to pin it again
+		 * and call ConditionalLockBufferForCleanup().
+		 */
+		ReleaseBuffer(buffer);
 		meDelete = rumDeletePage(gvs, blkno, me->parent->blkno, myoff, me->parent->isRoot);
-
-	ReleaseBuffer(buffer);
+	}
+	else
+		ReleaseBuffer(buffer);
 
 	return meDelete;
 }
