@@ -137,6 +137,16 @@ class PglistTests(unittest.TestCase):
                 816114
             )
 
+            # Autovacuum after large update, with active RUM index crashes postgres
+            print("Test Issue #19")
+
+            self.node.safe_psql(
+                "pglist",
+                "DELETE FROM pglist WHERE id < 100000")
+            self.node.safe_psql(
+                "pglist",
+                "vacuum")
+
             self.node.safe_psql("pglist", "DROP INDEX pglist_rum_idx");
 
         except Exception as e:
