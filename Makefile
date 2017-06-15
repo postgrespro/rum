@@ -10,7 +10,8 @@ OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
 EXTENSION = rum
 EXTVERSION = 1.2
 DATA = rum--1.0.sql
-DATA_built = rum--$(EXTVERSION).sql rum--1.0--1.1.sql rum--1.1--1.2.sql
+DATA_updates = rum--1.0--1.1.sql rum--1.1--1.2.sql
+DATA_built = rum--$(EXTVERSION).sql $(DATA_updates)
 PGFILEDESC = "RUM index access method"
 INCLUDES = src/rum.h src/rumsort.h
 
@@ -39,15 +40,12 @@ wal-check: temp-install
 
 all: rum--$(EXTVERSION).sql
 
-#9.6 requires 1.1 file but 10.0 could live with 1.0 + 1.0-1.1 files
-rum--$(EXTVERSION).sql:  rum--1.0.sql rum--1.0--1.1.sql rum--1.1--1.2.sql
-	cat rum--1.0.sql rum--1.0--1.1.sql rum--1.1--1.2.sql > rum--$(EXTVERSION).sql
+rum--$(EXTVERSION).sql: $(DATA) $(DATA_updates)
+	cat $(DATA) $(DATA_updates) > rum--$(EXTVERSION).sql
 
-rum--1.0--1.1.sql: Makefile gen_rum_sql--1.0--1.1.pl
-	perl gen_rum_sql--1.0--1.1.pl > rum--1.0--1.1.sql
-
-rum--1.1--1.2.sql: Makefile gen_rum_sql--1.1--1.2.pl
-	perl gen_rum_sql--1.1--1.2.pl > rum--1.1--1.2.sql
+# rule for updates, e.g. rum--1.0--1.1.sql
+rum--%.sql: gen_rum_sql--%.pl
+	perl $< > $@
 
 install: installincludes
 
