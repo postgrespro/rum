@@ -625,4 +625,3 @@ rum_timestamp_consistent(PG_FUNCTION_ARGS)
 	*recheck = false;
 	PG_RETURN_BOOL(true);
 }
-
