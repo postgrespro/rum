@@ -114,14 +114,14 @@ rumvalidate(Oid opclassoid)
 			case GIN_EXTRACTVALUE_PROC:
 				/* Some opclasses omit nullFlags */
 				ok = check_amproc_signature(procform->amproc, INTERNALOID, false,
-											5, 5, opcintype, INTERNALOID,
+											2, 5, opcintype, INTERNALOID,
 											INTERNALOID, INTERNALOID,
 											INTERNALOID);
 				break;
 			case GIN_EXTRACTQUERY_PROC:
 				/* Some opclasses omit nullFlags and searchMode */
 				ok = check_amproc_signature(procform->amproc, INTERNALOID, false,
-											7, 7, opcintype, INTERNALOID,
+											5, 7, opcintype, INTERNALOID,
 											INT2OID, INTERNALOID, INTERNALOID,
 											INTERNALOID, INTERNALOID);
 				break;
@@ -151,11 +151,11 @@ rumvalidate(Oid opclassoid)
 				break;
 			case RUM_ORDERING_PROC:
 				ok = check_amproc_signature(procform->amproc, FLOAT8OID, false,
-											9, 9, INTERNALOID, INT2OID,
+											10, 10, INTERNALOID, INT2OID,
 											opcintype, INT4OID,
 											INTERNALOID, INTERNALOID,
 											INTERNALOID, INTERNALOID,
-											INTERNALOID);
+											INTERNALOID, INTERNALOID);
 				break;
 			case RUM_OUTER_ORDERING_PROC:
 				ok = check_amproc_signature(procform->amproc, FLOAT8OID, false,
@@ -164,7 +164,7 @@ rumvalidate(Oid opclassoid)
 				break;
 			case RUM_ADDINFO_JOIN:
 				ok = check_amproc_signature(procform->amproc, BYTEAOID, false,
-											2, 2, opckeytype, opckeytype);
+											2, 2, INTERNALOID, INTERNALOID);
 				break;
 			default:
 				ereport(INFO,
@@ -207,22 +207,25 @@ rumvalidate(Oid opclassoid)
 			result = false;
 		}
 
-		/* rum doesn't support ORDER BY operators */
-		if (oprform->amoppurpose != AMOP_SEARCH ||
-			OidIsValid(oprform->amopsortfamily))
+		/* Check ORDER BY operator signature */
+		if (oprform->amoppurpose == AMOP_ORDER)
 		{
-			ereport(INFO,
-					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-					 errmsg("rum opfamily %s contains invalid ORDER BY specification for operator %s",
-							opfamilyname,
-							format_operator(oprform->amopopr))));
-			result = false;
+			if (!check_amop_signature(oprform->amopopr, FLOAT8OID,
+									  oprform->amoplefttype,
+									  oprform->amoprighttype))
+			{
+				ereport(INFO,
+						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+						 errmsg("rum opfamily %s contains invalid ORDER BY specification for operator %s",
+								opfamilyname,
+								format_operator(oprform->amopopr))));
+				result = false;
+			}
 		}
-
-		/* Check operator signature --- same for all rum strategies */
-		if (!check_amop_signature(oprform->amopopr, BOOLOID,
-								  oprform->amoplefttype,
-								  oprform->amoprighttype))
+		/* Check other operator signature */
+		else if (!check_amop_signature(oprform->amopopr, BOOLOID,
+									   oprform->amoplefttype,
+									   oprform->amoprighttype))
 		{
 			ereport(INFO,
 					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
@@ -263,9 +266,7 @@ rumvalidate(Oid opclassoid)
 			continue;			/* got it */
 		if (i == GIN_COMPARE_PARTIAL_PROC)
 			continue;			/* optional method */
-		if (i == GIN_CONSISTENT_PROC)
-			continue;
-		if (i == RUM_PRE_CONSISTENT_PROC)
+		if (i >= RUM_CONFIG_PROC)
 			continue;
 		ereport(INFO,
 				(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),

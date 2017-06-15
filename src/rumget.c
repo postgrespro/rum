@@ -1125,7 +1125,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
 
 					if (ItemPointerIsMin(&collected.iptr))
 					{
-						joinedAddInfoIsNull = true; /* wiil change later */
+						joinedAddInfoIsNull = true; /* will change later */
 						collected.addInfoIsNull = true;
 					}
 					else

@@ -620,7 +620,7 @@ typedef struct RumScanKeyData
 
 	/* array of keys, used to scan using additional information as keys */
 	RumScanKey *addInfoKeys;
-	int			addInfoNKeys;
+	uint32		addInfoNKeys;
 }	RumScanKeyData;
 
 typedef struct RumScanEntryData

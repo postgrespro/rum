@@ -321,8 +321,7 @@ freeScanKeys(RumScanOpaque so)
 }
 
 static void
-initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery,
-			bool *hasPartialMatch)
+initScanKey(RumScanOpaque so, ScanKey skey, bool *hasPartialMatch)
 {
 	Datum	   *queryValues;
 	int32		nQueryValues = 0;
@@ -362,10 +361,6 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery,
 		searchMode > GIN_SEARCH_MODE_ALL)
 		searchMode = GIN_SEARCH_MODE_ALL;
 
-	/* Non-default modes require the index to have placeholders */
-	if (searchMode != GIN_SEARCH_MODE_DEFAULT)
-		*hasNullQuery = true;
-
 	/*
 	 * In default mode, no keys means an unsatisfiable query.
 	 */
@@ -395,10 +390,7 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery,
 		for (j = 0; j < nQueryValues; j++)
 		{
 			if (nullFlags[j])
-			{
 				nullFlags[j] = true;	/* not any other nonzero value */
-				*hasNullQuery = true;
-			}
 		}
 	}
 	/* now we can use the nullFlags as category codes */
@@ -521,7 +513,6 @@ rumNewScanKey(IndexScanDesc scan)
 {
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	int			i;
-	bool		hasNullQuery = false;
 	bool		checkEmptyEntry = false;
 	bool		hasPartialMatch = false;
 	MemoryContext oldCtx;
@@ -554,7 +545,7 @@ rumNewScanKey(IndexScanDesc scan)
 
 	for (i = 0; i < scan->numberOfKeys; i++)
 	{
-		initScanKey(so, &scan->keyData[i], &hasNullQuery, &hasPartialMatch);
+		initScanKey(so, &scan->keyData[i], &hasPartialMatch);
 		if (so->isVoidRes)
 			break;
 	}
@@ -565,7 +556,6 @@ rumNewScanKey(IndexScanDesc scan)
 	 */
 	if (so->nkeys == 0 && !so->isVoidRes)
 	{
-		hasNullQuery = true;
 		rumFillScanKey(so, FirstOffsetNumber,
 					   InvalidStrategy,
 					   GIN_SEARCH_MODE_EVERYTHING,
@@ -576,7 +566,7 @@ rumNewScanKey(IndexScanDesc scan)
 
 	for (i = 0; i < scan->numberOfOrderBys; i++)
 	{
-		initScanKey(so, &scan->orderByData[i], &hasNullQuery, NULL);
+		initScanKey(so, &scan->orderByData[i], NULL);
 		if (so->isVoidRes)
 			break;
 	}
