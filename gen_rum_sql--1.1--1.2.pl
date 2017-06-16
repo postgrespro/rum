@@ -129,8 +129,27 @@ my @opinfo = map {
 ##############Generate!!!
 
 print <<EOT;
+CREATE FUNCTION rum_anyarray_config(internal)
+RETURNS void
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
 CREATE OPERATOR CLASS rum_anyarray_ops
 DEFAULT FOR TYPE anyarray USING rum
+AS
+	OPERATOR	1	&& (anyarray, anyarray),
+	OPERATOR	2	@> (anyarray, anyarray),
+	OPERATOR	3	<@ (anyarray, anyarray),
+	OPERATOR	4	=  (anyarray, anyarray),
+	--dispatch function 1 for concrete type
+	FUNCTION	2	ginarrayextract(anyarray,internal,internal),
+	FUNCTION	3	ginqueryarrayextract(anyarray,internal,smallint,internal,internal,internal,internal),
+	FUNCTION	4	ginarrayconsistent(internal,smallint,anyarray,integer,internal,internal,internal,internal),
+	FUNCTION	6	rum_anyarray_config(internal),
+	STORAGE  anyelement;
+
+CREATE OPERATOR CLASS rum_anyarray_addon_ops
+FOR TYPE anyarray USING rum
 AS
 	OPERATOR	1	&& (anyarray, anyarray),
 	OPERATOR	2	@> (anyarray, anyarray),
