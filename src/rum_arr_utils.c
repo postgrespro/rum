@@ -30,22 +30,23 @@
 
 #include "rum.h"
 
+#include <float.h>
 #include <math.h>
 
 
-#define RumOverlapStrategy		1
-#define RumContainsStrategy		2
-#define RumContainedStrategy	3
-#define RumEqualStrategy		4
-#define RumSimilarStrategy		5
+#define RUM_OVERLAP_STRATEGY	1
+#define RUM_CONTAINS_STRATEGY	2
+#define RUM_CONTAINED_STRATEGY	3
+#define RUM_EQUAL_STRATEGY		4
+#define RUM_SIMILAR_STRATEGY	5
 
 
 #define LINEAR_LIMIT	5
 #define NDIM			1
 
 
-#define ARRNELEMS(x)	ArrayGetNItems(ARR_NDIM(x), ARR_DIMS(x))
-#define ARRISVOID(x)	((x) == NULL || ARRNELEMS(x) == 0)
+#define ARR_NELEMS(x)	ArrayGetNItems(ARR_NDIM(x), ARR_DIMS(x))
+#define ARR_ISVOID(x)	((x) == NULL || ARR_NELEMS(x) == 0)
 
 #define CHECKARRVALID(x) \
 	do { \
@@ -59,7 +60,16 @@
 						(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED), \
 						 errmsg("array must not contain nulls"))); \
 		} \
-	} while(0)
+	} while (0)
+
+#define InitDummySimpleArray(s, len) \
+	do { \
+		(s)->elems = NULL; \
+		(s)->hashedElems = NULL; \
+		(s)->nelems = (len); \
+		(s)->nHashedElems = -1; \
+		(s)->info = NULL; \
+	} while (0)
 
 
 typedef struct AnyArrayTypeInfo
@@ -86,7 +96,8 @@ typedef struct SimpleArray
 	AnyArrayTypeInfo   *info;
 } SimpleArray;
 
-typedef enum SimilarityType {
+typedef enum SimilarityType
+{
 	AA_Cosine,
 	AA_Jaccard,
 	AA_Overlap
@@ -100,12 +111,13 @@ PG_FUNCTION_INFO_V1(rum_extract_anyarray_query);
 
 PG_FUNCTION_INFO_V1(rum_anyarray_consistent);
 
+PG_FUNCTION_INFO_V1(rum_anyarray_ordering);
 PG_FUNCTION_INFO_V1(rum_anyarray_similar);
 PG_FUNCTION_INFO_V1(rum_anyarray_distance);
 
 
-static SimilarityType	SmlType;
-static double			SmlLimit;
+static SimilarityType	SmlType = AA_Cosine;
+static float8			SmlLimit = 0.5;
 
 
 static Oid getAMProc(Oid amOid, Oid typid);
@@ -123,8 +135,8 @@ static int cmpDescArrayElem(const void *a, const void *b, void *arg);
 static void sortSimpleArray(SimpleArray *s, int32 direction);
 static void uniqSimpleArray(SimpleArray *s, bool onlyDuplicate);
 
-static int getNumOfIntersect(SimpleArray *sa, SimpleArray *sb);
-static double getSimilarity(SimpleArray *sa, SimpleArray *sb);
+static int32 getNumOfIntersect(SimpleArray *sa, SimpleArray *sb);
+static float8 getSimilarity(SimpleArray *sa, SimpleArray *sb, int32 intersect);
 
 
 
@@ -224,26 +236,30 @@ rum_extract_anyarray_query(PG_FUNCTION_ARGS)
 
 	switch (strategy)
 	{
-		case RumOverlapStrategy:
+		case RUM_OVERLAP_STRATEGY:
 			*searchMode = GIN_SEARCH_MODE_DEFAULT;
 			break;
-		case RumContainsStrategy:
+		case RUM_CONTAINS_STRATEGY:
 			if (*nentries > 0)
 				*searchMode = GIN_SEARCH_MODE_DEFAULT;
 			else	/* everything contains the empty set */
 				*searchMode = GIN_SEARCH_MODE_ALL;
 			break;
-		case RumContainedStrategy:
+		case RUM_CONTAINED_STRATEGY:
 			/* empty set is contained in everything */
 			*searchMode = GIN_SEARCH_MODE_INCLUDE_EMPTY;
 			break;
-		case RumEqualStrategy:
+		case RUM_EQUAL_STRATEGY:
 			if (*nentries > 0)
 				*searchMode = GIN_SEARCH_MODE_DEFAULT;
 			else
 				*searchMode = GIN_SEARCH_MODE_INCLUDE_EMPTY;
 			break;
-		case RumSimilarStrategy:
+		case RUM_SIMILAR_STRATEGY:
+			*searchMode = GIN_SEARCH_MODE_DEFAULT;
+			break;
+		/* Special case for distance */
+		case RUM_DISTANCE:
 			*searchMode = GIN_SEARCH_MODE_DEFAULT;
 			break;
 		default:
@@ -285,7 +301,7 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 
 	switch (strategy)
 	{
-		case RumOverlapStrategy:
+		case RUM_OVERLAP_STRATEGY:
 			/* result is not lossy */
 			*recheck = false;
 			/* must have a match for at least one non-null element */
@@ -299,7 +315,7 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 				}
 			}
 			break;
-		case RumContainsStrategy:
+		case RUM_CONTAINS_STRATEGY:
 			/* result is not lossy */
 			*recheck = false;
 
@@ -314,7 +330,7 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 				}
 			}
 			break;
-		case RumContainedStrategy:
+		case RUM_CONTAINED_STRATEGY:
 			/* we will need recheck */
 			*recheck = true;
 
@@ -329,7 +345,7 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 				}
 			}
 			break;
-		case RumEqualStrategy:
+		case RUM_EQUAL_STRATEGY:
 			/* we will need recheck */
 			*recheck = true;
 
@@ -356,7 +372,7 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 				}
 			}
 			break;
-		case RumSimilarStrategy:
+		case RUM_SIMILAR_STRATEGY:
 			/* we will need recheck */
 			*recheck = true;
 
@@ -378,15 +394,129 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
  */
 
 Datum
+rum_anyarray_ordering(PG_FUNCTION_ARGS)
+{
+	bool	   *check = (bool *) PG_GETARG_POINTER(0);
+	int			nkeys = PG_GETARG_INT32(3);
+	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
+	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
+
+	float8		dist,
+				sml;
+	int32		intersect = 0,
+				nentries = -1;
+	int			i;
+
+	SimpleArray	sa, sb;
+
+	for (i = 0; i < nkeys; i++)
+		if (check[i])
+			intersect++;
+
+	if (intersect == 0)
+		PG_RETURN_FLOAT8(get_float8_infinity());
+
+	for (i = 0; i < nkeys; i++)
+		if (!addInfoIsNull[0])
+		{
+			nentries = DatumGetInt32(addInfo[i]);
+			break;
+		}
+
+	InitDummySimpleArray(&sa, nentries);
+	InitDummySimpleArray(&sb, nkeys);
+	sml = getSimilarity(&sa, &sb, intersect);
+
+	if (sml == 0.0)
+		dist = get_float8_infinity();
+	else
+		dist = 1.0 / sml;
+
+	PG_RETURN_FLOAT8(dist);
+}
+
+Datum
 rum_anyarray_similar(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_BOOL(true);
+	ArrayType		   *a = PG_GETARG_ARRAYTYPE_P(0);
+	ArrayType		   *b = PG_GETARG_ARRAYTYPE_P(1);
+	AnyArrayTypeInfo   *info;
+	SimpleArray		   *sa,
+					   *sb;
+	float8				result = 0.0;
+
+	CHECKARRVALID(a);
+	CHECKARRVALID(b);
+
+	if (ARR_ELEMTYPE(a) != ARR_ELEMTYPE(b))
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("array types do not match")));
+
+	if (ARR_ISVOID(a) || ARR_ISVOID(b))
+		PG_RETURN_BOOL(false);
+
+	if (fcinfo->flinfo->fn_extra == NULL)
+		fcinfo->flinfo->fn_extra = getAnyArrayTypeInfo(fcinfo->flinfo->fn_mcxt,
+													   ARR_ELEMTYPE(a));
+	info = (AnyArrayTypeInfo *) fcinfo->flinfo->fn_extra;
+
+	sa = Array2SimpleArray(info, a);
+	sb = Array2SimpleArray(info, b);
+
+	result = getSimilarity(sa, sb, getNumOfIntersect(sa, sb));
+
+	freeSimpleArray(sb);
+	freeSimpleArray(sa);
+
+	PG_FREE_IF_COPY(b, 1);
+	PG_FREE_IF_COPY(a, 0);
+
+	PG_RETURN_BOOL(result >= SmlLimit);
 }
 
 Datum
 rum_anyarray_distance(PG_FUNCTION_ARGS)
 {
-	PG_RETURN_FLOAT8(0.0);
+	ArrayType		   *a = PG_GETARG_ARRAYTYPE_P(0);
+	ArrayType		   *b = PG_GETARG_ARRAYTYPE_P(1);
+	AnyArrayTypeInfo   *info;
+	SimpleArray		   *sa,
+					   *sb;
+	float8				result = 0.0;
+
+	CHECKARRVALID(a);
+	CHECKARRVALID(b);
+
+	if (ARR_ELEMTYPE(a) != ARR_ELEMTYPE(b))
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("array types do not match")));
+
+	if (ARR_ISVOID(a) || ARR_ISVOID(b))
+		PG_RETURN_FLOAT8(0.0);
+
+	if (fcinfo->flinfo->fn_extra == NULL)
+		fcinfo->flinfo->fn_extra = getAnyArrayTypeInfo(fcinfo->flinfo->fn_mcxt,
+													   ARR_ELEMTYPE(a));
+	info = (AnyArrayTypeInfo *) fcinfo->flinfo->fn_extra;
+
+	sa = Array2SimpleArray(info, a);
+	sb = Array2SimpleArray(info, b);
+
+	result = getSimilarity(sa, sb, getNumOfIntersect(sa, sb));
+	if (result == 0.0)
+		result = get_float8_infinity();
+	else
+		result = 1.0 / result;
+
+	freeSimpleArray(sb);
+	freeSimpleArray(sa);
+
+	PG_FREE_IF_COPY(b, 1);
+	PG_FREE_IF_COPY(a, 0);
+
+	PG_RETURN_FLOAT8(result);
 }
 
 
@@ -546,7 +676,7 @@ Array2SimpleArray(AnyArrayTypeInfo *info, ArrayType *a)
 	s->nHashedElems = 0;
 	s->hashedElems = NULL;
 
-	if (ARRISVOID(a))
+	if (ARR_ISVOID(a))
 	{
 		s->elems = NULL;
 		s->nelems = 0;
@@ -676,11 +806,11 @@ uniqSimpleArray(SimpleArray *s, bool onlyDuplicate)
  * Similarity calculation
  */
 
-static int
+static int32
 getNumOfIntersect(SimpleArray *sa, SimpleArray *sb)
 {
-	int					cnt = 0,
-						cmp;
+	int32				cnt = 0;
+	int					cmp;
 	Datum				*aptr = sa->elems,
 						*bptr = sb->elems;
 	AnyArrayTypeInfo	*info = sa->info;
@@ -711,24 +841,21 @@ getNumOfIntersect(SimpleArray *sa, SimpleArray *sb)
 	return cnt;
 }
 
-static double
-getSimilarity(SimpleArray *sa, SimpleArray *sb)
+static float8
+getSimilarity(SimpleArray *sa, SimpleArray *sb, int32 intersect)
 {
-	int			inter;
-	double		result = 0.0;
+	float8		result = 0.0;
 
-	inter = getNumOfIntersect(sa, sb);
-
-	switch(SmlType)
+	switch (SmlType)
 	{
 		case AA_Cosine:
-			result = ((double)inter) / sqrt(((double)sa->nelems) * ((double)sb->nelems));
+			result = ((float8)intersect) / sqrt(((float8)sa->nelems) * ((float8)sb->nelems));
 			break;
 		case AA_Jaccard:
-			result = ((double)inter) / (((double)sa->nelems) + ((double)sb->nelems) - ((double)inter));
+			result = ((float8)intersect) / (((float8)sa->nelems) + ((float8)sb->nelems) - ((double)intersect));
 			break;
 		case AA_Overlap:
-			result = inter;
+			result = intersect;
 			break;
 		default:
 			elog(ERROR, "unknown similarity type");

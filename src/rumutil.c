@@ -273,8 +273,6 @@ initRumState(RumState * state, Relation index)
 						   CurrentMemoryContext);
 		}
 
-
-
 		fmgr_info_copy(&(state->extractValueFn[i]),
 					   index_getprocinfo(index, i + 1, GIN_EXTRACTVALUE_PROC),
 					   CurrentMemoryContext);
@@ -324,7 +322,6 @@ initRumState(RumState * state, Relation index)
 						   index_getprocinfo(index, i + 1, RUM_ORDERING_PROC),
 						   CurrentMemoryContext);
 			state->canOrdering[i] = true;
-
 		}
 		else
 		{

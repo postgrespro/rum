@@ -178,6 +178,10 @@ RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
+CREATE FUNCTION rum_anyarray_ordering(internal,smallint,tsvector,int,internal,internal,internal,internal,internal)
+RETURNS float8
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
 
 
 CREATE OPERATOR CLASS rum_anyarray_ops
@@ -194,6 +198,7 @@ AS
 	FUNCTION	3	rum_extract_anyarray_query(anyarray,internal,smallint,internal,internal,internal,internal),
 	FUNCTION	4	rum_anyarray_consistent(internal,smallint,anyarray,integer,internal,internal,internal,internal),
 	FUNCTION	6	rum_anyarray_config(internal),
+	FUNCTION	8	rum_anyarray_ordering(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),
 	STORAGE anyelement;
 
 CREATE OPERATOR CLASS rum_anyarray_addon_ops
