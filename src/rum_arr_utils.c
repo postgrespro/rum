@@ -136,7 +136,7 @@ static void sortSimpleArray(SimpleArray *s, int32 direction);
 static void uniqSimpleArray(SimpleArray *s, bool onlyDuplicate);
 
 static int32 getNumOfIntersect(SimpleArray *sa, SimpleArray *sb);
-static float8 getSimilarity(SimpleArray *sa, SimpleArray *sb, int32 intersect);
+static float8 getSimilarity(SimpleArray *sa, SimpleArray *sb, int32 intersection);
 
 
 
@@ -164,30 +164,26 @@ Datum
 rum_extract_anyarray(PG_FUNCTION_ARGS)
 {
 	/* Make copy of array input to ensure it doesn't disappear while in use */
-	ArrayType  *array = PG_GETARG_ARRAYTYPE_P_COPY(0);
+	ArrayType		   *array = PG_GETARG_ARRAYTYPE_P_COPY(0);
+	SimpleArray		   *sa;
+	AnyArrayTypeInfo   *info;
 
-	Datum	   *entries;
-	int32	   *nentries = (int32 *) PG_GETARG_POINTER(1);
-	bool	  **entries_isnull = (bool **) PG_GETARG_POINTER(2);
+	int32			   *nentries = (int32 *) PG_GETARG_POINTER(1);
 
-	Datum	  **addInfo = (Datum **) PG_GETARG_POINTER(3);
-	bool	  **addInfoIsNull = (bool **) PG_GETARG_POINTER(4);
+	Datum			  **addInfo = (Datum **) PG_GETARG_POINTER(3);
+	bool			  **addInfoIsNull = (bool **) PG_GETARG_POINTER(4);
 
-	int16		elmlen;
-	bool		elmbyval;
-	char		elmalign;
-	int			i;
+	int					i;
 
 	CHECKARRVALID(array);
 
-	get_typlenbyvalalign(ARR_ELEMTYPE(array),
-						 &elmlen, &elmbyval, &elmalign);
+	info = getAnyArrayTypeInfoCached(fcinfo, ARR_ELEMTYPE(array));
 
-	deconstruct_array(array,
-					  ARR_ELEMTYPE(array),
-					  elmlen, elmbyval, elmalign,
-					  &entries, entries_isnull, nentries);
+	sa = Array2SimpleArray(info, array);
+	sortSimpleArray(sa, 1);
+	uniqSimpleArray(sa, false);
 
+	*nentries = sa->nelems;
 	*addInfo = (Datum *) palloc(*nentries * sizeof(Datum));
 	*addInfoIsNull = (bool *) palloc(*nentries * sizeof(bool));
 
@@ -199,7 +195,7 @@ rum_extract_anyarray(PG_FUNCTION_ARGS)
 	}
 
 	/* we should not free array, entries[i] points into it */
-	PG_RETURN_POINTER(entries);
+	PG_RETURN_POINTER(sa->elems);
 }
 
 /* Enhanced version of ginqueryarrayextract() */
@@ -207,32 +203,24 @@ Datum
 rum_extract_anyarray_query(PG_FUNCTION_ARGS)
 {
 	/* Make copy of array input to ensure it doesn't disappear while in use */
-	ArrayType  *array = PG_GETARG_ARRAYTYPE_P_COPY(0);
+	ArrayType		   *array = PG_GETARG_ARRAYTYPE_P_COPY(0);
+	SimpleArray		   *sa;
+	AnyArrayTypeInfo   *info;
 
-	Datum	   *entries;
-	int32	   *nentries = (int32 *) PG_GETARG_POINTER(1);
-	bool	  **entries_isnull = (bool **) PG_GETARG_POINTER(5);
+	int32			   *nentries = (int32 *) PG_GETARG_POINTER(1);
 
-	StrategyNumber strategy = PG_GETARG_UINT16(2);
-
-	/* bool   **pmatch = (bool **) PG_GETARG_POINTER(3); */
-	/* Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4); */
-
-	int32	   *searchMode = (int32 *) PG_GETARG_POINTER(6);
-
-	int16		elmlen;
-	bool		elmbyval;
-	char		elmalign;
+	StrategyNumber		strategy = PG_GETARG_UINT16(2);
+	int32			   *searchMode = (int32 *) PG_GETARG_POINTER(6);
 
 	CHECKARRVALID(array);
 
-	get_typlenbyvalalign(ARR_ELEMTYPE(array),
-						 &elmlen, &elmbyval, &elmalign);
+	info = getAnyArrayTypeInfoCached(fcinfo, ARR_ELEMTYPE(array));
 
-	deconstruct_array(array,
-					  ARR_ELEMTYPE(array),
-					  elmlen, elmbyval, elmalign,
-					  &entries, entries_isnull, nentries);
+	sa = Array2SimpleArray(info, array);
+	sortSimpleArray(sa, 1);
+	uniqSimpleArray(sa, false);
+
+	*nentries = sa->nelems;
 
 	switch (strategy)
 	{
@@ -268,7 +256,7 @@ rum_extract_anyarray_query(PG_FUNCTION_ARGS)
 	}
 
 	/* we should not free array, elems[i] points into it */
-	PG_RETURN_POINTER(entries);
+	PG_RETURN_POINTER(sa->elems);
 }
 
 
@@ -373,11 +361,34 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 			}
 			break;
 		case RUM_SIMILAR_STRATEGY:
-			/* we will need recheck */
-			*recheck = true;
+			/* we won't need recheck */
+			*recheck = false;
 
-			/* can't do anything else useful here */
-			res = true;
+			{
+				int32		intersection = 0,
+							nentries = -1;
+				SimpleArray	sa, sb;
+
+				for (i = 0; i < nkeys; i++)
+					if (check[i])
+						intersection++;
+
+				for (i = 0; i < nkeys; i++)
+					if (!addInfoIsNull[0])
+					{
+						nentries = DatumGetInt32(addInfo[i]);
+						break;
+					}
+
+				if (nentries >= 0)
+				{
+					InitDummySimpleArray(&sa, nentries);
+					InitDummySimpleArray(&sb, nkeys);
+					res = getSimilarity(&sa, &sb, intersection) >= SmlLimit;
+				}
+				else
+					res = false;
+			}
 			break;
 		default:
 			elog(ERROR, "rum_anyarray_consistent: unknown strategy number: %d",
@@ -403,7 +414,7 @@ rum_anyarray_ordering(PG_FUNCTION_ARGS)
 
 	float8		dist,
 				sml;
-	int32		intersect = 0,
+	int32		intersection = 0,
 				nentries = -1;
 	int			i;
 
@@ -411,9 +422,9 @@ rum_anyarray_ordering(PG_FUNCTION_ARGS)
 
 	for (i = 0; i < nkeys; i++)
 		if (check[i])
-			intersect++;
+			intersection++;
 
-	if (intersect == 0)
+	if (intersection == 0)
 		PG_RETURN_FLOAT8(get_float8_infinity());
 
 	for (i = 0; i < nkeys; i++)
@@ -425,7 +436,7 @@ rum_anyarray_ordering(PG_FUNCTION_ARGS)
 
 	InitDummySimpleArray(&sa, nentries);
 	InitDummySimpleArray(&sb, nkeys);
-	sml = getSimilarity(&sa, &sb, intersect);
+	sml = getSimilarity(&sa, &sb, intersection);
 
 	if (sml == 0.0)
 		dist = get_float8_infinity();
@@ -842,20 +853,24 @@ getNumOfIntersect(SimpleArray *sa, SimpleArray *sb)
 }
 
 static float8
-getSimilarity(SimpleArray *sa, SimpleArray *sb, int32 intersect)
+getSimilarity(SimpleArray *sa, SimpleArray *sb, int32 intersection)
 {
-	float8		result = 0.0;
+	float8 result = 0.0;
 
 	switch (SmlType)
 	{
 		case AA_Cosine:
-			result = ((float8)intersect) / sqrt(((float8)sa->nelems) * ((float8)sb->nelems));
+			result = ((float8) intersection) /
+						sqrt(((float8) sa->nelems) * ((float8) sb->nelems));
 			break;
 		case AA_Jaccard:
-			result = ((float8)intersect) / (((float8)sa->nelems) + ((float8)sb->nelems) - ((double)intersect));
+			result = ((float8) intersection) /
+						(((float8) sa->nelems) +
+						 ((float8) sb->nelems) -
+						 ((float8) intersection));
 			break;
 		case AA_Overlap:
-			result = intersect;
+			result = intersection;
 			break;
 		default:
 			elog(ERROR, "unknown similarity type");
