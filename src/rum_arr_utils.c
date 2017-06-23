@@ -41,12 +41,10 @@
 #define RUM_SIMILAR_STRATEGY	5
 
 
-#define LINEAR_LIMIT	5
 #define NDIM			1
 
-
 #define ARR_NELEMS(x)	ArrayGetNItems(ARR_NDIM(x), ARR_DIMS(x))
-#define ARR_ISVOID(x)	((x) == NULL || ARR_NELEMS(x) == 0)
+#define ARR_ISVOID(x)	( (x) == NULL || ARR_NELEMS(x) == 0 )
 
 #define CHECKARRVALID(x) \
 	do { \
@@ -70,6 +68,9 @@
 		(s)->nHashedElems = -1; \
 		(s)->info = NULL; \
 	} while (0)
+
+#define DIST_FROM_SML(sml) \
+	( (sml == 0.0) ? get_float8_infinity() : ((float8) 1) / ((float8) (sml)) )
 
 
 typedef struct AnyArrayTypeInfo
@@ -128,7 +129,6 @@ static void freeAnyArrayTypeInfo(AnyArrayTypeInfo *info);
 static void cmpFuncInit(AnyArrayTypeInfo *info);
 
 static SimpleArray *Array2SimpleArray(AnyArrayTypeInfo *info, ArrayType *a);
-static ArrayType *SimpleArray2Array(SimpleArray *s);
 static void freeSimpleArray(SimpleArray *s);
 static int cmpAscArrayElem(const void *a, const void *b, void *arg);
 static int cmpDescArrayElem(const void *a, const void *b, void *arg);
@@ -373,15 +373,19 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 					if (check[i])
 						intersection++;
 
-				for (i = 0; i < nkeys; i++)
-					if (!addInfoIsNull[0])
-					{
-						nentries = DatumGetInt32(addInfo[i]);
-						break;
-					}
-
-				if (nentries >= 0)
+				if (intersection > 0)
 				{
+					/* extract array's length from addInfo */
+					for (i = 0; i < nkeys; i++)
+						if (!addInfoIsNull[i])
+						{
+							nentries = DatumGetInt32(addInfo[i]);
+							break;
+						}
+
+					/* there must be addInfo */
+					Assert(nentries >= 0);
+
 					InitDummySimpleArray(&sa, nentries);
 					InitDummySimpleArray(&sb, nkeys);
 					res = getSimilarity(&sa, &sb, intersection) >= SmlLimit;
@@ -412,8 +416,7 @@ rum_anyarray_ordering(PG_FUNCTION_ARGS)
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
 
-	float8		dist,
-				sml;
+	float8		sml;
 	int32		intersection = 0,
 				nentries = -1;
 	int			i;
@@ -424,26 +427,27 @@ rum_anyarray_ordering(PG_FUNCTION_ARGS)
 		if (check[i])
 			intersection++;
 
-	if (intersection == 0)
-		PG_RETURN_FLOAT8(get_float8_infinity());
+	if (intersection > 0)
+	{
+		/* extract array's length from addInfo */
+		for (i = 0; i < nkeys; i++)
+			if (!addInfoIsNull[i])
+			{
+				nentries = DatumGetInt32(addInfo[i]);
+				break;
+			}
 
-	for (i = 0; i < nkeys; i++)
-		if (!addInfoIsNull[0])
-		{
-			nentries = DatumGetInt32(addInfo[i]);
-			break;
-		}
+		/* there must be addInfo */
+		Assert(nentries >= 0);
 
-	InitDummySimpleArray(&sa, nentries);
-	InitDummySimpleArray(&sb, nkeys);
-	sml = getSimilarity(&sa, &sb, intersection);
+		InitDummySimpleArray(&sa, nentries);
+		InitDummySimpleArray(&sb, nkeys);
+		sml = getSimilarity(&sa, &sb, intersection);
 
-	if (sml == 0.0)
-		dist = get_float8_infinity();
-	else
-		dist = 1.0 / sml;
+		PG_RETURN_FLOAT8(DIST_FROM_SML(sml));
+	}
 
-	PG_RETURN_FLOAT8(dist);
+	PG_RETURN_FLOAT8(DIST_FROM_SML(0.0));
 }
 
 Datum
@@ -494,7 +498,7 @@ rum_anyarray_distance(PG_FUNCTION_ARGS)
 	AnyArrayTypeInfo   *info;
 	SimpleArray		   *sa,
 					   *sb;
-	float8				result = 0.0;
+	float8				sml = 0.0;
 
 	CHECKARRVALID(a);
 	CHECKARRVALID(b);
@@ -515,11 +519,7 @@ rum_anyarray_distance(PG_FUNCTION_ARGS)
 	sa = Array2SimpleArray(info, a);
 	sb = Array2SimpleArray(info, b);
 
-	result = getSimilarity(sa, sb, getNumOfIntersect(sa, sb));
-	if (result == 0.0)
-		result = get_float8_infinity();
-	else
-		result = 1.0 / result;
+	sml = getSimilarity(sa, sb, getNumOfIntersect(sa, sb));
 
 	freeSimpleArray(sb);
 	freeSimpleArray(sa);
@@ -527,7 +527,7 @@ rum_anyarray_distance(PG_FUNCTION_ARGS)
 	PG_FREE_IF_COPY(b, 1);
 	PG_FREE_IF_COPY(a, 0);
 
-	PG_RETURN_FLOAT8(result);
+	PG_RETURN_FLOAT8(DIST_FROM_SML(sml));
 }
 
 
@@ -700,16 +700,6 @@ Array2SimpleArray(AnyArrayTypeInfo *info, ArrayType *a)
 	}
 
 	return s;
-}
-
-static ArrayType *
-SimpleArray2Array(SimpleArray *s)
-{
-	return construct_array(s->elems, s->nelems,
-						   s->info->typid,
-						   s->info->typlen,
-						   s->info->typbyval,
-						   s->info->typalign);
 }
 
 static void
