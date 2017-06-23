@@ -108,6 +108,9 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 
 	scanEntry->buffer = InvalidBuffer;
 	RumItemSetMin(&scanEntry->curItem);
+	scanEntry->curKey = (Datum) 0;
+	scanEntry->curKeyCategory = RUM_CAT_NULL_KEY;
+	scanEntry->useCurKey = false;
 	scanEntry->matchSortstate = NULL;
 	scanEntry->stack = NULL;
 	scanEntry->scanWithAddInfo = false;
@@ -153,6 +156,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	key->searchMode = searchMode;
 	key->attnum = key->attnumOrig = attnum;
 	key->useAddToColumn = false;
+	key->useCurKey = false;
 	key->scanDirection = ForwardScanDirection;
 
 	RumItemSetMin(&key->curItem);
@@ -165,21 +169,54 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 
 	if (key->orderBy)
 	{
-		if (key->attnum == rumstate->attrnAttachColumn)
+		/* Add key to order by additional information... */
+		if (key->attnum == rumstate->attrnAttachColumn ||
+			/* ...add key to order by index key value */
+			(strategy == RUM_DISTANCE && rumstate->canOrdering[attnum - 1]))
 		{
 			if (nQueryValues != 1)
 				elog(ERROR, "extractQuery should return only one value for ordering");
-			if (rumstate->canOuterOrdering[attnum - 1] == false)
-				elog(ERROR, "doesn't support ordering as additional info");
 			if (rumstate->origTupdesc->attrs[rumstate->attrnAttachColumn - 1]->attbyval == false)
 				elog(ERROR, "doesn't support order by over pass-by-reference column");
 
-			key->useAddToColumn = true;
-			key->attnum = rumstate->attrnAddToColumn;
+			if (key->attnum == rumstate->attrnAttachColumn)
+			{
+				if (rumstate->canOuterOrdering[attnum - 1] == false)
+					elog(ERROR, "doesn't support ordering as additional info");
+
+				key->useAddToColumn = true;
+				key->outerAddInfoIsNull = true;
+				key->attnum = rumstate->attrnAddToColumn;
+			}
+			else if (strategy == RUM_DISTANCE && rumstate->canOrdering[attnum - 1])
+			{
+				RumScanKey	scanKey = NULL;
+
+				for (i = 0; i < so->nkeys; i++)
+				{
+					if (so->keys[i]->orderBy == false &&
+						so->keys[i]->attnum == key->attnum)
+					{
+						scanKey = so->keys[i];
+						break;
+					}
+				}
+
+				elog(INFO, "test");
+				if (scanKey == NULL)
+					elog(ERROR, "cannot order without attribute %d in WHERE clause",
+						 key->attnum);
+				else if (scanKey->nentries > 1)
+					elog(ERROR, "scan key should contain only one value");
+				else if (scanKey->nentries == 0)	/* Should not happen */
+					elog(ERROR, "scan key should contain key value");
+
+				key->useCurKey = true;
+				scanKey->scanEntry[0]->useCurKey = true;
+			}
+
 			key->nentries = 0;
 			key->nuserentries = 0;
-
-			key->outerAddInfoIsNull = true;
 
 			key->scanEntry = NULL;
 			key->entryRes = NULL;

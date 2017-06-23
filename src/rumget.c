@@ -152,6 +152,23 @@ callConsistentFn(RumState * rumstate, RumScanKey key)
 }
 
 /*
+ * Extract key value for ordering
+ */
+static void
+scanEntryGetKey(RumScanEntry entry, RumState *rumstate, IndexTuple itup)
+{
+	if (entry->useCurKey == false)
+		return;
+
+	/*
+	 * XXX FIXME only pass-by-value!!! Value should be copied to
+	 * long-lived memory context and, somehow, freeed. Seems, the
+	 * last is real problem.
+	 */
+	entry->curKey = rumtuple_get_key(rumstate, itup, &entry->curKeyCategory);
+}
+
+/*
  * Goes to the next page if current offset is outside of bounds
  */
 static bool
@@ -641,6 +658,8 @@ restartScanEntry:
 		if (entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
 			entry->scanWithAddInfo)
 			entry->stack = stackEntry;
+
+		scanEntryGetKey(entry, rumstate, itup);
 	}
 
 	if (needUnlock)
@@ -1047,6 +1066,8 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
 	entry->curItem = entry->list[entry->offset];
 	entry->offset += entry->scanDirection;
 
+	scanEntryGetKey(entry, rumstate, itup);
+
 	/*
 	 * Done with this entry, go to the next for the future.
 	 */
@@ -1207,6 +1228,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
 			entry->isFinished = TRUE;
 		}
 	}
+	/* Get next item from posting tree */
 	else
 	{
 		do
@@ -2093,9 +2115,11 @@ keyGetOrdering(RumState * rumstate, MemoryContext tempCtx, RumScanKey key,
 		}
 	}
 
-	return DatumGetFloat8(FunctionCall10Coll(&rumstate->orderingFn[key->attnum - 1],
+	return DatumGetFloat8(FunctionCall12Coll(&rumstate->orderingFn[key->attnum - 1],
 								 rumstate->supportCollation[key->attnum - 1],
 											 PointerGetDatum(key->entryRes),
+											 DatumGetChar(key->curKeyCategory),
+											 key->curKey,
 											 UInt16GetDatum(key->strategy),
 											 key->query,
 										   UInt32GetDatum(key->nuserentries),
@@ -2121,10 +2145,12 @@ insertScanItem(RumScanOpaque so, bool recheck)
 	item->iptr = so->item.iptr;
 	item->recheck = recheck;
 
-	if (AttributeNumberIsValid(so->rumstate.attrnAddToColumn))
+	if (AttributeNumberIsValid(so->rumstate.attrnAddToColumn) || so->willSort)
 	{
 		int			nOrderByAnother = 0,
-					count = 0;
+					nOrderByKey = 0,
+					countByAnother = 0,
+					countByKey = 0;
 
 		for (i = 0; i < so->nkeys; i++)
 		{
@@ -2133,11 +2159,15 @@ insertScanItem(RumScanOpaque so, bool recheck)
 				so->keys[i]->outerAddInfoIsNull = true;
 				nOrderByAnother++;
 			}
+			else if (so->keys[i]->useCurKey)
+				nOrderByKey++;
 		}
 
-		for (i = 0; count < nOrderByAnother && i < so->nkeys; i++)
+		for (i = 0; (countByAnother < nOrderByAnother || countByKey < nOrderByKey) &&
+			 i < so->nkeys; i++)
 		{
-			if (so->keys[i]->attnum == so->rumstate.attrnAddToColumn &&
+			if (countByAnother < nOrderByAnother &&
+				so->keys[i]->attnum == so->rumstate.attrnAddToColumn &&
 				so->keys[i]->outerAddInfoIsNull == false)
 			{
 				Assert(!so->keys[i]->orderBy);
@@ -2150,7 +2180,23 @@ insertScanItem(RumScanOpaque so, bool recheck)
 					{
 						so->keys[j]->outerAddInfoIsNull = false;
 						so->keys[j]->outerAddInfo = so->keys[i]->outerAddInfo;
-						count++;
+						countByAnother++;
+					}
+				}
+			}
+			else if (countByKey < nOrderByKey && so->keys[i]->nentries > 0 &&
+					 so->keys[i]->scanEntry[0]->useCurKey)
+			{
+				Assert(!so->keys[i]->orderBy);
+
+				for (j = i + 1; j < so->nkeys; j++)
+				{
+					if (so->keys[j]->useCurKey)
+					{
+						so->keys[j]->curKey = so->keys[i]->scanEntry[0]->curKey;
+						so->keys[j]->curKeyCategory =
+							so->keys[i]->scanEntry[0]->curKeyCategory;
+						countByKey++;
 					}
 				}
 			}
@@ -2222,10 +2268,7 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 		if (so->naturalOrder == NoMovementScanDirection)
 		{
 			so->sortstate = rum_tuplesort_begin_rum(work_mem, so->norderbys,
-						false,
-						so->totalentries > 0 &&
-						so->entries[0]->queryCategory == RUM_CAT_EMPTY_QUERY &&
-						so->entries[0]->scanWithAddInfo);
+						false, so->scanType == RumFullScan);
 
 
 			while (scanGetItem(scan, &so->item, &so->item, &recheck))

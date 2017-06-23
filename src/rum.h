@@ -592,6 +592,11 @@ typedef struct RumScanKeyData
 	Datum		outerAddInfo;
 	bool		outerAddInfoIsNull;
 
+	/* Key information, used in orderingFn */
+	Datum		curKey;
+	RumNullCategory curKeyCategory;
+	bool		useCurKey;
+
 	/* other data needed for calling consistentFn */
 	Datum		query;
 	/* NB: these three arrays have only nuserentries elements! */
@@ -640,6 +645,11 @@ typedef struct RumScanEntryData
 
 	/* current ItemPointer to heap */
 	RumItem		curItem;
+
+	/* Used for ordering using distance */
+	Datum		curKey;
+	RumNullCategory curKeyCategory;
+	bool		useCurKey;
 
 	/*
 	 * For a partial-match or full-scan query, we accumulate all TIDs and
@@ -1007,5 +1017,11 @@ extern Datum FunctionCall10Coll(FmgrInfo *flinfo, Oid collation,
 				   Datum arg3, Datum arg4, Datum arg5,
 				   Datum arg6, Datum arg7, Datum arg8,
 				   Datum arg9, Datum arg10);
+extern Datum FunctionCall12Coll(FmgrInfo *flinfo, Oid collation,
+				   Datum arg1, Datum arg2,
+				   Datum arg3, Datum arg4, Datum arg5,
+				   Datum arg6, Datum arg7, Datum arg8,
+				   Datum arg9, Datum arg10,
+				   Datum arg11, Datum arg12);
 
 #endif   /* __RUM_H__ */
