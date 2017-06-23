@@ -377,11 +377,13 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 				{
 					/* extract array's length from addInfo */
 					for (i = 0; i < nkeys; i++)
+					{
 						if (!addInfoIsNull[i])
 						{
 							nentries = DatumGetInt32(addInfo[i]);
 							break;
 						}
+					}
 
 					/* there must be addInfo */
 					Assert(nentries >= 0);
@@ -431,11 +433,13 @@ rum_anyarray_ordering(PG_FUNCTION_ARGS)
 	{
 		/* extract array's length from addInfo */
 		for (i = 0; i < nkeys; i++)
+		{
 			if (!addInfoIsNull[i])
 			{
 				nentries = DatumGetInt32(addInfo[i]);
 				break;
 			}
+		}
 
 		/* there must be addInfo */
 		Assert(nentries >= 0);
