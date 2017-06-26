@@ -42,3 +42,39 @@ SELECT * FROM test_int2 WHERE i>1::int2 ORDER BY i;
  3
 (2 rows)
 
+EXPLAIN (costs off)
+SELECT *, i <=> 0::int2 FROM test_int2 ORDER BY i <=> 0::int2;
+               QUERY PLAN               
+----------------------------------------
+ Index Scan using idx_int2 on test_int2
+   Order By: (i <=> '0'::smallint)
+(2 rows)
+
+SELECT *, i <=> 0::int2 FROM test_int2 ORDER BY i <=> 0::int2;
+ i  | ?column? 
+----+----------
+  0 |        0
+ -1 |        1
+  1 |        1
+ -2 |        2
+  2 |        2
+  3 |        3
+(6 rows)
+
+EXPLAIN (costs off)
+SELECT *, i <=> 1::int2 FROM test_int2 WHERE i<1::int2 ORDER BY i <=> 1::int2;
+               QUERY PLAN               
+----------------------------------------
+ Index Scan using idx_int2 on test_int2
+   Index Cond: (i < '1'::smallint)
+   Order By: (i <=> '1'::smallint)
+(3 rows)
+
+SELECT *, i <=> 1::int2 FROM test_int2 WHERE i<1::int2 ORDER BY i <=> 1::int2;
+ i  | ?column? 
+----+----------
+  0 |        1
+ -1 |        2
+ -2 |        3
+(3 rows)
+

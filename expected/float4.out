@@ -42,3 +42,39 @@ SELECT * FROM test_float4 WHERE i>1::float4 ORDER BY i;
  3
 (2 rows)
 
+EXPLAIN (costs off)
+SELECT *, i <=> 0::float4 FROM test_float4 ORDER BY i <=> 0::float4;
+                 QUERY PLAN                 
+--------------------------------------------
+ Index Scan using idx_float4 on test_float4
+   Order By: (i <=> '0'::real)
+(2 rows)
+
+SELECT *, i <=> 0::float4 FROM test_float4 ORDER BY i <=> 0::float4;
+ i  | ?column? 
+----+----------
+  0 |        0
+ -1 |        1
+  1 |        1
+ -2 |        2
+  2 |        2
+  3 |        3
+(6 rows)
+
+EXPLAIN (costs off)
+SELECT *, i <=> 1::float4 FROM test_float4 WHERE i<1::float4 ORDER BY i <=> 1::float4;
+                 QUERY PLAN                 
+--------------------------------------------
+ Index Scan using idx_float4 on test_float4
+   Index Cond: (i < '1'::real)
+   Order By: (i <=> '1'::real)
+(3 rows)
+
+SELECT *, i <=> 1::float4 FROM test_float4 WHERE i<1::float4 ORDER BY i <=> 1::float4;
+ i  | ?column? 
+----+----------
+  0 |        1
+ -1 |        2
+ -2 |        3
+(3 rows)
+

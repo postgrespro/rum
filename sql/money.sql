@@ -13,3 +13,11 @@ SELECT * FROM test_money WHERE i<='1'::money ORDER BY i;
 SELECT * FROM test_money WHERE i='1'::money ORDER BY i;
 SELECT * FROM test_money WHERE i>='1'::money ORDER BY i;
 SELECT * FROM test_money WHERE i>'1'::money ORDER BY i;
+
+EXPLAIN (costs off)
+SELECT *, i <=> 0::money FROM test_money ORDER BY i <=> 0::money;
+SELECT *, i <=> 0::money FROM test_money ORDER BY i <=> 0::money;
+
+EXPLAIN (costs off)
+SELECT *, i <=> 1::money FROM test_money WHERE i<1::money ORDER BY i <=> 1::money;
+SELECT *, i <=> 1::money FROM test_money WHERE i<1::money ORDER BY i <=> 1::money;

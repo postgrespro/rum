@@ -8,7 +8,10 @@ OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
 	src/btree_rum.o $(WIN32RES)
 
 EXTENSION = rum
-DATA = rum--1.0.sql rum--1.0--1.1.sql rum--1.1.sql
+EXTVERSION = 1.2
+DATA = rum--1.0.sql
+DATA_updates = rum--1.0--1.1.sql rum--1.1--1.2.sql
+DATA_built = rum--$(EXTVERSION).sql $(DATA_updates)
 PGFILEDESC = "RUM index access method"
 INCLUDES = src/rum.h src/rumsort.h
 
@@ -35,14 +38,14 @@ endif
 wal-check: temp-install
 	$(prove_check)
 
-all: rum--1.1.sql
+all: rum--$(EXTVERSION).sql
 
-#9.6 requires 1.1 file but 10.0 could live with 1.0 + 1.0-1.1 files
-rum--1.1.sql:  rum--1.0.sql rum--1.0--1.1.sql
-	cat rum--1.0.sql rum--1.0--1.1.sql > rum--1.1.sql
+#9.6 requires 1.2 file but 10.0 could live with update files
+rum--$(EXTVERSION).sql: $(DATA) $(DATA_updates)
+	cat $(DATA) $(DATA_updates) > rum--$(EXTVERSION).sql
 
-rum--1.0--1.1.sql: Makefile gen_rum_sql--1.0--1.1.pl
-	perl gen_rum_sql--1.0--1.1.pl > rum--1.0--1.1.sql
+rum--%.sql: gen_rum_sql--%.pl
+	perl $< > $@
 
 install: installincludes
 

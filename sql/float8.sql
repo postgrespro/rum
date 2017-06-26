@@ -13,3 +13,11 @@ SELECT * FROM test_float8 WHERE i<=1::float8 ORDER BY i;
 SELECT * FROM test_float8 WHERE i=1::float8 ORDER BY i;
 SELECT * FROM test_float8 WHERE i>=1::float8 ORDER BY i;
 SELECT * FROM test_float8 WHERE i>1::float8 ORDER BY i;
+
+EXPLAIN (costs off)
+SELECT *, i <=> 0::float8 FROM test_float8 ORDER BY i <=> 0::float8;
+SELECT *, i <=> 0::float8 FROM test_float8 ORDER BY i <=> 0::float8;
+
+EXPLAIN (costs off)
+SELECT *, i <=> 1::float8 FROM test_float8 WHERE i<1::float8 ORDER BY i <=> 1::float8;
+SELECT *, i <=> 1::float8 FROM test_float8 WHERE i<1::float8 ORDER BY i <=> 1::float8;
