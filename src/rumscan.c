@@ -169,14 +169,19 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 
 	if (key->orderBy)
 	{
+		if (key->attnum != rumstate->attrnAttachColumn)
+			key->useCurKey = rumstate->canOrdering[attnum - 1] &&
+				(strategy == RUM_DISTANCE || strategy == RUM_LEFT_DISTANCE ||
+				 strategy == RUM_RIGHT_DISTANCE);
+
 		/* Add key to order by additional information... */
 		if (key->attnum == rumstate->attrnAttachColumn ||
 			/* ...add key to order by index key value */
-			(strategy == RUM_DISTANCE && rumstate->canOrdering[attnum - 1]))
+			key->useCurKey)
 		{
 			if (nQueryValues != 1)
 				elog(ERROR, "extractQuery should return only one value for ordering");
-			if (rumstate->origTupdesc->attrs[rumstate->attrnAttachColumn - 1]->attbyval == false)
+			if (rumstate->origTupdesc->attrs[key->attnum - 1]->attbyval == false)
 				elog(ERROR, "doesn't support order by over pass-by-reference column");
 
 			if (key->attnum == rumstate->attrnAttachColumn)
@@ -188,7 +193,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 				key->outerAddInfoIsNull = true;
 				key->attnum = rumstate->attrnAddToColumn;
 			}
-			else if (strategy == RUM_DISTANCE && rumstate->canOrdering[attnum - 1])
+			else if (key->useCurKey)
 			{
 				RumScanKey	scanKey = NULL;
 
@@ -202,7 +207,6 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 					}
 				}
 
-				elog(INFO, "test");
 				if (scanKey == NULL)
 					elog(ERROR, "cannot order without attribute %d in WHERE clause",
 						 key->attnum);

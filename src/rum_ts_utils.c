@@ -1412,7 +1412,7 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
 
 	/* RumNullCategory keyCategory = PG_GETARG_CHAR(1); */
-	/* Datum	   key = PG_GETARG_DATUM(2); */
+	/* Datum		key = PG_GETARG_DATUM(2); */
 	TSQuery		query = PG_GETARG_TSQUERY(4);
 	int			nkeys = PG_GETARG_INT32(5);
 	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(6);

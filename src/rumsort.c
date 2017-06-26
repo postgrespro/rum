@@ -1617,7 +1617,7 @@ rum_tuplesort_putrum(Tuplesortstate *state, RumSortItem * item)
 }
 
 void
-rum_tuplesort_putrumitem(Tuplesortstate *state, RumItem * item)
+rum_tuplesort_putrumitem(Tuplesortstate *state, RumScanItem * item)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
 	SortTuple	stup;
@@ -2175,7 +2175,7 @@ rum_tuplesort_getrum(Tuplesortstate *state, bool forward, bool *should_free)
 	return (RumSortItem *) stup.tuple;
 }
 
-RumItem *
+RumScanItem *
 rum_tuplesort_getrumitem(Tuplesortstate *state, bool forward, bool *should_free)
 {
 	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
@@ -2186,7 +2186,7 @@ rum_tuplesort_getrumitem(Tuplesortstate *state, bool forward, bool *should_free)
 
 	MemoryContextSwitchTo(oldcontext);
 
-	return (RumItem *) stup.tuple;
+	return (RumScanItem *) stup.tuple;
 }
 
 /*
@@ -4074,6 +4074,7 @@ comparetup_rumitem(const SortTuple *a, const SortTuple *b, Tuplesortstate *state
 {
 	RumItem	   *i1, *i2;
 
+	/* Extract RumItem from RumScanItem */
 	i1 = (RumItem *) a->tuple;
 	i2 = (RumItem *) b->tuple;
 
@@ -4123,15 +4124,15 @@ static void
 copytup_rumitem(Tuplesortstate *state, SortTuple *stup, void *tup)
 {
 	stup->isnull1 = true;
-	stup->tuple = palloc(sizeof(RumItem));
-	memcpy(stup->tuple, tup, sizeof(RumItem));
+	stup->tuple = palloc(sizeof(RumScanItem));
+	memcpy(stup->tuple, tup, sizeof(RumScanItem));
 	USEMEM(state, GetMemoryChunkSpace(stup->tuple));
 }
 
 static void
 writetup_rumitem(Tuplesortstate *state, int tapenum, SortTuple *stup)
 {
-	RumItem	   *item = (RumItem *) stup->tuple;
+	RumScanItem *item = (RumScanItem *) stup->tuple;
 	unsigned int writtenlen = sizeof(*item) + sizeof(unsigned int);
 
 	LogicalTapeWrite(state->tapeset, tapenum,
@@ -4151,9 +4152,9 @@ readtup_rumitem(Tuplesortstate *state, SortTuple *stup,
 			int tapenum, unsigned int len)
 {
 	unsigned int tuplen = len - sizeof(unsigned int);
-	RumItem	   *item = (RumItem *) palloc(sizeof(RumItem));
+	RumScanItem *item = (RumScanItem *) palloc(sizeof(RumScanItem));
 
-	Assert(tuplen == sizeof(RumItem));
+	Assert(tuplen == sizeof(RumScanItem));
 
 	USEMEM(state, GetMemoryChunkSpace(item));
 	LogicalTapeReadExact(state->tapeset, tapenum,

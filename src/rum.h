@@ -553,6 +553,13 @@ extern void rumPrepareDataScan(RumBtree btree, Relation index, OffsetNumber attn
 
 /* rumscan.c */
 
+typedef struct RumScanItem
+{
+	RumItem		item;
+	Datum		keyValue;
+	RumNullCategory keyCategory;
+}	RumScanItem;
+
 /*
  * RumScanKeyData describes a single RUM index qualifier expression.
  *
@@ -656,7 +663,7 @@ typedef struct RumScanEntryData
 	 * and additional information here
 	 */
 	Tuplesortstate *matchSortstate;
-	RumItem		collectRumItem;
+	RumScanItem	collectRumItem;
 
 	/* for full-scan query with order-by */
 	RumBtreeStack *stack;
