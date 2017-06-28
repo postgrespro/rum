@@ -5,7 +5,7 @@ OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
 	src/rumbtree.o src/rumbulk.o src/rumdatapage.o \
 	src/rumentrypage.o src/rumget.o src/ruminsert.o \
 	src/rumscan.o src/rumutil.o src/rumvacuum.o src/rumvalidate.o \
-	src/btree_rum.o $(WIN32RES)
+	src/btree_rum.o src/rum_arr_utils.o $(WIN32RES)
 
 EXTENSION = rum
 EXTVERSION = 1.2
@@ -20,7 +20,7 @@ REGRESS = rum rum_hash ruminv timestamp orderby orderby_hash altorder \
 	int2 int4 int8 float4 float8 money oid \
     time timetz date interval \
     macaddr inet cidr text varchar char bytea bit varbit \
-    numeric
+    numeric anyarray
 
 LDFLAGS_SL += $(filter -lm, $(LIBS))
 
@@ -44,6 +44,7 @@ all: rum--$(EXTVERSION).sql
 rum--$(EXTVERSION).sql: $(DATA) $(DATA_updates)
 	cat $(DATA) $(DATA_updates) > rum--$(EXTVERSION).sql
 
+# rule for updates, e.g. rum--1.0--1.1.sql
 rum--%.sql: gen_rum_sql--%.pl
 	perl $< > $@
 
