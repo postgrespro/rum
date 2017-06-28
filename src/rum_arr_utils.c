@@ -414,9 +414,9 @@ Datum
 rum_anyarray_ordering(PG_FUNCTION_ARGS)
 {
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
-	int			nkeys = PG_GETARG_INT32(5);
-	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(10);
-	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(11);
+	int			nkeys = PG_GETARG_INT32(3);
+	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
+	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
 
 	float8		sml;
 	int32		intersection = 0,
