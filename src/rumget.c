@@ -2127,6 +2127,21 @@ keyGetOrdering(RumState * rumstate, MemoryContext tempCtx, RumScanKey key,
 											UInt16GetDatum(key->strategy)
 											));
 	}
+	else if (key->useCurKey)
+	{
+		Assert(key->nentries == 0);
+		Assert(key->nuserentries == 0);
+
+		if (key->curKeyCategory != RUM_CAT_NORM_KEY)
+			return get_float8_infinity();
+
+		return DatumGetFloat8(FunctionCall3(
+										&rumstate->orderingFn[key->attnum - 1],
+											key->curKey,
+											key->query,
+											UInt16GetDatum(key->strategy)
+											));
+	}
 
 	for (i = 0; i < key->nentries; i++)
 	{
@@ -2146,11 +2161,9 @@ keyGetOrdering(RumState * rumstate, MemoryContext tempCtx, RumScanKey key,
 		}
 	}
 
-	return DatumGetFloat8(FunctionCall12Coll(&rumstate->orderingFn[key->attnum - 1],
+	return DatumGetFloat8(FunctionCall10Coll(&rumstate->orderingFn[key->attnum - 1],
 								 rumstate->supportCollation[key->attnum - 1],
 											 PointerGetDatum(key->entryRes),
-											 DatumGetChar(key->curKeyCategory),
-											 key->curKey,
 											 UInt16GetDatum(key->strategy),
 											 key->query,
 										   UInt32GetDatum(key->nuserentries),

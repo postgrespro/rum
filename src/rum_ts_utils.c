@@ -1411,20 +1411,18 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 {
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
 
-	/* RumNullCategory keyCategory = PG_GETARG_CHAR(1); */
-	/* Datum		key = PG_GETARG_DATUM(2); */
-	TSQuery		query = PG_GETARG_TSQUERY(4);
-	int			nkeys = PG_GETARG_INT32(5);
-	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(6);
-	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(10);
-	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(11);
+	TSQuery		query = PG_GETARG_TSQUERY(2);
+	int			nkeys = PG_GETARG_INT32(3);
+	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
+	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
+	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
 	float8		res;
 	int		   *map_item_operand = (int *) (extra_data[0]);
 
 	res = calc_score_addinfo(weights, check, query, map_item_operand,
 							 addInfo, addInfoIsNull, nkeys);
 
-	PG_FREE_IF_COPY(query, 4);
+	PG_FREE_IF_COPY(query, 2);
 	if (res == 0)
 		PG_RETURN_FLOAT8(get_float8_infinity());
 	else
