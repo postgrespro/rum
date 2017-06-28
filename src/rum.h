@@ -1024,11 +1024,5 @@ extern Datum FunctionCall10Coll(FmgrInfo *flinfo, Oid collation,
 				   Datum arg3, Datum arg4, Datum arg5,
 				   Datum arg6, Datum arg7, Datum arg8,
 				   Datum arg9, Datum arg10);
-extern Datum FunctionCall12Coll(FmgrInfo *flinfo, Oid collation,
-				   Datum arg1, Datum arg2,
-				   Datum arg3, Datum arg4, Datum arg5,
-				   Datum arg6, Datum arg7, Datum arg8,
-				   Datum arg9, Datum arg10,
-				   Datum arg11, Datum arg12);
 
 #endif   /* __RUM_H__ */
