@@ -2,7 +2,7 @@ use strict;
 use warnings;
 
 my $func_distance_template=<<EOT;
-CREATE FUNCTION rum_TYPEIDENT_key_distance(internal,smallint,TYPENAME,smallint,tsvector,int,internal,internal,internal,internal,internal,internal)
+CREATE FUNCTION rum_TYPEIDENT_key_distance(TYPENAME, TYPENAME, smallint)
 RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
@@ -12,7 +12,7 @@ EOT
 my $opclass_distance_template=<<EOT;
 
 ALTER OPERATOR FAMILY rum_TYPEIDENT_ops USING rum ADD
-	FUNCTION	8	(TYPENAME,TYPENAME) rum_TYPEIDENT_key_distance(internal,smallint,TYPENAME,smallint,tsvector,int,internal,internal,internal,internal,internal,internal);
+	FUNCTION	8	(TYPENAME,TYPENAME) rum_TYPEIDENT_key_distance(TYPENAME, TYPENAME, smallint);
 
 EOT
 
@@ -52,6 +52,16 @@ my @opinfo = map {
 	},
 	{
 		TYPENAME	=>	'oid',
+		func_tmpl	=>	\$func_distance_template,
+		opclass_tmpl=>	\$opclass_distance_template,
+	},
+	{
+		TYPENAME	=>	'timestamp',
+		func_tmpl	=>	\$func_distance_template,
+		opclass_tmpl=>	\$opclass_distance_template,
+	},
+	{
+		TYPENAME	=>	'timestamptz',
 		func_tmpl	=>	\$func_distance_template,
 		opclass_tmpl=>	\$opclass_distance_template,
 	},
@@ -115,7 +125,7 @@ RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
-CREATE FUNCTION rum_anyarray_ordering(internal,smallint,tsvector,int,internal,internal,internal,internal,internal)
+CREATE FUNCTION rum_anyarray_ordering(internal,smallint,anyarray,int,internal,internal,internal,internal,internal)
 RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
@@ -135,7 +145,7 @@ AS
 	FUNCTION	3	rum_extract_anyarray_query(anyarray,internal,smallint,internal,internal,internal,internal),
 	FUNCTION	4	rum_anyarray_consistent(internal,smallint,anyarray,integer,internal,internal,internal,internal),
 	FUNCTION	6	rum_anyarray_config(internal),
-	FUNCTION	8	rum_anyarray_ordering(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),
+	FUNCTION	8	rum_anyarray_ordering(internal,smallint,anyarray,int,internal,internal,internal,internal,internal),
 	STORAGE anyelement;
 
 CREATE OPERATOR CLASS rum_anyarray_addon_ops

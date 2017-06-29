@@ -171,8 +171,8 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	{
 		if (key->attnum != rumstate->attrnAttachColumn)
 			key->useCurKey = rumstate->canOrdering[attnum - 1] &&
-				(strategy == RUM_DISTANCE || strategy == RUM_LEFT_DISTANCE ||
-				 strategy == RUM_RIGHT_DISTANCE);
+				/* ordering function by index key value has 3 arguments */
+				rumstate->orderingFn[attnum - 1].fn_nargs == 3;
 
 		/* Add key to order by additional information... */
 		if (key->attnum == rumstate->attrnAttachColumn ||
