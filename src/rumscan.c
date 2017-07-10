@@ -115,7 +115,10 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->stack = NULL;
 	scanEntry->scanWithAddInfo = false;
 	scanEntry->list = NULL;
+	scanEntry->gdi = NULL;
+	scanEntry->stack = NULL;
 	scanEntry->nlist = 0;
+	scanEntry->matchSortstate = NULL;
 	scanEntry->offset = InvalidOffsetNumber;
 	scanEntry->isFinished = false;
 	scanEntry->reduceResult = false;
