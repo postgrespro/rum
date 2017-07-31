@@ -106,21 +106,21 @@ SELECT t, a <=> to_tsquery('english', 'beautiful | place') AS rank
     FROM test_rum
     WHERE a @@ to_tsquery('english', 'beautiful | place')
     ORDER BY a <=> to_tsquery('english', 'beautiful | place');
-                t                |   rank
----------------------------------+-----------
- The situation is most beautiful | 0.0303964
- It is a beautiful               | 0.0303964
- It looks like a beautiful place | 0.0607927
+                t                |  rank
+---------------------------------+---------
+ It looks like a beautiful place | 8.22467
+ The situation is most beautiful | 16.4493
+ It is a beautiful               | 16.4493
 (3 rows)
 
 SELECT t, a <=> to_tsquery('english', 'place | situation') AS rank
     FROM test_rum
     WHERE a @@ to_tsquery('english', 'place | situation')
     ORDER BY a <=> to_tsquery('english', 'place | situation');
-                t                |   rank
----------------------------------+-----------
- The situation is most beautiful | 0.0303964
- It looks like a beautiful place | 0.0303964
+                t                |  rank
+---------------------------------+---------
+ The situation is most beautiful | 16.4493
+ It looks like a beautiful place | 16.4493
 (2 rows)
 ```
 
