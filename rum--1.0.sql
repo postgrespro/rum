@@ -225,7 +225,7 @@ AS
         FUNCTION        4       rum_timestamp_consistent(internal,smallint,timestamp,int,internal,internal,internal,internal),
         FUNCTION        5       rum_timestamp_compare_prefix(timestamp,timestamp,smallint,internal),
         FUNCTION        6       rum_timestamp_config(internal),
-        -- support to timestamp disttance in rum_tsvector_timestamp_ops
+        -- support to timestamp distance in rum_tsvector_timestamp_ops
         FUNCTION        9       rum_timestamp_outer_distance(timestamp, timestamp, smallint),
         OPERATOR        20      <=> (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,
         OPERATOR        21      <=| (timestamp,timestamp) FOR ORDER BY pg_catalog.float_ops,

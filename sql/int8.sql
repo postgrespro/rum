@@ -14,6 +14,14 @@ SELECT * FROM test_int8 WHERE i=1::int8 ORDER BY i;
 SELECT * FROM test_int8 WHERE i>=1::int8 ORDER BY i;
 SELECT * FROM test_int8 WHERE i>1::int8 ORDER BY i;
 
+EXPLAIN (costs off)
+SELECT *, i <=> 0::int8 FROM test_int8 ORDER BY i <=> 0::int8;
+SELECT *, i <=> 0::int8 FROM test_int8 ORDER BY i <=> 0::int8;
+
+EXPLAIN (costs off)
+SELECT *, i <=> 1::int8 FROM test_int8 WHERE i<1::int8 ORDER BY i <=> 1::int8;
+SELECT *, i <=> 1::int8 FROM test_int8 WHERE i<1::int8 ORDER BY i <=> 1::int8;
+
 CREATE TABLE test_int8_o AS SELECT id::int8, t FROM tsts;
 
 CREATE INDEX test_int8_o_idx ON test_int8_o USING rum
@@ -148,3 +156,11 @@ EXPLAIN (costs off)
 SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
 SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
 
+CREATE TABLE test_int8_id_t AS SELECT id::int8, t FROM tsts;
+
+CREATE INDEX test_int8_id_t_idx ON test_int8_o USING rum
+	(t rum_tsvector_ops, id);
+
+EXPLAIN (costs off)
+SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id <=> 400::int8;
+SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id <=> 400::int8;

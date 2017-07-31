@@ -42,3 +42,39 @@ SELECT * FROM test_float8 WHERE i>1::float8 ORDER BY i;
  3
 (2 rows)
 
+EXPLAIN (costs off)
+SELECT *, i <=> 0::float8 FROM test_float8 ORDER BY i <=> 0::float8;
+                 QUERY PLAN                 
+--------------------------------------------
+ Index Scan using idx_float8 on test_float8
+   Order By: (i <=> '0'::double precision)
+(2 rows)
+
+SELECT *, i <=> 0::float8 FROM test_float8 ORDER BY i <=> 0::float8;
+ i  | ?column? 
+----+----------
+  0 |        0
+ -1 |        1
+  1 |        1
+ -2 |        2
+  2 |        2
+  3 |        3
+(6 rows)
+
+EXPLAIN (costs off)
+SELECT *, i <=> 1::float8 FROM test_float8 WHERE i<1::float8 ORDER BY i <=> 1::float8;
+                 QUERY PLAN                 
+--------------------------------------------
+ Index Scan using idx_float8 on test_float8
+   Index Cond: (i < '1'::double precision)
+   Order By: (i <=> '1'::double precision)
+(3 rows)
+
+SELECT *, i <=> 1::float8 FROM test_float8 WHERE i<1::float8 ORDER BY i <=> 1::float8;
+ i  | ?column? 
+----+----------
+  0 |        1
+ -1 |        2
+ -2 |        3
+(3 rows)
+

@@ -1,4 +1,47 @@
 CREATE EXTENSION rum;
+-- First validate operator classes
+SELECT opcname, amvalidate(opc.oid)
+FROM pg_opclass opc JOIN pg_am am ON am.oid = opcmethod
+WHERE amname = 'rum'
+ORDER BY opcname;
+              opcname              | amvalidate 
+-----------------------------------+------------
+ rum_anyarray_addon_ops            | t
+ rum_anyarray_ops                  | t
+ rum_bit_ops                       | t
+ rum_bytea_ops                     | t
+ rum_char_ops                      | t
+ rum_cidr_ops                      | t
+ rum_date_ops                      | t
+ rum_float4_ops                    | t
+ rum_float8_ops                    | t
+ rum_inet_ops                      | t
+ rum_int2_ops                      | t
+ rum_int4_ops                      | t
+ rum_int8_ops                      | t
+ rum_interval_ops                  | t
+ rum_macaddr_ops                   | t
+ rum_money_ops                     | t
+ rum_numeric_ops                   | t
+ rum_oid_ops                       | t
+ rum_text_ops                      | t
+ rum_time_ops                      | t
+ rum_timestamp_ops                 | t
+ rum_timestamptz_ops               | t
+ rum_timetz_ops                    | t
+ rum_tsquery_ops                   | t
+ rum_tsvector_addon_ops            | t
+ rum_tsvector_hash_addon_ops       | t
+ rum_tsvector_hash_ops             | t
+ rum_tsvector_hash_timestamp_ops   | t
+ rum_tsvector_hash_timestamptz_ops | t
+ rum_tsvector_ops                  | t
+ rum_tsvector_timestamp_ops        | t
+ rum_tsvector_timestamptz_ops      | t
+ rum_varbit_ops                    | t
+ rum_varchar_ops                   | t
+(34 rows)
+
 CREATE TABLE test_rum( t text, a tsvector );
 CREATE TRIGGER tsvectorupdate
 BEFORE UPDATE OR INSERT ON test_rum

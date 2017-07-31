@@ -42,3 +42,37 @@ SELECT * FROM test_oid WHERE i>3::oid ORDER BY i;
  5
 (2 rows)
 
+EXPLAIN (costs off)
+SELECT *, i <=> 0::oid FROM test_oid ORDER BY i <=> 0::oid;
+              QUERY PLAN              
+--------------------------------------
+ Index Scan using idx_oid on test_oid
+   Order By: (i <=> '0'::oid)
+(2 rows)
+
+SELECT *, i <=> 0::oid FROM test_oid ORDER BY i <=> 0::oid;
+ i | ?column? 
+---+----------
+ 0 |        0
+ 1 |        1
+ 2 |        2
+ 3 |        3
+ 4 |        4
+ 5 |        5
+(6 rows)
+
+EXPLAIN (costs off)
+SELECT *, i <=> 1::oid FROM test_oid WHERE i<1::oid ORDER BY i <=> 1::oid;
+              QUERY PLAN              
+--------------------------------------
+ Index Scan using idx_oid on test_oid
+   Index Cond: (i < '1'::oid)
+   Order By: (i <=> '1'::oid)
+(3 rows)
+
+SELECT *, i <=> 1::oid FROM test_oid WHERE i<1::oid ORDER BY i <=> 1::oid;
+ i | ?column? 
+---+----------
+ 0 |        1
+(1 row)
+

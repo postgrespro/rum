@@ -42,3 +42,39 @@ SELECT * FROM test_money WHERE i>'1'::money ORDER BY i;
  $3.00
 (2 rows)
 
+EXPLAIN (costs off)
+SELECT *, i <=> 0::money FROM test_money ORDER BY i <=> 0::money;
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_money on test_money
+   Order By: (i <=> (0)::money)
+(2 rows)
+
+SELECT *, i <=> 0::money FROM test_money ORDER BY i <=> 0::money;
+   i    | ?column? 
+--------+----------
+  $0.00 |        0
+ -$1.00 |      100
+  $1.00 |      100
+ -$2.00 |      200
+  $2.00 |      200
+  $3.00 |      300
+(6 rows)
+
+EXPLAIN (costs off)
+SELECT *, i <=> 1::money FROM test_money WHERE i<1::money ORDER BY i <=> 1::money;
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_money on test_money
+   Index Cond: (i < (1)::money)
+   Order By: (i <=> (1)::money)
+(3 rows)
+
+SELECT *, i <=> 1::money FROM test_money WHERE i<1::money ORDER BY i <=> 1::money;
+   i    | ?column? 
+--------+----------
+  $0.00 |      100
+ -$1.00 |      200
+ -$2.00 |      300
+(3 rows)
+

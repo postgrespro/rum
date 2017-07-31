@@ -108,11 +108,17 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 
 	scanEntry->buffer = InvalidBuffer;
 	RumItemSetMin(&scanEntry->curItem);
+	scanEntry->curKey = (Datum) 0;
+	scanEntry->curKeyCategory = RUM_CAT_NULL_KEY;
+	scanEntry->useCurKey = false;
 	scanEntry->matchSortstate = NULL;
 	scanEntry->stack = NULL;
 	scanEntry->scanWithAddInfo = false;
 	scanEntry->list = NULL;
+	scanEntry->gdi = NULL;
+	scanEntry->stack = NULL;
 	scanEntry->nlist = 0;
+	scanEntry->matchSortstate = NULL;
 	scanEntry->offset = InvalidOffsetNumber;
 	scanEntry->isFinished = false;
 	scanEntry->reduceResult = false;
@@ -153,6 +159,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	key->searchMode = searchMode;
 	key->attnum = key->attnumOrig = attnum;
 	key->useAddToColumn = false;
+	key->useCurKey = false;
 	key->scanDirection = ForwardScanDirection;
 
 	RumItemSetMin(&key->curItem);
@@ -165,21 +172,58 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 
 	if (key->orderBy)
 	{
-		if (key->attnum == rumstate->attrnAttachColumn)
+		if (key->attnum != rumstate->attrnAttachColumn)
+			key->useCurKey = rumstate->canOrdering[attnum - 1] &&
+				/* ordering function by index key value has 3 arguments */
+				rumstate->orderingFn[attnum - 1].fn_nargs == 3;
+
+		/* Add key to order by additional information... */
+		if (key->attnum == rumstate->attrnAttachColumn ||
+			/* ...add key to order by index key value */
+			key->useCurKey)
 		{
 			if (nQueryValues != 1)
 				elog(ERROR, "extractQuery should return only one value for ordering");
-			if (rumstate->canOuterOrdering[attnum - 1] == false)
-				elog(ERROR, "doesn't support ordering as additional info");
-			if (rumstate->origTupdesc->attrs[rumstate->attrnAttachColumn - 1]->attbyval == false)
+			if (rumstate->origTupdesc->attrs[key->attnum - 1]->attbyval == false)
 				elog(ERROR, "doesn't support order by over pass-by-reference column");
 
-			key->useAddToColumn = true;
-			key->attnum = rumstate->attrnAddToColumn;
+			if (key->attnum == rumstate->attrnAttachColumn)
+			{
+				if (rumstate->canOuterOrdering[attnum - 1] == false)
+					elog(ERROR, "doesn't support ordering as additional info");
+
+				key->useAddToColumn = true;
+				key->outerAddInfoIsNull = true;
+				key->attnum = rumstate->attrnAddToColumn;
+			}
+			else if (key->useCurKey)
+			{
+				RumScanKey	scanKey = NULL;
+
+				for (i = 0; i < so->nkeys; i++)
+				{
+					if (so->keys[i]->orderBy == false &&
+						so->keys[i]->attnum == key->attnum)
+					{
+						scanKey = so->keys[i];
+						break;
+					}
+				}
+
+				if (scanKey == NULL)
+					elog(ERROR, "cannot order without attribute %d in WHERE clause",
+						 key->attnum);
+				else if (scanKey->nentries > 1)
+					elog(ERROR, "scan key should contain only one value");
+				else if (scanKey->nentries == 0)	/* Should not happen */
+					elog(ERROR, "scan key should contain key value");
+
+				key->useCurKey = true;
+				scanKey->scanEntry[0]->useCurKey = true;
+			}
+
 			key->nentries = 0;
 			key->nuserentries = 0;
-
-			key->outerAddInfoIsNull = true;
 
 			key->scanEntry = NULL;
 			key->entryRes = NULL;
@@ -321,8 +365,7 @@ freeScanKeys(RumScanOpaque so)
 }
 
 static void
-initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery,
-			bool *hasPartialMatch)
+initScanKey(RumScanOpaque so, ScanKey skey, bool *hasPartialMatch)
 {
 	Datum	   *queryValues;
 	int32		nQueryValues = 0;
@@ -362,10 +405,6 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery,
 		searchMode > GIN_SEARCH_MODE_ALL)
 		searchMode = GIN_SEARCH_MODE_ALL;
 
-	/* Non-default modes require the index to have placeholders */
-	if (searchMode != GIN_SEARCH_MODE_DEFAULT)
-		*hasNullQuery = true;
-
 	/*
 	 * In default mode, no keys means an unsatisfiable query.
 	 */
@@ -395,10 +434,7 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasNullQuery,
 		for (j = 0; j < nQueryValues; j++)
 		{
 			if (nullFlags[j])
-			{
 				nullFlags[j] = true;	/* not any other nonzero value */
-				*hasNullQuery = true;
-			}
 		}
 	}
 	/* now we can use the nullFlags as category codes */
@@ -521,7 +557,6 @@ rumNewScanKey(IndexScanDesc scan)
 {
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 	int			i;
-	bool		hasNullQuery = false;
 	bool		checkEmptyEntry = false;
 	bool		hasPartialMatch = false;
 	MemoryContext oldCtx;
@@ -554,7 +589,7 @@ rumNewScanKey(IndexScanDesc scan)
 
 	for (i = 0; i < scan->numberOfKeys; i++)
 	{
-		initScanKey(so, &scan->keyData[i], &hasNullQuery, &hasPartialMatch);
+		initScanKey(so, &scan->keyData[i], &hasPartialMatch);
 		if (so->isVoidRes)
 			break;
 	}
@@ -565,7 +600,6 @@ rumNewScanKey(IndexScanDesc scan)
 	 */
 	if (so->nkeys == 0 && !so->isVoidRes)
 	{
-		hasNullQuery = true;
 		rumFillScanKey(so, FirstOffsetNumber,
 					   InvalidStrategy,
 					   GIN_SEARCH_MODE_EVERYTHING,
@@ -576,7 +610,7 @@ rumNewScanKey(IndexScanDesc scan)
 
 	for (i = 0; i < scan->numberOfOrderBys; i++)
 	{
-		initScanKey(so, &scan->orderByData[i], &hasNullQuery, NULL);
+		initScanKey(so, &scan->orderByData[i], NULL);
 		if (so->isVoidRes)
 			break;
 	}

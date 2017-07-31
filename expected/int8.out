@@ -42,6 +42,42 @@ SELECT * FROM test_int8 WHERE i>1::int8 ORDER BY i;
  3
 (2 rows)
 
+EXPLAIN (costs off)
+SELECT *, i <=> 0::int8 FROM test_int8 ORDER BY i <=> 0::int8;
+               QUERY PLAN               
+----------------------------------------
+ Index Scan using idx_int8 on test_int8
+   Order By: (i <=> '0'::bigint)
+(2 rows)
+
+SELECT *, i <=> 0::int8 FROM test_int8 ORDER BY i <=> 0::int8;
+ i  | ?column? 
+----+----------
+  0 |        0
+ -1 |        1
+  1 |        1
+ -2 |        2
+  2 |        2
+  3 |        3
+(6 rows)
+
+EXPLAIN (costs off)
+SELECT *, i <=> 1::int8 FROM test_int8 WHERE i<1::int8 ORDER BY i <=> 1::int8;
+               QUERY PLAN               
+----------------------------------------
+ Index Scan using idx_int8 on test_int8
+   Index Cond: (i < '1'::bigint)
+   Order By: (i <=> '1'::bigint)
+(3 rows)
+
+SELECT *, i <=> 1::int8 FROM test_int8 WHERE i<1::int8 ORDER BY i <=> 1::int8;
+ i  | ?column? 
+----+----------
+  0 |        1
+ -1 |        2
+ -2 |        3
+(3 rows)
+
 CREATE TABLE test_int8_o AS SELECT id::int8, t FROM tsts;
 CREATE INDEX test_int8_o_idx ON test_int8_o USING rum
 	(t rum_tsvector_addon_ops, id)
@@ -647,4 +683,31 @@ SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id
  484
  496
 (7 rows)
+
+CREATE TABLE test_int8_id_t AS SELECT id::int8, t FROM tsts;
+CREATE INDEX test_int8_id_t_idx ON test_int8_o USING rum
+	(t rum_tsvector_ops, id);
+EXPLAIN (costs off)
+SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id <=> 400::int8;
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
+ Index Scan using test_int8_h_a_idx on test_int8_h_a
+   Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::bigint))
+   Order By: (id <=> '400'::bigint)
+(3 rows)
+
+SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id <=> 400::int8;
+ id  
+-----
+ 371
+ 355
+ 354
+ 252
+ 232
+ 168
+ 135
+  71
+  39
+  16
+(10 rows)
 

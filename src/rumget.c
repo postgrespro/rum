@@ -31,6 +31,34 @@ static void insertScanItem(RumScanOpaque so, bool recheck);
 static int	scan_entry_cmp(const void *p1, const void *p2, void *arg);
 static void entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList);
 
+/*
+ * Extract key value for ordering.
+ *
+ * XXX FIXME only pass-by-value!!! Value should be copied to
+ * long-lived memory context and, somehow, freeed. Seems, the
+ * last is real problem.
+ */
+#define SCAN_ENTRY_GET_KEY(entry, rumstate, itup)							\
+do {																		\
+	if ((entry)->useCurKey)													\
+		(entry)->curKey = rumtuple_get_key(rumstate, itup, &(entry)->curKeyCategory); \
+} while(0)
+
+/*
+ * Assign key value for ordering.
+ *
+ * XXX FIXME only pass-by-value!!! Value should be copied to
+ * long-lived memory context and, somehow, freeed. Seems, the
+ * last is real problem.
+ */
+#define SCAN_ITEM_PUT_KEY(entry, item, key, category)						\
+do {																		\
+	if ((entry)->useCurKey)													\
+	{																		\
+		(item).keyValue = key;												\
+		(item).keyCategory = category;										\
+	}																		\
+} while(0)
 
 static bool
 callAddInfoConsistentFn(RumState * rumstate, RumScanKey key)
@@ -182,7 +210,8 @@ moveRightIfItNeeded(RumBtreeData * btree, RumBtreeStack * stack)
  */
 static void
 scanPostingTree(Relation index, RumScanEntry scanEntry,
-	   BlockNumber rootPostingTree, OffsetNumber attnum, RumState * rumstate)
+				BlockNumber rootPostingTree, OffsetNumber attnum,
+				RumState * rumstate, Datum idatum, RumNullCategory icategory)
 {
 	RumPostingTreeScan *gdi;
 	Buffer		buffer;
@@ -213,15 +242,16 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 		if ((RumPageGetOpaque(page)->flags & RUM_DELETED) == 0 &&
 			maxoff >= FirstOffsetNumber)
 		{
-			RumItem		item;
+			RumScanItem	item;
 			Pointer		ptr;
 
-			ItemPointerSetMin(&item.iptr);
+			ItemPointerSetMin(&item.item.iptr);
 
 			ptr = RumDataPageGetData(page);
 			for (i = FirstOffsetNumber; i <= maxoff; i++)
 			{
-				ptr = rumDataPageLeafRead(ptr, attnum, &item, rumstate);
+				ptr = rumDataPageLeafRead(ptr, attnum, &item.item, rumstate);
+				SCAN_ITEM_PUT_KEY(scanEntry, item, idatum, icategory);
 				rum_tuplesort_putrumitem(scanEntry->matchSortstate, &item);
 			}
 
@@ -370,7 +400,8 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 			LockBuffer(stack->buffer, RUM_UNLOCK);
 
 			/* Collect all the TIDs in this entry's posting tree */
-			scanPostingTree(btree->index, scanEntry, rootPostingTree, attnum, rumstate);
+			scanPostingTree(btree->index, scanEntry, rootPostingTree, attnum,
+							rumstate, idatum, icategory);
 
 			/*
 			 * We lock again the entry page and while it was unlocked insert
@@ -420,13 +451,14 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 		{
 			int	i;
 			char	*ptr = RumGetPosting(itup);
-			RumItem	item;
+			RumScanItem item;
 
-			ItemPointerSetMin(&item.iptr);
+			ItemPointerSetMin(&item.item.iptr);
 			for (i = 0; i < RumGetNPosting(itup); i++)
 			{
-				ptr = rumDataPageLeafRead(ptr, scanEntry->attnum, &item,
+				ptr = rumDataPageLeafRead(ptr, scanEntry->attnum, &item.item,
 										  rumstate);
+				SCAN_ITEM_PUT_KEY(scanEntry, item, idatum, icategory);
 				rum_tuplesort_putrumitem(scanEntry->matchSortstate, &item);
 			}
 
@@ -559,7 +591,7 @@ restartScanEntry:
 		if (entry->matchSortstate)
 		{
 			rum_tuplesort_performsort(entry->matchSortstate);
-			ItemPointerSetMin(&entry->collectRumItem.iptr);
+			ItemPointerSetMin(&entry->collectRumItem.item.iptr);
 			entry->isFinished = FALSE;
 		}
 	}
@@ -641,6 +673,8 @@ restartScanEntry:
 		if (entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
 			entry->scanWithAddInfo)
 			entry->stack = stackEntry;
+
+		SCAN_ENTRY_GET_KEY(entry, rumstate, itup);
 	}
 
 	if (needUnlock)
@@ -1047,6 +1081,8 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
 	entry->curItem = entry->list[entry->offset];
 	entry->offset += entry->scanDirection;
 
+	SCAN_ENTRY_GET_KEY(entry, rumstate, itup);
+
 	/*
 	 * Done with this entry, go to the next for the future.
 	 */
@@ -1081,11 +1117,11 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
 
 		do
 		{
-			RumItem	collected;
-			RumItem	*current_collected;
+			RumScanItem	collected;
+			RumScanItem *current_collected;
 
 			/* We are finished, but should return last result */
-			if (ItemPointerIsMax(&entry->collectRumItem.iptr))
+			if (ItemPointerIsMax(&entry->collectRumItem.item.iptr))
 			{
 				entry->isFinished = TRUE;
 				rum_tuplesort_end(entry->matchSortstate);
@@ -1094,10 +1130,10 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
 			}
 
 			/* collectRumItem could store the begining of current result */
-			if (!ItemPointerIsMin(&entry->collectRumItem.iptr))
+			if (!ItemPointerIsMin(&entry->collectRumItem.item.iptr))
 				collected = entry->collectRumItem;
 			else
-				ItemPointerSetMin(&collected.iptr);
+				ItemPointerSetMin(&collected.item.iptr);
 
 			ItemPointerSetMin(&entry->curItem.iptr);
 
@@ -1112,60 +1148,76 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
 
 				if (current_collected == NULL)
 				{
-					entry->curItem = collected;
+					entry->curItem = collected.item;
+					if (entry->useCurKey)
+					{
+						entry->curKey = collected.keyValue;
+						entry->curKeyCategory = collected.keyCategory;
+					}
 					break;
 				}
 
-				if (ItemPointerIsMin(&collected.iptr) ||
-					rumCompareItemPointers(&collected.iptr,
-										   &current_collected->iptr) == 0)
+				if (ItemPointerIsMin(&collected.item.iptr) ||
+					rumCompareItemPointers(&collected.item.iptr,
+										   &current_collected->item.iptr) == 0)
 				{
 					Datum	joinedAddInfo = (Datum)0;
 					bool	joinedAddInfoIsNull;
 
-					if (ItemPointerIsMin(&collected.iptr))
+					if (ItemPointerIsMin(&collected.item.iptr))
 					{
-						joinedAddInfoIsNull = true; /* wiil change later */
-						collected.addInfoIsNull = true;
+						joinedAddInfoIsNull = true; /* will change later */
+						collected.item.addInfoIsNull = true;
 					}
 					else
-						joinedAddInfoIsNull = collected.addInfoIsNull ||
-											current_collected->addInfoIsNull;
+						joinedAddInfoIsNull = collected.item.addInfoIsNull ||
+										current_collected->item.addInfoIsNull;
 
 					if (joinedAddInfoIsNull)
 					{
 						joinedAddInfoIsNull =
-							(collected.addInfoIsNull && current_collected->addInfoIsNull);
+							(collected.item.addInfoIsNull &&
+							 current_collected->item.addInfoIsNull);
 
-						if (collected.addInfoIsNull == false)
-							joinedAddInfo = collected.addInfo;
-						else if (current_collected->addInfoIsNull == false)
-							joinedAddInfo = current_collected->addInfo;
+						if (collected.item.addInfoIsNull == false)
+							joinedAddInfo = collected.item.addInfo;
+						else if (current_collected->item.addInfoIsNull == false)
+							joinedAddInfo = current_collected->item.addInfo;
 					}
 					else if (rumstate->canJoinAddInfo[entry->attnumOrig - 1])
 					{
 						joinedAddInfo =
 							FunctionCall2(
 								&rumstate->joinAddInfoFn[entry->attnumOrig - 1],
-								collected.addInfo,
-								current_collected->addInfo);
+								collected.item.addInfo,
+								current_collected->item.addInfo);
 					}
 					else
 					{
-						joinedAddInfo = current_collected->addInfo;
+						joinedAddInfo = current_collected->item.addInfo;
 					}
 
-					collected.iptr = current_collected->iptr;
-					collected.addInfoIsNull = joinedAddInfoIsNull;
-					collected.addInfo = joinedAddInfo;
+					collected.item.iptr = current_collected->item.iptr;
+					collected.item.addInfoIsNull = joinedAddInfoIsNull;
+					collected.item.addInfo = joinedAddInfo;
+					if (entry->useCurKey)
+					{
+						collected.keyValue = current_collected->keyValue;
+						collected.keyCategory = current_collected->keyCategory;
+					}
 
 					if (should_free)
 						pfree(current_collected);
 				}
 				else
 				{
-					entry->curItem = collected;
+					entry->curItem = collected.item;
 					entry->collectRumItem = *current_collected;
+					if (entry->useCurKey)
+					{
+						entry->curKey = collected.keyValue;
+						entry->curKeyCategory = collected.keyCategory;
+					}
 					if (should_free)
 						pfree(current_collected);
 					break;
@@ -1175,7 +1227,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
 			if (current_collected == NULL)
 			{
 				/* mark next call as last */
-				ItemPointerSetMax(&entry->collectRumItem.iptr);
+				ItemPointerSetMax(&entry->collectRumItem.item.iptr);
 
 				/* even current call is last */
 				if (ItemPointerIsMin(&entry->curItem.iptr))
@@ -1207,6 +1259,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
 			entry->isFinished = TRUE;
 		}
 	}
+	/* Get next item from posting tree */
 	else
 	{
 		do
@@ -2074,6 +2127,21 @@ keyGetOrdering(RumState * rumstate, MemoryContext tempCtx, RumScanKey key,
 											UInt16GetDatum(key->strategy)
 											));
 	}
+	else if (key->useCurKey)
+	{
+		Assert(key->nentries == 0);
+		Assert(key->nuserentries == 0);
+
+		if (key->curKeyCategory != RUM_CAT_NORM_KEY)
+			return get_float8_infinity();
+
+		return DatumGetFloat8(FunctionCall3(
+										&rumstate->orderingFn[key->attnum - 1],
+											key->curKey,
+											key->query,
+											UInt16GetDatum(key->strategy)
+											));
+	}
 
 	for (i = 0; i < key->nentries; i++)
 	{
@@ -2121,10 +2189,12 @@ insertScanItem(RumScanOpaque so, bool recheck)
 	item->iptr = so->item.iptr;
 	item->recheck = recheck;
 
-	if (AttributeNumberIsValid(so->rumstate.attrnAddToColumn))
+	if (AttributeNumberIsValid(so->rumstate.attrnAddToColumn) || so->willSort)
 	{
 		int			nOrderByAnother = 0,
-					count = 0;
+					nOrderByKey = 0,
+					countByAnother = 0,
+					countByKey = 0;
 
 		for (i = 0; i < so->nkeys; i++)
 		{
@@ -2133,11 +2203,15 @@ insertScanItem(RumScanOpaque so, bool recheck)
 				so->keys[i]->outerAddInfoIsNull = true;
 				nOrderByAnother++;
 			}
+			else if (so->keys[i]->useCurKey)
+				nOrderByKey++;
 		}
 
-		for (i = 0; count < nOrderByAnother && i < so->nkeys; i++)
+		for (i = 0; (countByAnother < nOrderByAnother || countByKey < nOrderByKey) &&
+			 i < so->nkeys; i++)
 		{
-			if (so->keys[i]->attnum == so->rumstate.attrnAddToColumn &&
+			if (countByAnother < nOrderByAnother &&
+				so->keys[i]->attnum == so->rumstate.attrnAddToColumn &&
 				so->keys[i]->outerAddInfoIsNull == false)
 			{
 				Assert(!so->keys[i]->orderBy);
@@ -2150,7 +2224,23 @@ insertScanItem(RumScanOpaque so, bool recheck)
 					{
 						so->keys[j]->outerAddInfoIsNull = false;
 						so->keys[j]->outerAddInfo = so->keys[i]->outerAddInfo;
-						count++;
+						countByAnother++;
+					}
+				}
+			}
+			else if (countByKey < nOrderByKey && so->keys[i]->nentries > 0 &&
+					 so->keys[i]->scanEntry[0]->useCurKey)
+			{
+				Assert(!so->keys[i]->orderBy);
+
+				for (j = i + 1; j < so->nkeys; j++)
+				{
+					if (so->keys[j]->useCurKey)
+					{
+						so->keys[j]->curKey = so->keys[i]->scanEntry[0]->curKey;
+						so->keys[j]->curKeyCategory =
+							so->keys[i]->scanEntry[0]->curKeyCategory;
+						countByKey++;
 					}
 				}
 			}
@@ -2222,10 +2312,7 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 		if (so->naturalOrder == NoMovementScanDirection)
 		{
 			so->sortstate = rum_tuplesort_begin_rum(work_mem, so->norderbys,
-						false,
-						so->totalentries > 0 &&
-						so->entries[0]->queryCategory == RUM_CAT_EMPTY_QUERY &&
-						so->entries[0]->scanWithAddInfo);
+						false, so->scanType == RumFullScan);
 
 
 			while (scanGetItem(scan, &so->item, &so->item, &recheck))

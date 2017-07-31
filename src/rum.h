@@ -553,6 +553,13 @@ extern void rumPrepareDataScan(RumBtree btree, Relation index, OffsetNumber attn
 
 /* rumscan.c */
 
+typedef struct RumScanItem
+{
+	RumItem		item;
+	Datum		keyValue;
+	RumNullCategory keyCategory;
+}	RumScanItem;
+
 /*
  * RumScanKeyData describes a single RUM index qualifier expression.
  *
@@ -592,6 +599,11 @@ typedef struct RumScanKeyData
 	Datum		outerAddInfo;
 	bool		outerAddInfoIsNull;
 
+	/* Key information, used in orderingFn */
+	Datum		curKey;
+	RumNullCategory curKeyCategory;
+	bool		useCurKey;
+
 	/* other data needed for calling consistentFn */
 	Datum		query;
 	/* NB: these three arrays have only nuserentries elements! */
@@ -620,7 +632,7 @@ typedef struct RumScanKeyData
 
 	/* array of keys, used to scan using additional information as keys */
 	RumScanKey *addInfoKeys;
-	int			addInfoNKeys;
+	uint32		addInfoNKeys;
 }	RumScanKeyData;
 
 typedef struct RumScanEntryData
@@ -641,12 +653,17 @@ typedef struct RumScanEntryData
 	/* current ItemPointer to heap */
 	RumItem		curItem;
 
+	/* Used for ordering using distance */
+	Datum		curKey;
+	RumNullCategory curKeyCategory;
+	bool		useCurKey;
+
 	/*
 	 * For a partial-match or full-scan query, we accumulate all TIDs and
 	 * and additional information here
 	 */
 	Tuplesortstate *matchSortstate;
-	RumItem		collectRumItem;
+	RumScanItem	collectRumItem;
 
 	/* for full-scan query with order-by */
 	RumBtreeStack *stack;

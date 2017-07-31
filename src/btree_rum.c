@@ -322,7 +322,38 @@ rum_##type##_outer_distance(PG_FUNCTION_ARGS)								\
 									   PG_GETARG_DATUM(1));					\
 			break;															\
 		default:															\
-			elog(ERROR, "rum_outer_distance_%s: unknown strategy %u",		\
+			elog(ERROR, "rum_%s_outer_distance: unknown strategy %u",		\
+						#type, strategy);									\
+	}																		\
+																			\
+	PG_RETURN_DATUM(diff);													\
+}																			\
+PG_FUNCTION_INFO_V1(rum_##type##_key_distance);								\
+Datum																		\
+rum_##type##_key_distance(PG_FUNCTION_ARGS)									\
+{																			\
+	StrategyNumber	strategy = PG_GETARG_UINT16(2);							\
+	Datum			diff;													\
+																			\
+	switch (strategy)														\
+	{																		\
+		case RUM_DISTANCE:													\
+			diff = DirectFunctionCall2(rum_##type##_distance,				\
+									   PG_GETARG_DATUM(0),					\
+									   PG_GETARG_DATUM(1));					\
+			break;															\
+		case RUM_LEFT_DISTANCE:												\
+			diff = DirectFunctionCall2(rum_##type##_left_distance,			\
+									   PG_GETARG_DATUM(0),					\
+									   PG_GETARG_DATUM(1));					\
+			break;															\
+		case RUM_RIGHT_DISTANCE:											\
+			diff = DirectFunctionCall2(rum_##type##_right_distance,			\
+									   PG_GETARG_DATUM(0),					\
+									   PG_GETARG_DATUM(1));					\
+			break;															\
+		default:															\
+			elog(ERROR, "rum_%s_key_distance: unknown strategy %u",			\
 						#type, strategy);									\
 	}																		\
 																			\
@@ -625,4 +656,3 @@ rum_timestamp_consistent(PG_FUNCTION_ARGS)
 	*recheck = false;
 	PG_RETURN_BOOL(true);
 }
-

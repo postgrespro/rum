@@ -1,5 +1,11 @@
 CREATE EXTENSION rum;
 
+-- First validate operator classes
+SELECT opcname, amvalidate(opc.oid)
+FROM pg_opclass opc JOIN pg_am am ON am.oid = opcmethod
+WHERE amname = 'rum'
+ORDER BY opcname;
+
 CREATE TABLE test_rum( t text, a tsvector );
 
 CREATE TRIGGER tsvectorupdate

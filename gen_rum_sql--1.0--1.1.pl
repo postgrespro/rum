@@ -262,6 +262,10 @@ my @opinfo = map {
 ##############Generate!!!
 
 print <<EOT;
+/*
+ * RUM version 1.1
+ */
+ 
 CREATE FUNCTION rum_btree_consistent(internal,smallint,internal,int,internal,internal,internal,internal)
 RETURNS bool
 AS 'MODULE_PATHNAME'

@@ -39,7 +39,9 @@ rumvalidate(Oid opclassoid)
 	Form_pg_opclass classform;
 	Oid			opfamilyoid;
 	Oid			opcintype;
+	Oid			opcintype_overload;		/* used for timestamptz */
 	Oid			opckeytype;
+	Oid			opckeytype_overload;	/* used for timestamptz */
 	char	   *opclassname;
 	HeapTuple	familytup;
 	Form_pg_opfamily familyform;
@@ -58,11 +60,17 @@ rumvalidate(Oid opclassoid)
 	classform = (Form_pg_opclass) GETSTRUCT(classtup);
 
 	opfamilyoid = classform->opcfamily;
-	opcintype = classform->opcintype;
-	opckeytype = classform->opckeytype;
+	opcintype = opcintype_overload = classform->opcintype;
+	opckeytype = opckeytype_overload = classform->opckeytype;
 	if (!OidIsValid(opckeytype))
-		opckeytype = opcintype;
+		opckeytype = opckeytype_overload = opcintype;
 	opclassname = NameStr(classform->opcname);
+
+	/* Fix type Oid for timestamptz */
+	if (opcintype == TIMESTAMPTZOID)
+		opcintype_overload = TIMESTAMPOID;
+	if (opckeytype == TIMESTAMPTZOID)
+		opckeytype_overload = TIMESTAMPOID;
 
 	/* Fetch opfamily information */
 	familytup = SearchSysCache1(OPFAMILYOID, ObjectIdGetDatum(opfamilyoid));
@@ -114,28 +122,56 @@ rumvalidate(Oid opclassoid)
 			case GIN_EXTRACTVALUE_PROC:
 				/* Some opclasses omit nullFlags */
 				ok = check_amproc_signature(procform->amproc, INTERNALOID, false,
-											5, 5, opcintype, INTERNALOID,
+											2, 5, opcintype_overload, INTERNALOID,
 											INTERNALOID, INTERNALOID,
 											INTERNALOID);
 				break;
 			case GIN_EXTRACTQUERY_PROC:
 				/* Some opclasses omit nullFlags and searchMode */
-				ok = check_amproc_signature(procform->amproc, INTERNALOID, false,
-											7, 7, opcintype, INTERNALOID,
-											INT2OID, INTERNALOID, INTERNALOID,
-											INTERNALOID, INTERNALOID);
+				if (opcintype == TSVECTOROID)
+					ok = check_amproc_signature(procform->amproc, INTERNALOID, false,
+												5, 7, TSQUERYOID, INTERNALOID,
+												INT2OID, INTERNALOID, INTERNALOID,
+												INTERNALOID, INTERNALOID);
+				else if (opcintype == TSQUERYOID)
+					ok = check_amproc_signature(procform->amproc, INTERNALOID, false,
+												5, 7, TSVECTOROID, INTERNALOID,
+												INT2OID, INTERNALOID, INTERNALOID,
+												INTERNALOID, INTERNALOID);
+				else
+					ok = check_amproc_signature(procform->amproc, INTERNALOID, false,
+												5, 7, opcintype_overload, INTERNALOID,
+												INT2OID, INTERNALOID, INTERNALOID,
+												INTERNALOID, INTERNALOID);
 				break;
 			case GIN_CONSISTENT_PROC:
 				/* Some opclasses omit queryKeys and nullFlags */
-				ok = check_amproc_signature(procform->amproc, BOOLOID, false,
-											6, 8, INTERNALOID, INT2OID,
-											opcintype, INT4OID,
-											INTERNALOID, INTERNALOID,
-											INTERNALOID, INTERNALOID);
+				if (opcintype == TSQUERYOID)
+					ok = check_amproc_signature(procform->amproc, BOOLOID, false,
+												6, 8, INTERNALOID, INT2OID,
+												TSVECTOROID, INT4OID,
+												INTERNALOID, INTERNALOID,
+												INTERNALOID, INTERNALOID);
+				else if (opcintype == TSVECTOROID ||
+					opcintype == TIMESTAMPOID ||
+					opcintype == TIMESTAMPTZOID ||
+					opcintype == ANYARRAYOID)
+					ok = check_amproc_signature(procform->amproc, BOOLOID, false,
+												6, 8, INTERNALOID, INT2OID,
+												opcintype_overload, INT4OID,
+												INTERNALOID, INTERNALOID,
+												INTERNALOID, INTERNALOID);
+				else
+					ok = check_amproc_signature(procform->amproc, BOOLOID, false,
+												6, 8, INTERNALOID, INT2OID,
+												INTERNALOID, INT4OID,
+												INTERNALOID, INTERNALOID,
+												INTERNALOID, INTERNALOID);
 				break;
 			case GIN_COMPARE_PARTIAL_PROC:
 				ok = check_amproc_signature(procform->amproc, INT4OID, false,
-											4, 4, opckeytype, opckeytype,
+											4, 4,
+											opckeytype_overload, opckeytype_overload,
 											INT2OID, INTERNALOID);
 				break;
 			case RUM_CONFIG_PROC:
@@ -150,21 +186,29 @@ rumvalidate(Oid opclassoid)
 											INTERNALOID, INTERNALOID);
 				break;
 			case RUM_ORDERING_PROC:
-				ok = check_amproc_signature(procform->amproc, FLOAT8OID, false,
-											9, 9, INTERNALOID, INT2OID,
-											opcintype, INT4OID,
-											INTERNALOID, INTERNALOID,
-											INTERNALOID, INTERNALOID,
-											INTERNALOID);
+				/* Two possible signatures */
+				if (opcintype == TSVECTOROID ||
+					opcintype == ANYARRAYOID)
+					ok = check_amproc_signature(procform->amproc, FLOAT8OID, false,
+												9, 9, INTERNALOID, INT2OID,
+												opcintype, INT4OID,
+												INTERNALOID, INTERNALOID,
+												INTERNALOID, INTERNALOID,
+												INTERNALOID, INTERNALOID);
+				else
+					ok = check_amproc_signature(procform->amproc, FLOAT8OID, false,
+												3, 3,
+												opcintype, opcintype, INT2OID);
 				break;
 			case RUM_OUTER_ORDERING_PROC:
 				ok = check_amproc_signature(procform->amproc, FLOAT8OID, false,
 											3, 3,
-											opcintype, opcintype, INT2OID);
+											opcintype_overload, opcintype_overload,
+											INT2OID);
 				break;
 			case RUM_ADDINFO_JOIN:
 				ok = check_amproc_signature(procform->amproc, BYTEAOID, false,
-											2, 2, opckeytype, opckeytype);
+											2, 2, INTERNALOID, INTERNALOID);
 				break;
 			default:
 				ereport(INFO,
@@ -207,22 +251,40 @@ rumvalidate(Oid opclassoid)
 			result = false;
 		}
 
-		/* rum doesn't support ORDER BY operators */
-		if (oprform->amoppurpose != AMOP_SEARCH ||
-			OidIsValid(oprform->amopsortfamily))
+		/* Check ORDER BY operator signature */
+		if (oprform->amoppurpose == AMOP_ORDER)
 		{
-			ereport(INFO,
-					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
-					 errmsg("rum opfamily %s contains invalid ORDER BY specification for operator %s",
-							opfamilyname,
-							format_operator(oprform->amopopr))));
-			result = false;
+			/* tsvector's distance returns float4 */
+			if (oprform->amoplefttype == TSVECTOROID &&
+				!check_amop_signature(oprform->amopopr, FLOAT4OID,
+													  oprform->amoplefttype,
+													  oprform->amoprighttype))
+			{
+				ereport(INFO,
+						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+						 errmsg("rum opfamily %s contains invalid ORDER BY specification for operator %s",
+								opfamilyname,
+								format_operator(oprform->amopopr))));
+				result = false;
+			}
+			/* other types distance returns float8 */
+			else if (oprform->amoplefttype != TSVECTOROID &&
+					 !check_amop_signature(oprform->amopopr, FLOAT8OID,
+										   oprform->amoplefttype,
+										   oprform->amoprighttype))
+			{
+				ereport(INFO,
+						(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
+						 errmsg("rum opfamily %s contains invalid ORDER BY specification for operator %s",
+								opfamilyname,
+								format_operator(oprform->amopopr))));
+				result = false;
+			}
 		}
-
-		/* Check operator signature --- same for all rum strategies */
-		if (!check_amop_signature(oprform->amopopr, BOOLOID,
-								  oprform->amoplefttype,
-								  oprform->amoprighttype))
+		/* Check other operator signature */
+		else if (!check_amop_signature(oprform->amopopr, BOOLOID,
+									   oprform->amoplefttype,
+									   oprform->amoprighttype))
 		{
 			ereport(INFO,
 					(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
@@ -261,11 +323,10 @@ rumvalidate(Oid opclassoid)
 		if (opclassgroup &&
 			(opclassgroup->functionset & (((uint64) 1) << i)) != 0)
 			continue;			/* got it */
-		if (i == GIN_COMPARE_PARTIAL_PROC)
+		if (i == GIN_COMPARE_PROC ||
+			i == GIN_COMPARE_PARTIAL_PROC)
 			continue;			/* optional method */
-		if (i == GIN_CONSISTENT_PROC)
-			continue;
-		if (i == RUM_PRE_CONSISTENT_PROC)
+		if (i >= RUM_CONFIG_PROC)
 			continue;
 		ereport(INFO,
 				(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
