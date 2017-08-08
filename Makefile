@@ -35,6 +35,14 @@ endif
 wal-check: temp-install
 	$(prove_check)
 
+check: isolationcheck
+
+submake-isolation:
+	$(MAKE) -C $(top_builddir)/src/test/isolation all
+submake-rum:
+	$(MAKE) -C $(top_builddir)/contrib/rum
+
+
 all: rum--1.1.sql
 
 #9.6 requires 1.1 file but 10.0 could live with 1.0 + 1.0-1.1 files
@@ -48,3 +56,9 @@ install: installincludes
 
 installincludes:
 	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(INCLUDES)) '$(DESTDIR)$(includedir_server)/'
+
+ISOLATIONCHECKS= predicate-rum predicate-rum-2
+isolationcheck: | submake-isolation submake-rum temp-install
+	$(pg_isolation_regress_check) \
+	    --temp-config $(top_srcdir)/contrib/rum/logical.conf \
+	    $(ISOLATIONCHECKS)

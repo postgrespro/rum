@@ -1,0 +1,441 @@
+Parsed test spec with 2 sessions
+
+starting permutation: rxy1 wx1 c1 rxy2 wy2 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c1: COMMIT;
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c2: COMMIT;
+
+starting permutation: rxy1 wx1 rxy2 c1 wy2 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step c1: COMMIT;
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c2: COMMIT;
+
+starting permutation: rxy1 wx1 rxy2 wy2 c1 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c1: COMMIT;
+step c2: COMMIT;
+
+starting permutation: rxy1 wx1 rxy2 wy2 c2 c1
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c2: COMMIT;
+step c1: COMMIT;
+
+starting permutation: rxy1 rxy2 wx1 c1 wy2 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c1: COMMIT;
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c2: COMMIT;
+
+starting permutation: rxy1 rxy2 wx1 wy2 c1 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c1: COMMIT;
+step c2: COMMIT;
+
+starting permutation: rxy1 rxy2 wx1 wy2 c2 c1
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c2: COMMIT;
+step c1: COMMIT;
+
+starting permutation: rxy1 rxy2 wy2 wx1 c1 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c1: COMMIT;
+step c2: COMMIT;
+
+starting permutation: rxy1 rxy2 wy2 wx1 c2 c1
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c2: COMMIT;
+step c1: COMMIT;
+
+starting permutation: rxy1 rxy2 wy2 c2 wx1 c1
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c2: COMMIT;
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c1: COMMIT;
+
+starting permutation: rxy2 rxy1 wx1 c1 wy2 c2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c1: COMMIT;
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c2: COMMIT;
+
+starting permutation: rxy2 rxy1 wx1 wy2 c1 c2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c1: COMMIT;
+step c2: COMMIT;
+
+starting permutation: rxy2 rxy1 wx1 wy2 c2 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c2: COMMIT;
+step c1: COMMIT;
+
+starting permutation: rxy2 rxy1 wy2 wx1 c1 c2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c1: COMMIT;
+step c2: COMMIT;
+
+starting permutation: rxy2 rxy1 wy2 wx1 c2 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c2: COMMIT;
+step c1: COMMIT;
+
+starting permutation: rxy2 rxy1 wy2 c2 wx1 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c2: COMMIT;
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c1: COMMIT;
+
+starting permutation: rxy2 wy2 rxy1 wx1 c1 c2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c1: COMMIT;
+step c2: COMMIT;
+
+starting permutation: rxy2 wy2 rxy1 wx1 c2 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c2: COMMIT;
+step c1: COMMIT;
+
+starting permutation: rxy2 wy2 rxy1 c2 wx1 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step c2: COMMIT;
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c1: COMMIT;
+
+starting permutation: rxy2 wy2 c2 rxy1 wx1 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':2 'tu':3 'ww':4
+230            'iv':1 'lp':2 'mt':4 'qh':3 'ss':5
+248            'jn':1 'js':4 'mx':2 'ne':7 'nn':5 'nw':3 'qh':6
+50             'bx':1 'ca':5 'da':10 'dn':2 'eq':6 'fn':8 'gl':7 'hu':3 'ig':9 'mg':4 'qh':11
+step wy2: INSERT INTO rum_tbl(tsv) values('xz');
+step c2: COMMIT;
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+165            'gi':1 'gj':2 'gx':6 'hb':5 'hx':8 'ir':7 'sq':3 'yg':4
+74             'cv':1 'de':8 'ds':10 'eh':4 'fd':6 'gh':3 'gi':7 'hn':5 'hx':9 'lo':2
+116            'el':1 'er':9 'ez':6 'gr':3 'gt':4 'hx':7 'ie':5 'iv':2 'od':10 'zf':8
+119            'eo':1 'fc':5 'he':7 'ht':9 'hx':8 'it':2 'km':3 'so':4 'uj':6
+190            'hh':1 'hx':2 'id':5 'iv':3 'ld':7 'ob':6 'oy':4
+206            'hx':1 'it':9 'ji':10 'jl':5 'lq':3 'mh':8 'nq':6 'pc':7 'ub':4 'xi':2
+step wx1: INSERT INTO rum_tbl(tsv) values('ab');
+step c1: COMMIT;

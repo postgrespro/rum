@@ -15,6 +15,7 @@
 
 #include "access/generic_xlog.h"
 #include "miscadmin.h"
+#include "storage/predicate.h"
 
 #include "rum.h"
 
@@ -485,6 +486,14 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 				btree->fillRoot(btree, stack->buffer, lbuffer, rbuffer,
 								page, lpage, rpage);
 
+				PredicateLockPageSplit(btree->index,
+							BufferGetBlockNumber(stack->buffer),
+							BufferGetBlockNumber(lbuffer));
+
+				PredicateLockPageSplit(btree->index,
+							BufferGetBlockNumber(stack->buffer),
+							BufferGetBlockNumber(rbuffer));
+
 				if (btree->rumstate->isBuild)
 				{
 					START_CRIT_SECTION();
@@ -547,6 +556,10 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 				RumPageGetOpaque(newlpage)->leftlink = savedLeftLink;
 				RumPageGetOpaque(rpage)->leftlink = BufferGetBlockNumber(stack->buffer);
 				RumPageGetOpaque(newlpage)->rightlink = BufferGetBlockNumber(rbuffer);
+
+				PredicateLockPageSplit(btree->index,
+						BufferGetBlockNumber(stack->buffer),
+						BufferGetBlockNumber(rbuffer));
 
 				/*
 				 * it's safe because we don't have right-to-left walking
