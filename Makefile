@@ -1,19 +1,22 @@
 # contrib/rum/Makefile
 
 MODULE_big = rum
+EXTENSION = rum
+EXTVERSION = 1.2
+PGFILEDESC = "RUM index access method"
+
 OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
 	src/rumbtree.o src/rumbulk.o src/rumdatapage.o \
 	src/rumentrypage.o src/rumget.o src/ruminsert.o \
 	src/rumscan.o src/rumutil.o src/rumvacuum.o src/rumvalidate.o \
 	src/btree_rum.o src/rum_arr_utils.o $(WIN32RES)
 
-EXTENSION = rum
-EXTVERSION = 1.2
 DATA = rum--1.0.sql
 DATA_updates = rum--1.0--1.1.sql rum--1.1--1.2.sql
 DATA_built = rum--$(EXTVERSION).sql $(DATA_updates)
-PGFILEDESC = "RUM index access method"
-INCLUDES = src/rum.h src/rumsort.h
+
+INCLUDES = rum.h rumsort.h
+RELATIVE_INCLUDES = $(addprefix src/, $(INCLUDES))
 
 REGRESS = rum rum_hash ruminv timestamp orderby orderby_hash altorder \
 	altorder_hash limits \
@@ -51,4 +54,9 @@ rum--%.sql: gen_rum_sql--%.pl
 install: installincludes
 
 installincludes:
-	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(INCLUDES)) '$(DESTDIR)$(includedir_server)/'
+	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(RELATIVE_INCLUDES)) '$(DESTDIR)$(includedir_server)/'
+
+uninstall: uninstallincludes
+
+uninstallincludes:
+	rm -f $(addprefix '$(DESTDIR)$(includedir_server)/', $(INCLUDES))
