@@ -197,9 +197,9 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 
 	buffer = rumScanBeginPostingTree(gdi, NULL);
 
-	PredicateLockPage(index, BufferGetBlockNumber(buffer), snapshot);
-
 	IncrBufferRefCount(buffer); /* prevent unpin in freeRumBtreeStack */
+
+	PredicateLockPage(index, BufferGetBlockNumber(buffer), snapshot);
 
 	freeRumBtreeStack(gdi->stack);
 	pfree(gdi);
@@ -1707,14 +1707,14 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumItem * item, Snapshot 
 								RUM_SHARE, entry->scanDirection);
 		entry->gdi->stack->buffer = entry->buffer;
 
-		PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
-
 		if (entry->buffer == InvalidBuffer)
 		{
 			ItemPointerSetInvalid(&entry->curItem.iptr);
 			entry->isFinished = TRUE;
 			return;
 		}
+
+		PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
 
 		entry->gdi->stack->blkno = BufferGetBlockNumber(entry->buffer);
 
