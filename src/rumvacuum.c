@@ -17,6 +17,7 @@
 #include "postmaster/autovacuum.h"
 #include "storage/indexfsm.h"
 #include "storage/lmgr.h"
+#include "storage/predicate.h"
 
 #include "rum.h"
 
@@ -402,6 +403,12 @@ restart:
 
 	RumPageGetOpaque(lPage)->rightlink = rightBlkno;
 	RumPageGetOpaque(rPage)->leftlink = leftBlkno;
+
+	/*
+	 * Any insert which would have gone on the leaf block will now go to its
+	 * right sibling.
+	 */
+	PredicateLockPageCombine(gvs->index, deleteBlkno, rightBlkno);
 
 	/* Delete downlink from parent */
 	parentPage = GenericXLogRegisterBuffer(state, pBuffer, 0);
