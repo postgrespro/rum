@@ -19,6 +19,7 @@
 #include "access/sdir.h"
 #include "lib/rbtree.h"
 #include "storage/bufmgr.h"
+#include "utils/guc.h"
 
 #include "rumsort.h"
 
@@ -1007,5 +1008,10 @@ extern Datum FunctionCall10Coll(FmgrInfo *flinfo, Oid collation,
 				   Datum arg3, Datum arg4, Datum arg5,
 				   Datum arg6, Datum arg7, Datum arg8,
 				   Datum arg9, Datum arg10);
+
+/* tf_idf.c */
+extern char *TFIDFSource;
+extern bool check_tf_idf_source(char **newval, void **extra, GucSource source);
+extern void assign_tf_idf_source(const char *newval, void *extra);
 
 #endif   /* __RUM_H__ */

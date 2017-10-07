@@ -49,6 +49,17 @@ _PG_init(void)
 							PGC_USERSET, 0,
 							NULL, NULL, NULL);
 
+	DefineCustomStringVariable("tf_tdf_source",
+							   "Source statistics for TD/IFD calculation.",
+							   "",
+							   &TFIDFSource,
+							   "",
+							   PGC_USERSET,
+							   0,
+							   check_tf_idf_source,
+							   assign_tf_idf_source,
+							   NULL);
+
 	rum_relopt_kind = add_reloption_kind();
 
 	add_string_reloption(rum_relopt_kind, "attach",
