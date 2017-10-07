@@ -1013,5 +1013,6 @@ extern Datum FunctionCall10Coll(FmgrInfo *flinfo, Oid collation,
 extern char *TFIDFSource;
 extern bool check_tf_idf_source(char **newval, void **extra, GucSource source);
 extern void assign_tf_idf_source(const char *newval, void *extra);
+extern float4 estimate_idf(char *lexeme, int length);
 
 #endif   /* __RUM_H__ */

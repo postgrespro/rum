@@ -10,14 +10,48 @@
 #include "postgres.h"
 
 #include "catalog/namespace.h"
+#include "catalog/pg_statistic.h"
 #include "catalog/pg_type.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
+#include "utils/memutils.h"
+#include "utils/syscache.h"
 #include "utils/varlena.h"
 
 #include "rum.h"
 
-char *TFIDFSource;
+/* lookup table type for binary searching through MCELEMs */
+typedef struct
+{
+	text	   *element;
+	float4		frequency;
+} TextFreq;
+
+/* type of keys for bsearch'ing through an array of TextFreqs */
+typedef struct
+{
+	char	   *lexeme;
+	int			length;
+} LexemeKey;
+
+typedef struct
+{
+	TextFreq   *lookup;
+	int			nmcelem;
+	float4		minfreq;
+} MCelemStats;
+
+typedef struct
+{
+	Oid			relId;
+	AttrNumber	attrno;
+} RelAttrInfo;
+
+char				   *TFIDFSource;
+static RelAttrInfo		TFIDFSourceParsed;
+static bool				TDIDFLoaded = false;
+static MemoryContext	TFIDFContext = NULL;
+static MCelemStats		TDIDFStats;
 
 #define EXIT_CHECK_TF_IDF_SOURCE(error) \
 	do { \
@@ -29,18 +63,24 @@ char *TFIDFSource;
 		return false; \
 	} while (false);
 
+static void load_tf_idf_source(void);
+static void check_load_tf_idf_source(void);
+static void forget_tf_idf_stats(void);
+static int	compare_lexeme_textfreq(const void *e1, const void *e2);
+
 bool
 check_tf_idf_source(char **newval, void **extra, GucSource source)
 {
-	char	   *rawname;
-	char	   *attname;
-	List	   *namelist;
-	Oid			namespaceId;
-	Oid			relId;
-	Relation	rel = NULL;
-	TupleDesc	tupDesc;
-	AttrNumber	attrno;
-	int			i;
+	char			   *rawname;
+	char			   *attname;
+	List			   *namelist;
+	Oid					namespaceId;
+	Oid					relId;
+	Relation			rel = NULL;
+	TupleDesc			tupDesc;
+	AttrNumber			attrno;
+	int					i;
+	RelAttrInfo		   *myextra;
 
 	/* Need a modifiable copy of string */
 	rawname = pstrdup(*newval);
@@ -107,6 +147,11 @@ check_tf_idf_source(char **newval, void **extra, GucSource source)
 	if (tupDesc->attrs[attrno - 1]->atttypid != TSVECTOROID)
 		EXIT_CHECK_TF_IDF_SOURCE("attribute should be of tsvector type");
 
+	myextra = (RelAttrInfo *) malloc(sizeof(RelAttrInfo));
+	myextra->relId = relId;
+	myextra->attrno = attrno;
+	*extra = (void *) myextra;
+
 	pfree(rawname);
 	list_free(namelist);
 	RelationClose(rel);
@@ -117,5 +162,148 @@ check_tf_idf_source(char **newval, void **extra, GucSource source)
 void
 assign_tf_idf_source(const char *newval, void *extra)
 {
+	RelAttrInfo  *myextra = (RelAttrInfo *) extra;
 
+	TFIDFSourceParsed = *myextra;
+	forget_tf_idf_stats();
+}
+
+static void
+load_tf_idf_source(void)
+{
+	HeapTuple		statsTuple;
+	AttStatsSlot	sslot;
+	MemoryContext	oldContext;
+	int				i;
+
+	if (!TFIDFContext)
+		TFIDFContext = AllocSetContextCreate(TopMemoryContext,
+											 "Memory context for TF/IDF statistics",
+											 ALLOCSET_DEFAULT_SIZES);
+
+	statsTuple = SearchSysCache3(STATRELATTINH,
+								 ObjectIdGetDatum(TFIDFSourceParsed.relId),
+								 Int16GetDatum(TFIDFSourceParsed.attrno),
+								 BoolGetDatum(true));
+
+	if (!statsTuple)
+		statsTuple = SearchSysCache3(STATRELATTINH,
+									 ObjectIdGetDatum(TFIDFSourceParsed.relId),
+									 Int16GetDatum(TFIDFSourceParsed.attrno),
+									 BoolGetDatum(false));
+
+	MemoryContextReset(TFIDFContext);
+	TDIDFLoaded = false;
+
+	oldContext = MemoryContextSwitchTo(TFIDFContext);
+
+	if (!statsTuple
+		|| !get_attstatsslot(&sslot, statsTuple,
+							 STATISTIC_KIND_MCELEM, InvalidOid,
+							 ATTSTATSSLOT_VALUES | ATTSTATSSLOT_NUMBERS)
+		|| sslot.nnumbers != sslot.nvalues + 2)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("statistics for TD/IDF is not found"),
+				 errhint("consider running ANALYZE")));
+	}
+
+	TDIDFStats.nmcelem = sslot.nvalues;
+	TDIDFStats.minfreq = sslot.numbers[sslot.nnumbers - 2];
+	/*
+	 * Transpose the data into a single array so we can use bsearch().
+	 */
+	TDIDFStats.lookup = (TextFreq *) palloc(sizeof(TextFreq) * TDIDFStats.nmcelem);
+	for (i = 0; i < TDIDFStats.nmcelem; i++)
+	{
+		/*
+		 * The text Datums came from an array, so it cannot be compressed or
+		 * stored out-of-line -- it's safe to use VARSIZE_ANY*.
+		 */
+		Assert(!VARATT_IS_COMPRESSED(sslot.values[i]) && !VARATT_IS_EXTERNAL(sslot.values[i]));
+		TDIDFStats.lookup[i].element = (text *) DatumGetPointer(sslot.values[i]);
+		TDIDFStats.lookup[i].frequency = sslot.numbers[i];
+	}
+
+	MemoryContextSwitchTo(oldContext);
+
+	ReleaseSysCache(statsTuple);
+}
+
+static void
+check_load_tf_idf_source(void)
+{
+	if (!TDIDFLoaded)
+		load_tf_idf_source();
+}
+
+static void
+forget_tf_idf_stats(void)
+{
+	MemoryContextReset(TFIDFContext);
+	TDIDFLoaded = false;
+}
+
+/*
+ * bsearch() comparator for a lexeme (non-NULL terminated string with length)
+ * and a TextFreq. Use length, then byte-for-byte comparison, because that's
+ * how ANALYZE code sorted data before storing it in a statistic tuple.
+ * See ts_typanalyze.c for details.
+ */
+static int
+compare_lexeme_textfreq(const void *e1, const void *e2)
+{
+	const LexemeKey *key = (const LexemeKey *) e1;
+	const TextFreq *t = (const TextFreq *) e2;
+	int			len1,
+				len2;
+
+	len1 = key->length;
+	len2 = VARSIZE_ANY_EXHDR(t->element);
+
+	/* Compare lengths first, possibly avoiding a strncmp call */
+	if (len1 > len2)
+		return 1;
+	else if (len1 < len2)
+		return -1;
+
+	/* Fall back on byte-for-byte comparison */
+	return strncmp(key->lexeme, VARDATA_ANY(t->element), len1);
+}
+
+float4
+estimate_idf(char *lexeme, int length)
+{
+	TextFreq   *searchres;
+	LexemeKey	key;
+	float4		selec;
+
+	check_load_tf_idf_source();
+
+	key.lexeme = lexeme;
+	key.length = length;
+
+	searchres = (TextFreq *) bsearch(&key, TDIDFStats.lookup, TDIDFStats.nmcelem,
+									 sizeof(TextFreq),
+									 compare_lexeme_textfreq);
+
+	if (searchres)
+	{
+		/*
+		 * The element is in MCELEM.  Return precise selectivity (or
+		 * at least as precise as ANALYZE could find out).
+		 */
+		selec = searchres->frequency;
+	}
+	else
+	{
+		/*
+		 * The element is not in MCELEM.  Punt, but assume that the
+		 * selectivity cannot be more than minfreq / 2.
+		 */
+		selec = TDIDFStats.minfreq / 2;
+	}
+
+	return 1.0f / selec;
 }
