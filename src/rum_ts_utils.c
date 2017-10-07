@@ -101,10 +101,16 @@ typedef struct
 
 typedef struct
 {
-	bool	operandexist;
+	bool			operandexist;
 	WordEntryPos	pos;
 }
 QueryRepresentationOperand;
+
+typedef struct
+{
+	float4			idf;
+	bool			idfloaded;
+} QueryRepresentationIDF;
 
 typedef struct
 {
@@ -113,6 +119,7 @@ typedef struct
 	int		   *map_item_operand;
 
 	QueryRepresentationOperand	   *operandData;
+	QueryRepresentationIDF		   *operandIdf;
 	int			length;
 } QueryRepresentation;
 
@@ -140,6 +147,7 @@ static WordEntryPosVector POSNULL = {
 #define RANK_NORM_UNIQ			0x08
 #define RANK_NORM_LOGUNIQ		0x10
 #define RANK_NORM_RDIVRPLUS1	0x20
+#define RANK_NORM_IDF			0x40
 #define DEF_NORM_METHOD			RANK_NO_NORM
 
 #define QR_GET_OPERAND(q, v)	\
@@ -1229,6 +1237,7 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 	{
 		double		Cpos = 0.0;
 		double		InvSum = 0.0;
+		double		Idf = 0.0;
 		int			nNoise;
 		DocRepresentation *ptr = ext.begin;
 		/* Added by SK */
@@ -1278,13 +1287,43 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 
 		/* Compute the number of query terms in the cover */
 		for (i = 0; i < qr->length; i++)
+		{
 			if (qr->operandData[i].operandexist)
-				nitems++;
+			{
+				if (method & RANK_NORM_IDF)
+				{
+					if (!qr->operandIdf[i].idfloaded)
+					{
+						QueryOperand *oper = (QueryOperand *) (GETQUERY(qr->query) + i);
+						qr->operandIdf[i].idf =
+							estimate_idf(
+								GETOPERAND(qr->query) + oper->distance,
+								oper->length
+							);
+						qr->operandIdf[i].idfloaded = true;
+					}
+
+					Idf += qr->operandIdf[i].idf;
+				}
+				else
+				{
+					nitems++;
+				}
+			}
+		}
 
 		Cpos = ((double) (ext.end - ext.begin + 1)) / InvSum;
 
-		if (nitems > 0)
-			Cpos *= nitems;
+		if (method & RANK_NORM_IDF)
+		{
+			if (Idf >= 1.0)
+				Cpos *= Idf;
+		}
+		else
+		{
+			if (nitems > 0)
+				Cpos *= nitems;
+		}
 
 		/*
 		 * if doc are big enough then ext.q may be equal to ext.p due to limit
@@ -1369,6 +1408,8 @@ calc_score(float4 *arrdata, TSVector txt, TSQuery query, int method)
 	qr.query = query;
 	qr.map_item_operand = NULL;
 	qr.operandData = palloc0(sizeof(qr.operandData[0]) * query->size);
+	if (method & RANK_NORM_IDF)
+		qr.operandIdf = palloc0(sizeof(qr.operandIdf[0]) * query->size);
 	qr.length = query->size;
 
 	doc = get_docrep(txt, &qr, &doclen);

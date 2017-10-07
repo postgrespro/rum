@@ -12,6 +12,7 @@
 #include "catalog/namespace.h"
 #include "catalog/pg_statistic.h"
 #include "catalog/pg_type.h"
+#include "nodes/nodeFuncs.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
@@ -19,6 +20,12 @@
 #include "utils/varlena.h"
 
 #include "rum.h"
+
+/*
+ * FIXME:
+ *  * cache IDF
+ *  * handle prefix search
+ */
 
 /* lookup table type for binary searching through MCELEMs */
 typedef struct
@@ -77,7 +84,6 @@ check_tf_idf_source(char **newval, void **extra, GucSource source)
 	Oid					namespaceId;
 	Oid					relId;
 	Relation			rel = NULL;
-	TupleDesc			tupDesc;
 	AttrNumber			attrno;
 	int					i;
 	RelAttrInfo		   *myextra;
@@ -119,17 +125,27 @@ check_tf_idf_source(char **newval, void **extra, GucSource source)
 		EXIT_CHECK_TF_IDF_SOURCE("relation not found");
 
 	rel = RelationIdGetRelation(relId);
-	tupDesc = rel->rd_att;
 	if (rel->rd_rel->relkind == RELKIND_INDEX)
 	{
+		int		exprnum = 0;
+
 		attrno = pg_atoi(attname, sizeof(attrno), 10);
 		if (attrno <= 0 || attrno > rel->rd_index->indnatts)
 			EXIT_CHECK_TF_IDF_SOURCE("wrong index attribute number");
 		if (rel->rd_index->indkey.values[attrno - 1] != InvalidAttrNumber)
 			EXIT_CHECK_TF_IDF_SOURCE("regular indexed column is specified");
+		for (i = 0; i < attrno - 1; i++)
+		{
+			if (rel->rd_index->indkey.values[i] == InvalidAttrNumber)
+				exprnum++;
+		}
+		if (exprType((Node *) list_nth(rel->rd_indexprs, exprnum)) != TSVECTOROID)
+			EXIT_CHECK_TF_IDF_SOURCE("indexed expression should be of tsvector type");
 	}
 	else
 	{
+		TupleDesc	tupDesc = rel->rd_att;
+
 		attrno = InvalidAttrNumber;
 		for (i = 0; i < tupDesc->natts; i++)
 		{
@@ -139,13 +155,12 @@ check_tf_idf_source(char **newval, void **extra, GucSource source)
 				break;
 			}
 		}
-
 		if (attrno == InvalidAttrNumber)
 			EXIT_CHECK_TF_IDF_SOURCE("attribute not found");
+		if (tupDesc->attrs[attrno - 1]->atttypid != TSVECTOROID)
+			EXIT_CHECK_TF_IDF_SOURCE("attribute should be of tsvector type");
 	}
 
-	if (tupDesc->attrs[attrno - 1]->atttypid != TSVECTOROID)
-		EXIT_CHECK_TF_IDF_SOURCE("attribute should be of tsvector type");
 
 	myextra = (RelAttrInfo *) malloc(sizeof(RelAttrInfo));
 	myextra->relId = relId;
@@ -164,7 +179,16 @@ assign_tf_idf_source(const char *newval, void *extra)
 {
 	RelAttrInfo  *myextra = (RelAttrInfo *) extra;
 
-	TFIDFSourceParsed = *myextra;
+	if (myextra)
+	{
+		TFIDFSourceParsed = *myextra;
+	}
+	else
+	{
+		TFIDFSourceParsed.relId = InvalidOid;
+		TFIDFSourceParsed.attrno = InvalidAttrNumber;
+	}
+
 	forget_tf_idf_stats();
 }
 
@@ -180,6 +204,15 @@ load_tf_idf_source(void)
 		TFIDFContext = AllocSetContextCreate(TopMemoryContext,
 											 "Memory context for TF/IDF statistics",
 											 ALLOCSET_DEFAULT_SIZES);
+
+	if (!OidIsValid(TFIDFSourceParsed.relId)
+		|| TFIDFSourceParsed.attrno == InvalidAttrNumber)
+	{
+		ereport(ERROR,
+				(errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
+				 errmsg("statistics for TD/IDF is not defined"),
+				 errhint("consider setting tf_idf_source GUC")));
+	}
 
 	statsTuple = SearchSysCache3(STATRELATTINH,
 								 ObjectIdGetDatum(TFIDFSourceParsed.relId),
@@ -228,6 +261,8 @@ load_tf_idf_source(void)
 
 	MemoryContextSwitchTo(oldContext);
 
+	TDIDFLoaded = true;
+
 	ReleaseSysCache(statsTuple);
 }
 
@@ -241,7 +276,8 @@ check_load_tf_idf_source(void)
 static void
 forget_tf_idf_stats(void)
 {
-	MemoryContextReset(TFIDFContext);
+	if (TFIDFContext)
+		MemoryContextReset(TFIDFContext);
 	TDIDFLoaded = false;
 }
 
