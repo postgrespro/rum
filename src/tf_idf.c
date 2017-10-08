@@ -23,8 +23,8 @@
 
 /*
  * FIXME:
- *  * cache IDF
- *  * handle prefix search
+ *  * cache IDF for ts_query (non-prefix search?)
+ *  * calculate IDF from RUM index
  */
 
 /* lookup table type for binary searching through MCELEMs */
@@ -139,6 +139,7 @@ check_tf_idf_source(char **newval, void **extra, GucSource source)
 			if (rel->rd_index->indkey.values[i] == InvalidAttrNumber)
 				exprnum++;
 		}
+		RelationGetIndexExpressions(rel);
 		if (exprType((Node *) list_nth(rel->rd_indexprs, exprnum)) != TSVECTOROID)
 			EXIT_CHECK_TF_IDF_SOURCE("indexed expression should be of tsvector type");
 	}
