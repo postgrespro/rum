@@ -14,6 +14,30 @@
 
 #include "rum.h"
 
+#if defined(_MSC_VER) && _MSC_VER >= 1200 && _MSC_VER < 1800 // Between VC++ 6.0 and VC++ 11.0
+#include <float.h>
+#define isfinite _finite
+#elif defined(__sun) && defined(__SVR4) //Solaris
+#if !defined(isfinite)
+#include <ieeefp.h>
+#define isfinite finite
+#endif
+#elif defined(_AIX)	// AIX
+#if !defined(isfinite)
+#include <math.h>
+#define isfinite finite
+#endif
+#elif defined(__hpux) // HPUX
+#if !defined(isfinite)
+#if defined(__ia64) && !defined(finite)
+#define isfinite(x) ((sizeof(x) == sizeof(float) ? _Isfinitef(x) : _IsFinite(x)))
+#else
+#include <math.h>
+#define isfinite finite
+#endif
+#endif
+#endif
+
 typedef struct QueryInfo
 {
 	StrategyNumber strategy;
