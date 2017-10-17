@@ -60,7 +60,7 @@
 		} \
 	} while (0)
 
-#define InitDummySimpleArray(s, len) \
+#define INIT_DUMMY_SIMPLE_ARRAY(s, len) \
 	do { \
 		(s)->elems = NULL; \
 		(s)->hashedElems = NULL; \
@@ -388,8 +388,8 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 					/* there must be addInfo */
 					Assert(nentries >= 0);
 
-					InitDummySimpleArray(&sa, nentries);
-					InitDummySimpleArray(&sb, nkeys);
+					INIT_DUMMY_SIMPLE_ARRAY(&sa, nentries);
+					INIT_DUMMY_SIMPLE_ARRAY(&sb, nkeys);
 					res = getSimilarity(&sa, &sb, intersection) >= SmlLimit;
 				}
 				else
@@ -444,8 +444,8 @@ rum_anyarray_ordering(PG_FUNCTION_ARGS)
 		/* there must be addInfo */
 		Assert(nentries >= 0);
 
-		InitDummySimpleArray(&sa, nentries);
-		InitDummySimpleArray(&sb, nkeys);
+		INIT_DUMMY_SIMPLE_ARRAY(&sa, nentries);
+		INIT_DUMMY_SIMPLE_ARRAY(&sb, nkeys);
 		sml = getSimilarity(&sa, &sb, intersection);
 
 		PG_RETURN_FLOAT8(DIST_FROM_SML(sml));

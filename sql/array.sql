@@ -13,6 +13,18 @@ INSERT INTO test_array VALUES ('{}'), ('{0}'), ('{1,2,3,4}'), ('{1,2,3}'), ('{1,
 
 CREATE INDEX idx_array ON test_array USING rum (i rum_anyarray_ops);
 
+
+SELECT NULL::int[] = '{1}';
+SELECT NULL::int[] && '{1}';
+SELECT NULL::int[] @> '{1}';
+SELECT NULL::int[] <@ '{1}';
+SELECT NULL::int[] % '{1}';
+SELECT NULL::int[] <=> '{1}';
+
+INSERT INTO test_array VALUES (NULL);
+SELECT * FROM test_array WHERE i = '{1}';
+DELETE FROM test_array WHERE i IS NULL;
+
 SELECT * FROM test_array WHERE i = '{NULL}';
 SELECT * FROM test_array WHERE i = '{1,2,3,NULL}';
 SELECT * FROM test_array WHERE i = '{{1,2},{3,4}}';
