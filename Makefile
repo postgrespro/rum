@@ -15,15 +15,14 @@ DATA_built = rum--$(EXTVERSION).sql $(DATA_updates)
 PGFILEDESC = "RUM index access method"
 INCLUDES = src/rum.h src/rumsort.h
 
+LDFLAGS_SL += $(filter -lm, $(LIBS))
+
 REGRESS = rum rum_hash ruminv timestamp orderby orderby_hash altorder \
 	altorder_hash limits \
 	int2 int4 int8 float4 float8 money oid \
     time timetz date interval \
     macaddr inet cidr text varchar char bytea bit varbit \
-    numeric \
-    array
-
-LDFLAGS_SL += $(filter -lm, $(LIBS))
+    numeric
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config
@@ -34,6 +33,12 @@ subdir = contrib/rum
 top_builddir = ../..
 include $(top_builddir)/src/Makefile.global
 include $(top_srcdir)/contrib/contrib-global.mk
+endif
+
+ifeq ($(MAJORVERSION), 9.6)
+# arrays are not supported on 9.6
+else
+REGRESS += array
 endif
 
 wal-check: temp-install
