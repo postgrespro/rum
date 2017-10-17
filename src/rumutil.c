@@ -253,11 +253,6 @@ initRumState(RumState * state, Relation index)
 		 */
 		if (index_getprocid(index, i + 1, GIN_COMPARE_PROC) != InvalidOid)
 		{
-#if PG_VERSION_NUM < 100000
-			ereport(ERROR,
-					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-					 errmsg("array indexing is only available on PostgreSQL 10+")));
-#endif
 			fmgr_info_copy(&(state->compareFn[i]),
 						   index_getprocinfo(index, i + 1, GIN_COMPARE_PROC),
 						   CurrentMemoryContext);
@@ -265,6 +260,12 @@ initRumState(RumState * state, Relation index)
 		else
 		{
 			TypeCacheEntry *typentry;
+
+#if PG_VERSION_NUM < 100000
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("array indexing is only available on PostgreSQL 10+")));
+#endif
 
 			typentry = lookup_type_cache(origTupdesc->attrs[i]->atttypid,
 										 TYPECACHE_CMP_PROC_FINFO);
