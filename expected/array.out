@@ -7,6 +7,12 @@ CREATE TABLE test_array (
 );
 INSERT INTO test_array VALUES ('{}'), ('{0}'), ('{1,2,3,4}'), ('{1,2,3}'), ('{1,2}'), ('{1}');
 CREATE INDEX idx_array ON test_array USING rum (i);
+SELECT * FROM test_array WHERE i = '{NULL}';
+ERROR:  array must not contain nulls
+SELECT * FROM test_array WHERE i = '{1,2,3,NULL}';
+ERROR:  array must not contain nulls
+SELECT * FROM test_array WHERE i = '{{1,2},{3,4}}';
+ERROR:  array must have 1 dimension
 EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i = '{}';
                 QUERY PLAN                
 ------------------------------------------
@@ -510,5 +516,185 @@ EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i % '{}';
 ------------------------------------------
  Index Scan using idx_array on test_array
    Index Cond: (i % '{}'::text[])
+(2 rows)
+
+ALTER TABLE test_array ALTER COLUMN i TYPE varchar[];
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i = '{}';
+                  QUERY PLAN                   
+-----------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i = '{}'::character varying[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i && '{}';
+                   QUERY PLAN                   
+------------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i && '{}'::character varying[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i @> '{}';
+                   QUERY PLAN                   
+------------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i @> '{}'::character varying[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i <@ '{}';
+                   QUERY PLAN                   
+------------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i <@ '{}'::character varying[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i % '{}';
+                  QUERY PLAN                   
+-----------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i % '{}'::character varying[])
+(2 rows)
+
+ALTER TABLE test_array ALTER COLUMN i TYPE char[];
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i = '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i = '{}'::bpchar[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i && '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i && '{}'::bpchar[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i @> '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i @> '{}'::bpchar[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i <@ '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i <@ '{}'::bpchar[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i % '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i % '{}'::bpchar[])
+(2 rows)
+
+ALTER TABLE test_array ALTER COLUMN i TYPE numeric[] USING i::numeric[];
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i = '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i = '{}'::numeric[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i && '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i && '{}'::numeric[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i @> '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i @> '{}'::numeric[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i <@ '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i <@ '{}'::numeric[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i % '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i % '{}'::numeric[])
+(2 rows)
+
+ALTER TABLE test_array ALTER COLUMN i TYPE float4[] USING i::float4[];
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i = '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i = '{}'::real[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i && '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i && '{}'::real[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i @> '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i @> '{}'::real[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i <@ '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i <@ '{}'::real[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i % '{}';
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i % '{}'::real[])
+(2 rows)
+
+ALTER TABLE test_array ALTER COLUMN i TYPE float8[] USING i::float8[];
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i = '{}';
+                  QUERY PLAN                  
+----------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i = '{}'::double precision[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i && '{}';
+                  QUERY PLAN                   
+-----------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i && '{}'::double precision[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i @> '{}';
+                  QUERY PLAN                   
+-----------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i @> '{}'::double precision[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i <@ '{}';
+                  QUERY PLAN                   
+-----------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i <@ '{}'::double precision[])
+(2 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i % '{}';
+                  QUERY PLAN                  
+----------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i % '{}'::double precision[])
 (2 rows)
 
