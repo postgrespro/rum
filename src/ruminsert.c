@@ -14,6 +14,7 @@
 #include "postgres.h"
 
 #include "access/generic_xlog.h"
+#include "storage/predicate.h"
 #include "catalog/index.h"
 #include "miscadmin.h"
 #include "utils/memutils.h"
@@ -420,6 +421,8 @@ rumEntryInsert(RumState * rumstate,
 
 	stack = rumFindLeafPage(&btree, NULL);
 	page = BufferGetPage(stack->buffer);
+
+	CheckForSerializableConflictIn(btree.index, NULL, stack->buffer);
 
 	if (btree.findItem(&btree, stack))
 	{

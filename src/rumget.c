@@ -15,6 +15,7 @@
 #include "rumsort.h"
 
 #include "access/relscan.h"
+#include "storage/predicate.h"
 #include "miscadmin.h"
 #include "utils/builtins.h"
 #include "utils/datum.h"
@@ -29,7 +30,7 @@ static bool scanPage(RumState * rumstate, RumScanEntry entry, RumItem *item,
 					 bool equalOk);
 static void insertScanItem(RumScanOpaque so, bool recheck);
 static int	scan_entry_cmp(const void *p1, const void *p2, void *arg);
-static void entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList);
+static void entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snapshot snapshot);
 
 
 static bool
@@ -182,7 +183,8 @@ moveRightIfItNeeded(RumBtreeData * btree, RumBtreeStack * stack)
  */
 static void
 scanPostingTree(Relation index, RumScanEntry scanEntry,
-	   BlockNumber rootPostingTree, OffsetNumber attnum, RumState * rumstate)
+	            BlockNumber rootPostingTree, OffsetNumber attnum,
+	            RumState * rumstate, Snapshot snapshot)
 {
 	RumPostingTreeScan *gdi;
 	Buffer		buffer;
@@ -194,7 +196,10 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 									ForwardScanDirection, attnum, rumstate);
 
 	buffer = rumScanBeginPostingTree(gdi, NULL);
+
 	IncrBufferRefCount(buffer); /* prevent unpin in freeRumBtreeStack */
+
+	PredicateLockPage(index, BufferGetBlockNumber(buffer), snapshot);
 
 	freeRumBtreeStack(gdi->stack);
 	pfree(gdi);
@@ -232,6 +237,9 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 			break;				/* no more pages */
 
 		buffer = rumStep(buffer, index, RUM_SHARE, ForwardScanDirection);
+
+		PredicateLockPage(index, BufferGetBlockNumber(buffer), snapshot);
+
 	}
 
 	UnlockReleaseBuffer(buffer);
@@ -252,7 +260,7 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
  */
 static bool
 collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
-				   RumScanEntry scanEntry)
+				   RumScanEntry scanEntry, Snapshot snapshot)
 {
 	OffsetNumber attnum;
 	Form_pg_attribute attr;
@@ -370,7 +378,8 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 			LockBuffer(stack->buffer, RUM_UNLOCK);
 
 			/* Collect all the TIDs in this entry's posting tree */
-			scanPostingTree(btree->index, scanEntry, rootPostingTree, attnum, rumstate);
+			scanPostingTree(btree->index, scanEntry, rootPostingTree,
+							attnum, rumstate, snapshot);
 
 			/*
 			 * We lock again the entry page and while it was unlocked insert
@@ -494,7 +503,7 @@ setListPositionScanEntry(RumState * rumstate, RumScanEntry entry)
  * Start* functions setup beginning state of searches: finds correct buffer and pins it.
  */
 static void
-startScanEntry(RumState * rumstate, RumScanEntry entry)
+startScanEntry(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 {
 	RumBtreeData btreeEntry;
 	RumBtreeStack *stackEntry;
@@ -527,6 +536,8 @@ restartScanEntry:
 
 	entry->isFinished = TRUE;
 
+	PredicateLockPage(rumstate->index, BufferGetBlockNumber(stackEntry->buffer), snapshot);
+
 	if (entry->isPartialMatch ||
 		(entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
 		 !entry->scanWithAddInfo))
@@ -539,7 +550,7 @@ restartScanEntry:
 		 * for the entry type.
 		 */
 		btreeEntry.findItem(&btreeEntry, stackEntry);
-		if (collectMatchBitmap(&btreeEntry, stackEntry, entry) == false)
+		if (collectMatchBitmap(&btreeEntry, stackEntry, entry, snapshot) == false)
 		{
 			/*
 			 * RUM tree was seriously restructured, so we will cleanup all
@@ -597,6 +608,8 @@ restartScanEntry:
 													&entry->markAddInfo : NULL);
 
 			entry->gdi = gdi;
+
+			PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
 
 			/*
 			 * We keep buffer pinned because we need to prevent deletion of
@@ -707,7 +720,7 @@ startScan(IndexScanDesc scan)
 	MemoryContextSwitchTo(so->keyCtx);
 	for (i = 0; i < so->totalentries; i++)
 	{
-		startScanEntry(rumstate, so->entries[i]);
+		startScanEntry(rumstate, so->entries[i], scan->xs_snapshot);
 	}
 	MemoryContextSwitchTo(oldCtx);
 
@@ -795,7 +808,7 @@ startScan(IndexScanDesc scan)
 		for (i = 0; i < so->totalentries; i++)
 		{
 			if (!so->sortedEntries[i]->isFinished)
-				entryGetItem(&so->rumstate, so->sortedEntries[i], NULL);
+				entryGetItem(&so->rumstate, so->sortedEntries[i], NULL, scan->xs_snapshot);
 		}
 		qsort_arg(so->sortedEntries, so->totalentries, sizeof(RumScanEntry),
 				  scan_entry_cmp, rumstate);
@@ -810,7 +823,7 @@ startScan(IndexScanDesc scan)
  * to prevent interference with vacuum
  */
 static void
-entryGetNextItem(RumState * rumstate, RumScanEntry entry)
+entryGetNextItem(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 {
 	Page		page;
 
@@ -825,6 +838,8 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 
 		LockBuffer(entry->buffer, RUM_SHARE);
 		page = BufferGetPage(entry->buffer);
+
+		PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
 
 		if (scanPage(rumstate, entry, &entry->curItem, false))
 		{
@@ -862,6 +877,8 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 			entry->gdi->stack->buffer = entry->buffer;
 			entry->gdi->stack->blkno = BufferGetBlockNumber(entry->buffer);
 			page = BufferGetPage(entry->buffer);
+
+			PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
 
 			entry->offset = -1;
 			maxoff = RumPageGetOpaque(page)->maxoff;
@@ -911,7 +928,7 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry)
 }
 
 static bool
-entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
+entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 {
 	Page		page;
 	IndexTuple	itup;
@@ -1005,6 +1022,8 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
 		entry->buffer = rumScanBeginPostingTree(gdi, NULL);
 		entry->gdi = gdi;
 
+		PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
+
 		/*
 		 * We keep buffer pinned because we need to prevent deletion of
 		 * page during scan. See RUM's vacuum implementation. RefCount is
@@ -1068,7 +1087,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry)
  * Item pointers must be returned in ascending order.
  */
 static void
-entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
+entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snapshot snapshot)
 {
 	Assert(!entry->isFinished);
 
@@ -1198,7 +1217,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
 		else if (entry->stack)
 		{
 			entry->offset++;
-			if (entryGetNextItemList(rumstate, entry) && nextEntryList)
+			if (entryGetNextItemList(rumstate, entry, snapshot) && nextEntryList)
 				*nextEntryList = true;
 		}
 		else
@@ -1211,14 +1230,14 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList)
 	{
 		do
 		{
-			entryGetNextItem(rumstate, entry);
+			entryGetNextItem(rumstate, entry, snapshot);
 		} while (entry->isFinished == FALSE &&
 				 entry->reduceResult == TRUE &&
 				 dropItem(entry));
 		if (entry->stack && entry->isFinished)
 		{
 			entry->isFinished = FALSE;
-			if (entryGetNextItemList(rumstate, entry) && nextEntryList)
+			if (entryGetNextItemList(rumstate, entry, snapshot) && nextEntryList)
 				*nextEntryList = true;
 		}
 	}
@@ -1381,7 +1400,7 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 				   compareCurRumItemScanDirection(rumstate, entry,
 												 &myAdvancePast) <= 0))
 			{
-				entryGetItem(rumstate, entry, NULL);
+				entryGetItem(rumstate, entry, NULL, scan->xs_snapshot);
 
 				if (!ItemPointerIsValid(&myAdvancePast.iptr))
 					break;
@@ -1612,7 +1631,7 @@ end:
  */
 
 static void
-entryFindItem(RumState * rumstate, RumScanEntry entry, RumItem * item)
+entryFindItem(RumState * rumstate, RumScanEntry entry, RumItem * item, Snapshot snapshot)
 {
 	if (entry->nlist == 0)
 	{
@@ -1656,6 +1675,8 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumItem * item)
 	/* Check rest of page */
 	LockBuffer(entry->buffer, RUM_SHARE);
 
+	PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
+
 	if (scanPage(rumstate, entry, item, true))
 	{
 		LockBuffer(entry->buffer, RUM_UNLOCK);
@@ -1670,6 +1691,8 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumItem * item)
 	entry->gdi->stack->buffer = entry->buffer;
 	entry->gdi->stack = rumReFindLeafPage(&entry->gdi->btree, entry->gdi->stack);
 	entry->buffer = entry->gdi->stack->buffer;
+
+	PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
 
 	if (scanPage(rumstate, entry, item, true))
 	{
@@ -1690,6 +1713,8 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumItem * item)
 			entry->isFinished = TRUE;
 			return;
 		}
+
+		PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
 
 		entry->gdi->stack->blkno = BufferGetBlockNumber(entry->buffer);
 
@@ -1760,7 +1785,7 @@ preConsistentCheck(RumScanOpaque so)
  * to i.
  */
 static void
-entryShift(int i, RumScanOpaque so, bool find)
+entryShift(int i, RumScanOpaque so, bool find, Snapshot snapshot)
 {
 	int			minIndex = -1,
 				j;
@@ -1784,9 +1809,9 @@ entryShift(int i, RumScanOpaque so, bool find)
 	/* Do shift of required type */
 	if (find)
 		entryFindItem(rumstate, so->sortedEntries[minIndex],
-					  &so->sortedEntries[i - 1]->curItem);
+					  &so->sortedEntries[i - 1]->curItem, snapshot);
 	else if (!so->sortedEntries[minIndex]->isFinished)
-		entryGetItem(rumstate, so->sortedEntries[minIndex], NULL);
+		entryGetItem(rumstate, so->sortedEntries[minIndex], NULL, snapshot);
 
 	/* Restore order of so->sortedEntries */
 	while (minIndex > 0 &&
@@ -1819,7 +1844,7 @@ scanGetItemFast(IndexScanDesc scan, RumItem *advancePast,
 	if (so->entriesIncrIndex >= 0)
 	{
 		for (k = so->entriesIncrIndex; k < so->totalentries; k++)
-			entryShift(k, so, false);
+			entryShift(k, so, false, scan->xs_snapshot);
 	}
 
 	for (;;)
@@ -1855,7 +1880,7 @@ scanGetItemFast(IndexScanDesc scan, RumItem *advancePast,
 
 		if (preConsistentResult == false)
 		{
-			entryShift(i, so, true);
+			entryShift(i, so, true, scan->xs_snapshot);
 			continue;
 		}
 
@@ -1892,7 +1917,7 @@ scanGetItemFast(IndexScanDesc scan, RumItem *advancePast,
 			{
 				consistentResult = false;
 				for (j = k; j < so->totalentries; j++)
-					entryShift(j, so, false);
+					entryShift(j, so, false, scan->xs_snapshot);
 				continue;
 			}
 		}
@@ -1951,7 +1976,7 @@ scanGetItemFull(IndexScanDesc scan, RumItem *advancePast,
 	 */
 	entry = so->entries[0];
 
-	entryGetItem(&so->rumstate, entry, &nextEntryList);
+	entryGetItem(&so->rumstate, entry, &nextEntryList, scan->xs_snapshot);
 	if (entry->isFinished == TRUE)
 		return false;
 
@@ -1982,7 +2007,7 @@ scanGetItemFull(IndexScanDesc scan, RumItem *advancePast,
 			   (!ItemPointerIsValid(&orderEntry->curItem.iptr) ||
 			   compareCurRumItemScanDirection(&so->rumstate, orderEntry,
 											  &entry->curItem) < 0))
-			entryGetItem(&so->rumstate, orderEntry, NULL);
+			entryGetItem(&so->rumstate, orderEntry, NULL, scan->xs_snapshot);
 	}
 
 	*item = entry->curItem;
