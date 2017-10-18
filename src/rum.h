@@ -801,9 +801,31 @@ extern Datum rum_ts_distance_td(PG_FUNCTION_ARGS);
 
 extern Datum tsquery_to_distance_query(PG_FUNCTION_ARGS);
 
+/* rum_arr_utils.c */
+typedef enum SimilarityType
+{
+	SMT_COSINE  = 1,
+	SMT_JACCARD = 2,
+	SMT_OVERLAP = 3
+} SimilarityType;
+
+#define RUM_SIMILARITY_FUNCTION_DEFAULT		SMT_COSINE
+#define RUM_SIMILARITY_THRESHOLD_DEFAULT	0.5
+
+extern Datum rum_anyarray_config(PG_FUNCTION_ARGS);
+extern Datum rum_extract_anyarray(PG_FUNCTION_ARGS);
+extern Datum rum_extract_anyarray_query(PG_FUNCTION_ARGS);
+extern Datum rum_anyarray_consistent(PG_FUNCTION_ARGS);
+extern Datum rum_anyarray_ordering(PG_FUNCTION_ARGS);
+extern Datum rum_anyarray_similar(PG_FUNCTION_ARGS);
+extern Datum rum_anyarray_distance(PG_FUNCTION_ARGS);
+
 
 /* GUC parameters */
-extern PGDLLIMPORT int RumFuzzySearchLimit;
+extern PGDLLIMPORT int		RumFuzzySearchLimit;
+extern PGDLLIMPORT float8	RumArraySimilarityThreshold;
+extern PGDLLIMPORT int		RumArraySimilarityFunction;
+
 
 /*
  * Functions for reading ItemPointers with additional information. Used in
