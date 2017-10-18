@@ -367,6 +367,8 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 
 				if (intersection > 0)
 				{
+					float8 sml;
+
 					/* extract array's length from addInfo */
 					for (i = 0; i < nkeys; i++)
 					{
@@ -382,8 +384,9 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 
 					INIT_DUMMY_SIMPLE_ARRAY(&sa, nentries);
 					INIT_DUMMY_SIMPLE_ARRAY(&sb, nkeys);
-					res = getSimilarity(&sa, &sb, intersection) >=
-								RumArraySimilarityThreshold;
+					sml = getSimilarity(&sa, &sb, intersection);
+
+					res = (sml >= RumArraySimilarityThreshold);
 				}
 				else
 					res = false;
