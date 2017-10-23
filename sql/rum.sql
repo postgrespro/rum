@@ -12,6 +12,7 @@ CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_addon_ops);
 
 SET enable_seqscan=off;
+SET enable_indexscan=off;
 
 explain (costs off)
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
@@ -101,6 +102,7 @@ VACUUM tst;
 INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(14001,15000) i;
 
 set enable_bitmapscan=off;
+SET enable_indexscan=on;
 explain (costs off)
 SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
 	FROM test_rum
