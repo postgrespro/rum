@@ -1,0 +1,56 @@
+{
+   "name": "RUM",
+   "abstract": "RUM index access method",
+   "description": "RUM is an extended version of GIN (generalized inverted index) access method.  Unlike GIN, RUM stores additional information in posting lists/trees besides item pointers.  For example, those additional information might be lexemes positions or timestamps.  Thanks to that RUM accelerate certain types of queries in orders of magnitude.",
+   "version": "1.1.0",
+   "maintainer": [
+      "Alexander Korotkov <a.korotkov@postgrespro.ru>",
+      "Oleg Bartunov <o.bartunov@postgrespro.ru>",
+      "Teodor Sigaev <teodor@postgrespro.ru>",
+      "Arthur Zakirov <a.zakirov@postgrespro.ru>"
+   ],
+   "license": {
+      "PostgreSQL": "http://www.postgresql.org/about/licence"
+   },
+   "prereqs": {
+      "runtime": {
+         "requires": {
+            "PostgreSQL": "9.6.0"
+         },
+         "recommends": {
+            "PostgreSQL": "9.6.5"
+         }
+      }
+   },
+   "provides": {
+     "rum": {
+       "file": "rum--1.1.sql",
+       "docfile": "README.md",
+       "version": "1.1.0",
+       "abstract": "RUM index access method"
+     }
+   },
+   "resources": {
+      "homepage": "https://github.com/postgrespro/rum",
+      "bugtracker": {
+         "web": "https://github.com/postgrespro/rum/issues"
+      },
+      "repository": {
+        "url":  "https://github.com/postgrespro/rum.git",
+        "web":  "https://github.com/postgrespro/rum",
+        "type": "git"
+      }
+   },
+   "generated_by": "Alexander Korotkov",
+   "meta-spec": {
+      "version": "1.0.0",
+      "url": "http://pgxn.org/meta/spec.txt"
+   },
+   "tags": [
+        "index",
+        "search",
+        "GIN",
+        "full text",
+        "additional information"
+   ]
+}
