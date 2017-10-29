@@ -47,6 +47,7 @@ rum--1.0--1.1.sql: Makefile gen_rum_sql--1.0--1.1.pl
 install: installincludes
 
 installincludes:
+	$(INSTALL) -d '$(DESTDIR)$(includedir_server)/'
 	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(INCLUDES)) '$(DESTDIR)$(includedir_server)/'
 
 ISOLATIONCHECKS= predicate-rum predicate-rum-2
