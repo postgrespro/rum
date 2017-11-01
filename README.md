@@ -227,6 +227,38 @@ For type: `anyarray`
 
 This operator class stores `anyarrray` elements with length of the array.
 Supports operators `&&`, `@>`, `<@`, `=`, `%` operators. Supports ordering by `<=>` operator.
+For example we have the table:
+
+```sql
+CREATE TABLE test_array (i int2[]);
+
+INSERT INTO test_array VALUES ('{}'), ('{0}'), ('{1,2,3,4}'), ('{1,2,3}'), ('{1,2}'), ('{1}');
+
+CREATE INDEX idx_array ON test_array USING rum (i rum_anyarray_ops);
+```
+
+Now we can execute the query using index scan:
+
+```sql
+SET enable_seqscan TO off;
+
+EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i && '{1}' ORDER BY i <=> '{1}' ASC;
+                QUERY PLAN
+------------------------------------------
+ Index Scan using idx_array on test_array
+   Index Cond: (i && '{1}'::smallint[])
+   Order By: (i <=> '{1}'::smallint[])
+(3 rows
+
+SELECT * FROM test_array WHERE i && '{1}' ORDER BY i <=> '{1}' ASC;
+     i
+-----------
+ {1}
+ {1,2}
+ {1,2,3}
+ {1,2,3,4}
+(4 rows)
+```
 
 ### rum_anyarray_addon_ops
 
