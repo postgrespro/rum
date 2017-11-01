@@ -59,7 +59,7 @@ _PG_init(void)
 							PGC_USERSET, 0,
 							NULL, NULL, NULL);
 
-	DefineCustomRealVariable("rum_array_similarity_threshold",
+	DefineCustomRealVariable("rum.array_similarity_threshold",
 							 "Sets the array similarity threshold.",
 							 NULL,
 							 &RumArraySimilarityThreshold,
@@ -67,7 +67,7 @@ _PG_init(void)
 							 PGC_USERSET, 0,
 							 NULL, NULL, NULL);
 
-	DefineCustomEnumVariable("rum_array_similarity_function",
+	DefineCustomEnumVariable("rum.array_similarity_function",
 							 "Sets the array similarity function.",
 							 NULL,
 							 &RumArraySimilarityFunction,
