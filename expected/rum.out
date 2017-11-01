@@ -51,6 +51,7 @@ CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_addon_ops);
 ERROR:  additional information attribute "a" is not found in index
 SET enable_seqscan=off;
+SET enable_indexscan=off;
 explain (costs off)
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
                             QUERY PLAN                            
@@ -78,12 +79,14 @@ ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
 explain (costs off)
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
-                        QUERY PLAN                         
------------------------------------------------------------
+                           QUERY PLAN                            
+-----------------------------------------------------------------
  Aggregate
-   ->  Index Scan using rumidx on test_rum
-         Index Cond: (a @@ '''def'' <-> ''fgr'''::tsquery)
-(3 rows)
+   ->  Bitmap Heap Scan on test_rum
+         Recheck Cond: (a @@ '''def'' <-> ''fgr'''::tsquery)
+         ->  Bitmap Index Scan on rumidx
+               Index Cond: (a @@ '''def'' <-> ''fgr'''::tsquery)
+(5 rows)
 
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
  count 
@@ -331,6 +334,7 @@ DELETE FROM tst WHERE i = 5;
 VACUUM tst;
 INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(14001,15000) i;
 set enable_bitmapscan=off;
+SET enable_indexscan=on;
 explain (costs off)
 SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
 	FROM test_rum

@@ -85,7 +85,7 @@ rumhandler(PG_FUNCTION_ARGS)
 	amroutine->amsearchnulls = false;
 	amroutine->amstorage = true;
 	amroutine->amclusterable = false;
-	amroutine->ampredlocks = false;
+	amroutine->ampredlocks = true;
 	amroutine->amkeytype = InvalidOid;
 
 	amroutine->ambuild = rumbuild;

@@ -7,6 +7,7 @@ CREATE INDEX rumhashidx ON test_rum_hash USING rum (a rum_tsvector_hash_ops);
 CREATE INDEX failed_rumidx ON test_rum_hash USING rum (a rum_tsvector_addon_ops);
 ERROR:  additional information attribute "a" is not found in index
 SET enable_seqscan=off;
+SET enable_indexscan=off;
 explain (costs off)
 SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
                             QUERY PLAN                            
@@ -34,12 +35,14 @@ ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
 explain (costs off)
 SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
-                        QUERY PLAN                         
------------------------------------------------------------
+                           QUERY PLAN                            
+-----------------------------------------------------------------
  Aggregate
-   ->  Index Scan using rumhashidx on test_rum_hash
-         Index Cond: (a @@ '''def'' <-> ''fgr'''::tsquery)
-(3 rows)
+   ->  Bitmap Heap Scan on test_rum_hash
+         Recheck Cond: (a @@ '''def'' <-> ''fgr'''::tsquery)
+         ->  Bitmap Index Scan on rumhashidx
+               Index Cond: (a @@ '''def'' <-> ''fgr'''::tsquery)
+(5 rows)
 
 SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'ever|wrote');
  count 
@@ -287,6 +290,7 @@ DELETE FROM tst_hash WHERE i = 5;
 VACUUM tst_hash;
 INSERT INTO tst_hash SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(14001,15000) i;
 set enable_bitmapscan=off;
+SET enable_indexscan=on;
 explain (costs off)
 SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
 	FROM test_rum_hash

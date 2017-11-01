@@ -233,6 +233,8 @@ SELECT * FROM query
 
 Alexander Korotkov <a.korotkov@postgrespro.ru> Postgres Professional Ltd., Russia
 
-Oleg Bartunov <oleg@sai.msu.su> Postgres Professional Ltd., Russia
+Oleg Bartunov <o.bartunov@postgrespro.ru> Postgres Professional Ltd., Russia
 
-Teodor Sigaev <teodor@sigaev.ru> Postgres Professional Ltd., Russia
+Teodor Sigaev <teodor@postgrespro.ru> Postgres Professional Ltd., Russia
+
+Arthur Zakirov <a.zakirov@postgrespro.ru> Postgres Professional Ltd., Russia

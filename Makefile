@@ -54,9 +54,23 @@ rum--%.sql: gen_rum_sql--%.pl
 install: installincludes
 
 installincludes:
+	$(INSTALL) -d '$(DESTDIR)$(includedir_server)/'
 	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(RELATIVE_INCLUDES)) '$(DESTDIR)$(includedir_server)/'
 
 uninstall: uninstallincludes
 
 uninstallincludes:
 	rm -f $(addprefix '$(DESTDIR)$(includedir_server)/', $(INCLUDES))
+
+ISOLATIONCHECKS= predicate-rum predicate-rum-2
+
+submake-isolation:
+	$(MAKE) -C $(top_builddir)/src/test/isolation all
+
+submake-rum:
+	$(MAKE) -C $(top_builddir)/contrib/rum
+
+isolationcheck: | submake-isolation submake-rum temp-install
+	$(pg_isolation_regress_check) \
+	    --temp-config $(top_srcdir)/contrib/rum/logical.conf \
+		$(ISOLATIONCHECKS)
