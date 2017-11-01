@@ -60,7 +60,7 @@
 		} \
 	} while (0)
 
-#define InitDummySimpleArray(s, len) \
+#define INIT_DUMMY_SIMPLE_ARRAY(s, len) \
 	do { \
 		(s)->elems = NULL; \
 		(s)->hashedElems = NULL; \
@@ -97,12 +97,9 @@ typedef struct SimpleArray
 	AnyArrayTypeInfo   *info;
 } SimpleArray;
 
-typedef enum SimilarityType
-{
-	AA_Cosine,
-	AA_Jaccard,
-	AA_Overlap
-} SimilarityType;
+
+float8	RumArraySimilarityThreshold	= RUM_SIMILARITY_THRESHOLD_DEFAULT;
+int		RumArraySimilarityFunction	= RUM_SIMILARITY_FUNCTION_DEFAULT;
 
 
 PG_FUNCTION_INFO_V1(rum_anyarray_config);
@@ -115,10 +112,6 @@ PG_FUNCTION_INFO_V1(rum_anyarray_consistent);
 PG_FUNCTION_INFO_V1(rum_anyarray_ordering);
 PG_FUNCTION_INFO_V1(rum_anyarray_similar);
 PG_FUNCTION_INFO_V1(rum_anyarray_distance);
-
-
-static SimilarityType	SmlType = AA_Cosine;
-static float8			SmlLimit = 0.5;
 
 
 static Oid getAMProc(Oid amOid, Oid typid);
@@ -137,7 +130,6 @@ static void uniqSimpleArray(SimpleArray *s, bool onlyDuplicate);
 
 static int32 getNumOfIntersect(SimpleArray *sa, SimpleArray *sb);
 static float8 getSimilarity(SimpleArray *sa, SimpleArray *sb, int32 intersection);
-
 
 
 /*
@@ -375,6 +367,8 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 
 				if (intersection > 0)
 				{
+					float8 sml;
+
 					/* extract array's length from addInfo */
 					for (i = 0; i < nkeys; i++)
 					{
@@ -388,9 +382,11 @@ rum_anyarray_consistent(PG_FUNCTION_ARGS)
 					/* there must be addInfo */
 					Assert(nentries >= 0);
 
-					InitDummySimpleArray(&sa, nentries);
-					InitDummySimpleArray(&sb, nkeys);
-					res = getSimilarity(&sa, &sb, intersection) >= SmlLimit;
+					INIT_DUMMY_SIMPLE_ARRAY(&sa, nentries);
+					INIT_DUMMY_SIMPLE_ARRAY(&sb, nkeys);
+					sml = getSimilarity(&sa, &sb, intersection);
+
+					res = (sml >= RumArraySimilarityThreshold);
 				}
 				else
 					res = false;
@@ -444,8 +440,8 @@ rum_anyarray_ordering(PG_FUNCTION_ARGS)
 		/* there must be addInfo */
 		Assert(nentries >= 0);
 
-		InitDummySimpleArray(&sa, nentries);
-		InitDummySimpleArray(&sb, nkeys);
+		INIT_DUMMY_SIMPLE_ARRAY(&sa, nentries);
+		INIT_DUMMY_SIMPLE_ARRAY(&sb, nkeys);
 		sml = getSimilarity(&sa, &sb, intersection);
 
 		PG_RETURN_FLOAT8(DIST_FROM_SML(sml));
@@ -491,7 +487,7 @@ rum_anyarray_similar(PG_FUNCTION_ARGS)
 	PG_FREE_IF_COPY(b, 1);
 	PG_FREE_IF_COPY(a, 0);
 
-	PG_RETURN_BOOL(result >= SmlLimit);
+	PG_RETURN_BOOL(result >= RumArraySimilarityThreshold);
 }
 
 Datum
@@ -851,19 +847,19 @@ getSimilarity(SimpleArray *sa, SimpleArray *sb, int32 intersection)
 {
 	float8 result = 0.0;
 
-	switch (SmlType)
+	switch (RumArraySimilarityFunction)
 	{
-		case AA_Cosine:
+		case SMT_COSINE:
 			result = ((float8) intersection) /
 						sqrt(((float8) sa->nelems) * ((float8) sb->nelems));
 			break;
-		case AA_Jaccard:
+		case SMT_JACCARD:
 			result = ((float8) intersection) /
 						(((float8) sa->nelems) +
 						 ((float8) sb->nelems) -
 						 ((float8) intersection));
 			break;
-		case AA_Overlap:
+		case SMT_OVERLAP:
 			result = intersection;
 			break;
 		default:

@@ -36,6 +36,14 @@ PG_FUNCTION_INFO_V1(rumhandler);
 /* Kind of relation optioms for rum index */
 static relopt_kind rum_relopt_kind;
 
+static const struct config_enum_entry rum_array_similarity_function_opts[] =
+{
+	{ "cosine",		SMT_COSINE,		false },
+	{ "jaccard",	SMT_JACCARD,	false },
+	{ "overlap",	SMT_OVERLAP,	false },
+	{ NULL,			0,				false }
+};
+
 /*
  * Module load callback
  */
@@ -50,6 +58,23 @@ _PG_init(void)
 							0, 0, INT_MAX,
 							PGC_USERSET, 0,
 							NULL, NULL, NULL);
+
+	DefineCustomRealVariable("rum_array_similarity_threshold",
+							 "Sets the array similarity threshold.",
+							 NULL,
+							 &RumArraySimilarityThreshold,
+							 RUM_SIMILARITY_THRESHOLD_DEFAULT, 0.0, 1.0,
+							 PGC_USERSET, 0,
+							 NULL, NULL, NULL);
+
+	DefineCustomEnumVariable("rum_array_similarity_function",
+							 "Sets the array similarity function.",
+							 NULL,
+							 &RumArraySimilarityFunction,
+							 RUM_SIMILARITY_FUNCTION_DEFAULT,
+							 rum_array_similarity_function_opts,
+							 PGC_USERSET, 0,
+							 NULL, NULL, NULL);
 
 	rum_relopt_kind = add_reloption_kind();
 
@@ -260,6 +285,12 @@ initRumState(RumState * state, Relation index)
 		else
 		{
 			TypeCacheEntry *typentry;
+
+#if PG_VERSION_NUM < 100000
+			ereport(ERROR,
+					(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+					 errmsg("array indexing is only available on PostgreSQL 10+")));
+#endif
 
 			typentry = lookup_type_cache(origTupdesc->attrs[i]->atttypid,
 										 TYPECACHE_CMP_PROC_FINFO);
