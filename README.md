@@ -59,7 +59,7 @@ Typical installation procedure may look like this:
 | timestamp &lt;=&#124; timestamp | float8 | Returns distance only for left timestamps.
 | timestamp &#124;=&gt; timestamp | float8 | Returns distance only for right timestamps.
 
-Last three operations also works for types int2, int4, int8, float4, float8,
+Last three operations also works for types timestamptz, int2, int4, int8, float4, float8,
 money and oid.
 
 ## Operator classes
@@ -142,7 +142,7 @@ Supported operations: `<`, `<=`, `=`, `>=`, `>` for all types and
 timestamp and timestamptz types. 
 
 Supports ordering by `<=>`, `<=|` and `|=>` operators. Can be used with
-`rum_tsvector_addon_ops` operator class.
+`rum_tsvector_addon_ops`, `rum_tsvector_hash_addon_ops' and `rum_anyarray_addon_ops` operator classes.
 
 ### rum_tsvector_addon_ops
 
@@ -221,10 +221,23 @@ SELECT * FROM query
 (2 rows)
 ```
 
+### rum_anyarray_ops
+
+For type: `anyarray`
+
+This operator class stores `anyarrray` elements with length of the array.
+Supports operators `&&`, `@>`, `<@`, `=`, `%` operators. Supports ordering by `<=>` operator.
+
+### rum_anyarray_addon_ops
+
+For type: `anyarray`
+
+This operator class stores `anyarrray` elements with any supported by module
+field.
+
 ## Todo
 
 - Allow multiple additional information (lexemes positions + timestamp).
-- Add support for arrays.
 - Improve ranking function to support TF/IDF.
 - Improve insert time.
 - Improve GENERIC WAL to support shift (PostgreSQL core changes).
