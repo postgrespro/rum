@@ -1,0 +1,65 @@
+set enable_seqscan=off;
+CREATE TABLE test_money (
+	i money
+);
+INSERT INTO test_money VALUES ('-2'),('-1'),('0'),('1'),('2'),('3');
+CREATE INDEX idx_money ON test_money USING rum (i);
+SELECT * FROM test_money WHERE i<'1'::money ORDER BY i;
+   i    
+--------
+ -$2.00
+ -$1.00
+  $0.00
+(3 rows)
+
+SELECT * FROM test_money WHERE i<='1'::money ORDER BY i;
+   i    
+--------
+ -$2.00
+ -$1.00
+  $0.00
+  $1.00
+(4 rows)
+
+SELECT * FROM test_money WHERE i='1'::money ORDER BY i;
+   i   
+-------
+ $1.00
+(1 row)
+
+SELECT * FROM test_money WHERE i>='1'::money ORDER BY i;
+   i   
+-------
+ $1.00
+ $2.00
+ $3.00
+(3 rows)
+
+SELECT * FROM test_money WHERE i>'1'::money ORDER BY i;
+   i   
+-------
+ $2.00
+ $3.00
+(2 rows)
+
+EXPLAIN (costs off)
+SELECT *, i <=> 0::money FROM test_money ORDER BY i <=> 0::money;
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_money on test_money
+   Order By: (i <=> (0)::money)
+(2 rows)
+
+SELECT *, i <=> 0::money FROM test_money ORDER BY i <=> 0::money;
+ERROR:  doesn't support order by over pass-by-reference column
+EXPLAIN (costs off)
+SELECT *, i <=> 1::money FROM test_money WHERE i<1::money ORDER BY i <=> 1::money;
+                QUERY PLAN                
+------------------------------------------
+ Index Scan using idx_money on test_money
+   Index Cond: (i < (1)::money)
+   Order By: (i <=> (1)::money)
+(3 rows)
+
+SELECT *, i <=> 1::money FROM test_money WHERE i<1::money ORDER BY i <=> 1::money;
+ERROR:  doesn't support order by over pass-by-reference column

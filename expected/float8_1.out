@@ -1,0 +1,65 @@
+set enable_seqscan=off;
+CREATE TABLE test_float8 (
+	i float8
+);
+INSERT INTO test_float8 VALUES (-2),(-1),(0),(1),(2),(3);
+CREATE INDEX idx_float8 ON test_float8 USING rum (i);
+SELECT * FROM test_float8 WHERE i<1::float8 ORDER BY i;
+ i  
+----
+ -2
+ -1
+  0
+(3 rows)
+
+SELECT * FROM test_float8 WHERE i<=1::float8 ORDER BY i;
+ i  
+----
+ -2
+ -1
+  0
+  1
+(4 rows)
+
+SELECT * FROM test_float8 WHERE i=1::float8 ORDER BY i;
+ i 
+---
+ 1
+(1 row)
+
+SELECT * FROM test_float8 WHERE i>=1::float8 ORDER BY i;
+ i 
+---
+ 1
+ 2
+ 3
+(3 rows)
+
+SELECT * FROM test_float8 WHERE i>1::float8 ORDER BY i;
+ i 
+---
+ 2
+ 3
+(2 rows)
+
+EXPLAIN (costs off)
+SELECT *, i <=> 0::float8 FROM test_float8 ORDER BY i <=> 0::float8;
+                 QUERY PLAN                 
+--------------------------------------------
+ Index Scan using idx_float8 on test_float8
+   Order By: (i <=> '0'::double precision)
+(2 rows)
+
+SELECT *, i <=> 0::float8 FROM test_float8 ORDER BY i <=> 0::float8;
+ERROR:  doesn't support order by over pass-by-reference column
+EXPLAIN (costs off)
+SELECT *, i <=> 1::float8 FROM test_float8 WHERE i<1::float8 ORDER BY i <=> 1::float8;
+                 QUERY PLAN                 
+--------------------------------------------
+ Index Scan using idx_float8 on test_float8
+   Index Cond: (i < '1'::double precision)
+   Order By: (i <=> '1'::double precision)
+(3 rows)
+
+SELECT *, i <=> 1::float8 FROM test_float8 WHERE i<1::float8 ORDER BY i <=> 1::float8;
+ERROR:  doesn't support order by over pass-by-reference column
