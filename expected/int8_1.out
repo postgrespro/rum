@@ -575,7 +575,7 @@ SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id
 
 CREATE TABLE test_int8_id_t AS SELECT id::int8, t FROM tsts;
 CREATE INDEX test_int8_id_t_idx ON test_int8_o USING rum
-  (t rum_tsvector_ops, id);
+	(t rum_tsvector_ops, id);
 EXPLAIN (costs off)
 SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id <=> 400::int8;
                                  QUERY PLAN                                  
