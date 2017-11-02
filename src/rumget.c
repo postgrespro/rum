@@ -313,7 +313,7 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 
 	/* Locate tupdesc entry for key column (for attbyval/attlen data) */
 	attnum = scanEntry->attnumOrig;
-	attr = rumstate->origTupdesc->attrs[attnum - 1];
+	attr = RumTupleDescAttr(rumstate->origTupdesc, attnum - 1);
 
 	for (;;)
 	{

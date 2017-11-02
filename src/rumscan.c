@@ -182,9 +182,12 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 			/* ...add key to order by index key value */
 			key->useCurKey)
 		{
+			Form_pg_attribute attr = RumTupleDescAttr(rumstate->origTupdesc,
+													  attnum - 1);
+
 			if (nQueryValues != 1)
 				elog(ERROR, "extractQuery should return only one value for ordering");
-			if (rumstate->origTupdesc->attrs[key->attnum - 1]->attbyval == false)
+			if (attr->attbyval == false)
 				elog(ERROR, "doesn't support order by over pass-by-reference column");
 
 			if (key->attnum == rumstate->attrnAttachColumn)

@@ -72,6 +72,10 @@
 #define DIST_FROM_SML(sml) \
 	( (sml == 0.0) ? get_float8_infinity() : ((float8) 1) / ((float8) (sml)) )
 
+#if PG_VERSION_NUM <= 100000
+#define HASHSTANDARD_PROC HASHPROC
+#endif
+
 
 typedef struct AnyArrayTypeInfo
 {
@@ -583,7 +587,7 @@ getAMProc(Oid amOid, Oid typid)
 
 	procOid = get_opfamily_proc(get_opclass_family(opclassOid),
 							 typid, typid,
-							 (amOid == BTREE_AM_OID) ? BTORDER_PROC : HASHPROC);
+							 (amOid == BTREE_AM_OID) ? BTORDER_PROC : HASHSTANDARD_PROC);
 
 	if (!OidIsValid(procOid))
 	{
@@ -591,7 +595,7 @@ getAMProc(Oid amOid, Oid typid)
 
 		procOid = get_opfamily_proc(get_opclass_family(opclassOid),
 								 typid, typid,
-								 (amOid == BTREE_AM_OID) ? BTORDER_PROC : HASHPROC);
+								 (amOid == BTREE_AM_OID) ? BTORDER_PROC : HASHSTANDARD_PROC);
 	}
 
 	return procOid;

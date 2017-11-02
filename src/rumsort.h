@@ -16,9 +16,8 @@
  *-------------------------------------------------------------------------
  */
 
-#ifndef TUPLESORT_H
-/* Hide tuplesort.h and tuplesort.c */
-#define TUPLESORT_H
+#ifndef RUMSORT_H
+#define RUMSORT_H
 
 #include "postgres.h"
 #include "fmgr.h"
@@ -30,7 +29,7 @@
 /* Tuplesortstate is an opaque type whose details are not known outside
  * tuplesort.c.
  */
-typedef struct Tuplesortstate Tuplesortstate;
+typedef struct RumTuplesortstate RumTuplesortstate;
 struct RumScanItem;
 
 /*
@@ -69,61 +68,61 @@ typedef struct
 
 #define RumSortItemSize(nKeys) (offsetof(RumSortItem,data)+(nKeys)*sizeof(float8))
 
-extern MemoryContext rum_tuplesort_get_memorycontext(Tuplesortstate *state);
-extern Tuplesortstate *rum_tuplesort_begin_heap(TupleDesc tupDesc,
+extern MemoryContext rum_tuplesort_get_memorycontext(RumTuplesortstate *state);
+extern RumTuplesortstate *rum_tuplesort_begin_heap(TupleDesc tupDesc,
 						 int nkeys, AttrNumber *attNums,
 						 Oid *sortOperators, Oid *sortCollations,
 						 bool *nullsFirstFlags,
 						 int workMem, bool randomAccess);
-extern Tuplesortstate *rum_tuplesort_begin_cluster(TupleDesc tupDesc,
+extern RumTuplesortstate *rum_tuplesort_begin_cluster(TupleDesc tupDesc,
 							Relation indexRel,
 							int workMem, bool randomAccess);
-extern Tuplesortstate *rum_tuplesort_begin_index_btree(Relation heapRel,
+extern RumTuplesortstate *rum_tuplesort_begin_index_btree(Relation heapRel,
 								Relation indexRel,
 								bool enforceUnique,
 								int workMem, bool randomAccess);
-extern Tuplesortstate *rum_tuplesort_begin_index_hash(Relation heapRel,
+extern RumTuplesortstate *rum_tuplesort_begin_index_hash(Relation heapRel,
 							   Relation indexRel,
 							   uint32 hash_mask,
 							   int workMem, bool randomAccess);
-extern Tuplesortstate *rum_tuplesort_begin_datum(Oid datumType,
+extern RumTuplesortstate *rum_tuplesort_begin_datum(Oid datumType,
 						  Oid sortOperator, Oid sortCollation,
 						  bool nullsFirstFlag,
 						  int workMem, bool randomAccess);
-extern Tuplesortstate *rum_tuplesort_begin_rum(int workMem,
+extern RumTuplesortstate *rum_tuplesort_begin_rum(int workMem,
 						int nKeys, bool randomAccess, bool compareItemPointer);
-extern Tuplesortstate	*rum_tuplesort_begin_rumitem(int workMem,
+extern RumTuplesortstate	*rum_tuplesort_begin_rumitem(int workMem,
 													FmgrInfo *cmp);
 
-extern void rum_tuplesort_set_bound(Tuplesortstate *state, int64 bound);
+extern void rum_tuplesort_set_bound(RumTuplesortstate *state, int64 bound);
 
-extern void rum_tuplesort_puttupleslot(Tuplesortstate *state,
+extern void rum_tuplesort_puttupleslot(RumTuplesortstate *state,
 						   TupleTableSlot *slot);
-extern void rum_tuplesort_putheaptuple(Tuplesortstate *state, HeapTuple tup);
-extern void rum_tuplesort_putindextuple(Tuplesortstate *state, IndexTuple tuple);
-extern void rum_tuplesort_putdatum(Tuplesortstate *state, Datum val,
+extern void rum_tuplesort_putheaptuple(RumTuplesortstate *state, HeapTuple tup);
+extern void rum_tuplesort_putindextuple(RumTuplesortstate *state, IndexTuple tuple);
+extern void rum_tuplesort_putdatum(RumTuplesortstate *state, Datum val,
 					   bool isNull);
-extern void rum_tuplesort_putrum(Tuplesortstate *state, RumSortItem * item);
-extern void rum_tuplesort_putrumitem(Tuplesortstate *state, struct RumScanItem * item);
+extern void rum_tuplesort_putrum(RumTuplesortstate *state, RumSortItem * item);
+extern void rum_tuplesort_putrumitem(RumTuplesortstate *state, struct RumScanItem * item);
 
-extern void rum_tuplesort_performsort(Tuplesortstate *state);
+extern void rum_tuplesort_performsort(RumTuplesortstate *state);
 
-extern bool rum_tuplesort_gettupleslot(Tuplesortstate *state, bool forward,
+extern bool rum_tuplesort_gettupleslot(RumTuplesortstate *state, bool forward,
 						   TupleTableSlot *slot);
-extern HeapTuple rum_tuplesort_getheaptuple(Tuplesortstate *state, bool forward,
+extern HeapTuple rum_tuplesort_getheaptuple(RumTuplesortstate *state, bool forward,
 						   bool *should_free);
-extern IndexTuple rum_tuplesort_getindextuple(Tuplesortstate *state, bool forward,
+extern IndexTuple rum_tuplesort_getindextuple(RumTuplesortstate *state, bool forward,
 							bool *should_free);
-extern bool rum_tuplesort_getdatum(Tuplesortstate *state, bool forward,
+extern bool rum_tuplesort_getdatum(RumTuplesortstate *state, bool forward,
 					   Datum *val, bool *isNull);
-extern RumSortItem *rum_tuplesort_getrum(Tuplesortstate *state, bool forward,
+extern RumSortItem *rum_tuplesort_getrum(RumTuplesortstate *state, bool forward,
 					 bool *should_free);
-extern struct RumScanItem *rum_tuplesort_getrumitem(Tuplesortstate *state, bool forward,
+extern struct RumScanItem *rum_tuplesort_getrumitem(RumTuplesortstate *state, bool forward,
 					 bool *should_free);
 
-extern void rum_tuplesort_end(Tuplesortstate *state);
+extern void rum_tuplesort_end(RumTuplesortstate *state);
 
-extern void rum_tuplesort_get_stats(Tuplesortstate *state,
+extern void rum_tuplesort_get_stats(RumTuplesortstate *state,
 						const char **sortMethod,
 						const char **spaceType,
 						long *spaceUsed);
@@ -136,8 +135,8 @@ extern int	rum_tuplesort_merge_order(long allowedMem);
  * randomAccess was specified.
  */
 
-extern void rum_tuplesort_rescan(Tuplesortstate *state);
-extern void rum_tuplesort_markpos(Tuplesortstate *state);
-extern void rum_tuplesort_restorepos(Tuplesortstate *state);
+extern void rum_tuplesort_rescan(RumTuplesortstate *state);
+extern void rum_tuplesort_markpos(RumTuplesortstate *state);
+extern void rum_tuplesort_restorepos(RumTuplesortstate *state);
 
-#endif   /* TUPLESORT_H */
+#endif   /* RUMSORT_H */

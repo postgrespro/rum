@@ -516,8 +516,13 @@ rumHeapTupleBulkInsert(RumBuildState * buildstate, OffsetNumber attnum,
 		{
 			/* Check existance of additional information attribute in index */
 			if (!attr)
+			{
+				Form_pg_attribute attr = RumTupleDescAttr(
+					buildstate->rumstate.origTupdesc, attnum - 1);
+
 				elog(ERROR, "additional information attribute \"%s\" is not found in index",
-					 NameStr(buildstate->rumstate.origTupdesc->attrs[attnum - 1]->attname));
+					 NameStr(attr->attname));
+			}
 
 			addInfo[i] = datumCopy(addInfo[i], attr->attbyval, attr->attlen);
 		}
@@ -775,8 +780,13 @@ rumHeapTupleInsert(RumState * rumstate, OffsetNumber attnum,
 
 		/* Check existance of additional information attribute in index */
 		if (!addInfoIsNull[i] && !rumstate->addAttrs[attnum - 1])
+		{
+			Form_pg_attribute attr = RumTupleDescAttr(rumstate->origTupdesc,
+													  attnum - 1);
+
 			elog(ERROR, "additional information attribute \"%s\" is not found in index",
-				 NameStr(rumstate->origTupdesc->attrs[attnum - 1]->attname));
+				 NameStr(attr->attname));
+		}
 
 		insert_item.iptr = *item;
 		insert_item.addInfo = addInfo[i];

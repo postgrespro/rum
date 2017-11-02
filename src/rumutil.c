@@ -206,6 +206,7 @@ initRumState(RumState * state, Relation index)
 	for (i = 0; i < origTupdesc->natts; i++)
 	{
 		RumConfig	*rumConfig = state->rumConfig + i;
+		Form_pg_attribute origAttr = RumTupleDescAttr(origTupdesc, i);
 
 		rumConfig->addInfoTypeOid = InvalidOid;
 
@@ -220,11 +221,13 @@ initRumState(RumState * state, Relation index)
 
 		if (state->attrnAddToColumn == i + 1)
 		{
+			Form_pg_attribute origAddAttr = RumTupleDescAttr(origTupdesc,
+															 state->attrnAttachColumn - 1);
+
 			if (OidIsValid(rumConfig->addInfoTypeOid))
 				elog(ERROR, "AddTo could should not have AddInfo");
 
-			rumConfig->addInfoTypeOid = origTupdesc->attrs[
-									state->attrnAttachColumn - 1]->atttypid;
+			rumConfig->addInfoTypeOid = origAddAttr->atttypid;
 		}
 
 		if (state->oneCol)
@@ -232,16 +235,16 @@ initRumState(RumState * state, Relation index)
 			state->tupdesc[i] = CreateTemplateTupleDesc(
 						OidIsValid(rumConfig->addInfoTypeOid) ? 2 : 1, false);
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 1, NULL,
-							   origTupdesc->attrs[i]->atttypid,
-							   origTupdesc->attrs[i]->atttypmod,
-							   origTupdesc->attrs[i]->attndims);
+							   origAttr->atttypid,
+							   origAttr->atttypmod,
+							   origAttr->attndims);
 			TupleDescInitEntryCollation(state->tupdesc[i], (AttrNumber) 1,
-										origTupdesc->attrs[i]->attcollation);
+										origAttr->attcollation);
 			if (OidIsValid(rumConfig->addInfoTypeOid))
 			{
 				TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 2, NULL,
 								   rumConfig->addInfoTypeOid, -1, 0);
-				state->addAttrs[i] = state->tupdesc[i]->attrs[1];
+				state->addAttrs[i] = RumTupleDescAttr(state->tupdesc[i], 1);
 			}
 			else
 			{
@@ -255,16 +258,16 @@ initRumState(RumState * state, Relation index)
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 1, NULL,
 							   INT2OID, -1, 0);
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 2, NULL,
-							   origTupdesc->attrs[i]->atttypid,
-							   origTupdesc->attrs[i]->atttypmod,
-							   origTupdesc->attrs[i]->attndims);
+							   origAttr->atttypid,
+							   origAttr->atttypmod,
+							   origAttr->attndims);
 			TupleDescInitEntryCollation(state->tupdesc[i], (AttrNumber) 2,
-										origTupdesc->attrs[i]->attcollation);
+										origAttr->attcollation);
 			if (OidIsValid(rumConfig->addInfoTypeOid))
 			{
 				TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 3, NULL,
 								   rumConfig->addInfoTypeOid, -1, 0);
-				state->addAttrs[i] = state->tupdesc[i]->attrs[2];
+				state->addAttrs[i] = RumTupleDescAttr(state->tupdesc[i], 2);
 			}
 			else
 			{
@@ -292,13 +295,13 @@ initRumState(RumState * state, Relation index)
 					 errmsg("array indexing is only available on PostgreSQL 10+")));
 #endif
 
-			typentry = lookup_type_cache(origTupdesc->attrs[i]->atttypid,
+			typentry = lookup_type_cache(origAttr->atttypid,
 										 TYPECACHE_CMP_PROC_FINFO);
 			if (!OidIsValid(typentry->cmp_proc_finfo.fn_oid))
 				ereport(ERROR,
 						(errcode(ERRCODE_UNDEFINED_FUNCTION),
 				errmsg("could not identify a comparison function for type %s",
-					   format_type_be(origTupdesc->attrs[i]->atttypid))));
+					   format_type_be(origAttr->atttypid))));
 			fmgr_info_copy(&(state->compareFn[i]),
 						   &(typentry->cmp_proc_finfo),
 						   CurrentMemoryContext);

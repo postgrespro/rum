@@ -391,6 +391,13 @@ typedef struct RumState
 	Oid			supportCollation[INDEX_MAX_KEYS];
 }	RumState;
 
+/* Accessor for the i'th attribute of tupdesc. */
+#if PG_VERSION_NUM > 100000
+#define RumTupleDescAttr(tupdesc, i) (TupleDescAttr(tupdesc, i))
+#else
+#define RumTupleDescAttr(tupdesc, i) ((tupdesc)->attrs[(i)])
+#endif
+
 /* rumutil.c */
 extern bytea *rumoptions(Datum reloptions, bool validate);
 extern Datum rumhandler(PG_FUNCTION_ARGS);
@@ -662,7 +669,7 @@ typedef struct RumScanEntryData
 	 * For a partial-match or full-scan query, we accumulate all TIDs and
 	 * and additional information here
 	 */
-	Tuplesortstate *matchSortstate;
+	RumTuplesortstate *matchSortstate;
 	RumScanItem	collectRumItem;
 
 	/* for full-scan query with order-by */
@@ -722,7 +729,7 @@ typedef struct RumScanOpaqueData
 	uint32		allocentries;		/* allocated length of entries[] and
 									   sortedEntries[] */
 
-	Tuplesortstate *sortstate;
+	RumTuplesortstate *sortstate;
 	int			norderbys;		/* Number of columns in ordering.
 								   Will be assigned to sortstate->nKeys */
 
