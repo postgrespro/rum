@@ -72,7 +72,7 @@
 #define DIST_FROM_SML(sml) \
 	( (sml == 0.0) ? get_float8_infinity() : ((float8) 1) / ((float8) (sml)) )
 
-#if PG_VERSION_NUM <= 100000
+#if PG_VERSION_NUM < 110000
 #define HASHSTANDARD_PROC HASHPROC
 #endif
 
