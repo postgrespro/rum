@@ -125,7 +125,7 @@ entryIsMoveRight(RumBtree btree, Page page)
 	RumNullCategory category;
 
 	if (RumPageRightMost(page))
-		return FALSE;
+		return false;
 
 	itup = getRightMostTuple(page);
 	attnum = rumtuple_get_attrnum(btree->rumstate, itup);
@@ -134,9 +134,9 @@ entryIsMoveRight(RumBtree btree, Page page)
 	if (rumCompareAttEntries(btree->rumstate,
 				   btree->entryAttnum, btree->entryKey, btree->entryCategory,
 							 attnum, key, category) > 0)
-		return TRUE;
+		return true;
 
-	return FALSE;
+	return false;
 }
 
 /*
@@ -232,7 +232,7 @@ entryLocateLeafEntry(RumBtree btree, RumBtreeStack * stack)
 	if (btree->fullScan)
 	{
 		stack->off = FirstOffsetNumber;
-		return TRUE;
+		return true;
 	}
 
 	low = FirstOffsetNumber;
@@ -558,12 +558,12 @@ rumPrepareEntryScan(RumBtree btree, OffsetNumber attnum,
 	btree->splitPage = entrySplitPage;
 	btree->fillRoot = rumEntryFillRoot;
 
-	btree->isData = FALSE;
-	btree->searchMode = FALSE;
-	btree->fullScan = FALSE;
+	btree->isData = false;
+	btree->searchMode = false;
+	btree->fullScan = false;
 
 	btree->entryAttnum = attnum;
 	btree->entryKey = key;
 	btree->entryCategory = category;
-	btree->isDelete = FALSE;
+	btree->isDelete = false;
 }

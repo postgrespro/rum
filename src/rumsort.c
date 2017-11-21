@@ -1381,7 +1381,7 @@ rum_tuplesort_end(RumTuplesortstate *state)
 
 /*
  * Grow the memtuples[] array, if possible within our memory constraint.
- * Return TRUE if we were able to enlarge the array, FALSE if not.
+ * Return true if we were able to enlarge the array, false if not.
  *
  * Normally, at each increment we double the size of the array.  When we no
  * longer have enough memory to do that, we attempt one last, smaller increase
@@ -1853,7 +1853,7 @@ rum_tuplesort_performsort(RumTuplesortstate *state)
 
 /*
  * Internal routine to fetch the next tuple in either forward or back
- * direction into *stup.  Returns FALSE if no more tuples.
+ * direction into *stup.  Returns false if no more tuples.
  * If *should_free is set, the caller must pfree stup.tuple when done with it.
  */
 static bool
@@ -2054,8 +2054,8 @@ rum_tuplesort_gettuple_common(RumTuplesortstate *state, bool forward,
 
 /*
  * Fetch the next tuple in either forward or back direction.
- * If successful, put tuple in slot and return TRUE; else, clear the slot
- * and return FALSE.
+ * If successful, put tuple in slot and return true; else, clear the slot
+ * and return false.
  */
 bool
 rum_tuplesort_gettupleslot(RumTuplesortstate *state, bool forward,
@@ -2123,7 +2123,7 @@ rum_tuplesort_getindextuple(RumTuplesortstate *state, bool forward,
 
 /*
  * Fetch the next Datum in either forward or back direction.
- * Returns FALSE if no more datums.
+ * Returns false if no more datums.
  *
  * If the Datum is pass-by-ref type, the returned value is freshly palloc'd
  * and is now owned by the caller.

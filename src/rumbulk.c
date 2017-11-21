@@ -56,7 +56,7 @@ rumCombineData(RBNode *existing, const RBNode *newdata, void *arg)
 		Assert(res != 0);
 
 		if (res > 0)
-			eo->shouldSort = TRUE;
+			eo->shouldSort = true;
 	}
 
 	eo->list[eo->count] = en->list[0];

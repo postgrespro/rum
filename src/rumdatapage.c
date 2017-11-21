@@ -631,7 +631,7 @@ dataLocateLeafItem(RumBtree btree, RumBtreeStack * stack)
 	if (btree->fullScan)
 	{
 		stack->off = FirstOffsetNumber;
-		return TRUE;
+		return true;
 	}
 
 	return findInLeafPage(btree, page, &stack->off, &iptr, &ptr);
@@ -1460,10 +1460,10 @@ rumPrepareDataScan(RumBtree btree, Relation index, OffsetNumber attnum, RumState
 	btree->splitPage = dataSplitPage;
 	btree->fillRoot = rumDataFillRoot;
 
-	btree->isData = TRUE;
-	btree->searchMode = FALSE;
-	btree->isDelete = FALSE;
-	btree->fullScan = FALSE;
+	btree->isData = true;
+	btree->searchMode = false;
+	btree->isDelete = false;
+	btree->fullScan = false;
 	btree->scanDirection = ForwardScanDirection;
 
 	btree->entryAttnum = attnum;

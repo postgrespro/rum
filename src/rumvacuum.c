@@ -214,7 +214,7 @@ rumVacuumPostingTreeLeaves(RumVacuumState * gvs, OffsetNumber attnum,
 {
 	Buffer		buffer;
 	Page		page;
-	bool		hasVoidPage = FALSE;
+	bool		hasVoidPage = false;
 
 	buffer = ReadBufferExtended(gvs->index, MAIN_FORKNUM, blkno,
 								RBM_NORMAL, gvs->strategy);
@@ -264,7 +264,7 @@ rumVacuumPostingTreeLeaves(RumVacuumState * gvs, OffsetNumber attnum,
 
 			/* if root is a leaf page, we don't desire further processing */
 			if (!isRoot && RumPageGetOpaque(newPage)->maxoff < FirstOffsetNumber)
-				hasVoidPage = TRUE;
+				hasVoidPage = true;
 
 			GenericXLogFinish(state);
 		}
@@ -272,19 +272,19 @@ rumVacuumPostingTreeLeaves(RumVacuumState * gvs, OffsetNumber attnum,
 	else
 	{
 		OffsetNumber i;
-		bool		isChildHasVoid = FALSE;
+		bool		isChildHasVoid = false;
 
 		for (i = FirstOffsetNumber; i <= RumPageGetOpaque(page)->maxoff; i++)
 		{
 			PostingItem *pitem = (PostingItem *) RumDataPageGetItem(page, i);
 
 			if (rumVacuumPostingTreeLeaves(gvs, attnum,
-							  PostingItemGetBlockNumber(pitem), FALSE, NULL))
-				isChildHasVoid = TRUE;
+							  PostingItemGetBlockNumber(pitem), false, NULL))
+				isChildHasVoid = true;
 		}
 
 		if (isChildHasVoid)
-			hasVoidPage = TRUE;
+			hasVoidPage = true;
 	}
 
 	/*
@@ -494,7 +494,7 @@ rumScanToDelete(RumVacuumState * gvs, BlockNumber blkno, bool isRoot,
 		{
 			PostingItem *pitem = (PostingItem *) RumDataPageGetItem(page, i);
 
-			if (rumScanToDelete(gvs, PostingItemGetBlockNumber(pitem), FALSE, me, i))
+			if (rumScanToDelete(gvs, PostingItemGetBlockNumber(pitem), false, me, i))
 				i--;
 		}
 	}
@@ -522,18 +522,18 @@ rumVacuumPostingTree(RumVacuumState * gvs, OffsetNumber attnum, BlockNumber root
 			   *ptr,
 			   *tmp;
 
-	if (rumVacuumPostingTreeLeaves(gvs, attnum, rootBlkno, TRUE, &rootBuffer) == FALSE)
+	if (rumVacuumPostingTreeLeaves(gvs, attnum, rootBlkno, true, &rootBuffer) == false)
 	{
 		Assert(rootBuffer == InvalidBuffer);
 		return;
 	}
 
 	memset(&root, 0, sizeof(DataPageDeleteStack));
-	root.isRoot = TRUE;
+	root.isRoot = true;
 
 	vacuum_delay_point();
 
-	rumScanToDelete(gvs, rootBlkno, TRUE, &root, InvalidOffsetNumber);
+	rumScanToDelete(gvs, rootBlkno, true, &root, InvalidOffsetNumber);
 
 	ptr = root.child;
 	while (ptr)

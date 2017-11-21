@@ -171,7 +171,7 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 
 	Pointer    *extra_data = (Pointer *) PG_GETARG_POINTER(4);
 	bool		recheck;
-	bool		res = FALSE;
+	bool		res = false;
 
 	if (query->size > 0)
 	{
@@ -268,7 +268,7 @@ rum_tsquery_consistent(PG_FUNCTION_ARGS)
 	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
-	bool		res = FALSE;
+	bool		res = false;
 
 	/*
 	 * The query requires recheck only if it involves weights
@@ -313,7 +313,7 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
-	bool		res = FALSE;
+	bool		res = false;
 
 	/*
 	 * The query requires recheck only if it involves weights

@@ -32,7 +32,7 @@ rumTraverseLock(Buffer buffer, bool searchMode)
 	page = BufferGetPage(buffer);
 	if (RumPageIsLeaf(page))
 	{
-		if (searchMode == FALSE)
+		if (searchMode == false)
 		{
 			/* we should relock our page */
 			LockBuffer(buffer, RUM_UNLOCK);
@@ -120,7 +120,7 @@ rumReFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 RumBtreeStack *
 rumFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 {
-	bool		isfirst = TRUE;
+	bool		isfirst = true;
 	BlockNumber rootBlkno;
 
 	if (!stack)
@@ -141,7 +141,7 @@ rumFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 		{
 			if (RumPageIsLeaf(page) && !btree->searchMode)
 				access = RUM_EXCLUSIVE;
-			isfirst = FALSE;
+			isfirst = false;
 		}
 		else
 			access = rumTraverseLock(stack->buffer, btree->searchMode);
@@ -150,7 +150,7 @@ rumFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 		 * ok, page is correctly locked, we should check to move right ..,
 		 * root never has a right link, so small optimization
 		 */
-		while (btree->fullScan == FALSE && stack->blkno != rootBlkno &&
+		while (btree->fullScan == false && stack->blkno != rootBlkno &&
 			   btree->isMoveRight(btree, page))
 		{
 			BlockNumber rightlink = RumPageGetOpaque(page)->rightlink;
@@ -605,7 +605,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 			}
 		}
 
-		btree->isDelete = FALSE;
+		btree->isDelete = false;
 
 		/* search parent to lock */
 		LockBuffer(parent->buffer, RUM_EXCLUSIVE);

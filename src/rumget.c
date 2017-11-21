@@ -221,7 +221,7 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 
 	Assert(ScanDirectionIsForward(scanEntry->scanDirection));
 	/* Descend to the leftmost leaf page */
-	gdi = rumPrepareScanPostingTree(index, rootPostingTree, TRUE,
+	gdi = rumPrepareScanPostingTree(index, rootPostingTree, true,
 									ForwardScanDirection, attnum, rumstate);
 
 	buffer = rumScanBeginPostingTree(gdi, NULL);
@@ -550,7 +550,7 @@ restartScanEntry:
 	entry->stack = NULL;
 	entry->nlist = 0;
 	entry->matchSortstate = NULL;
-	entry->reduceResult = FALSE;
+	entry->reduceResult = false;
 	entry->predictNumberResult = 0;
 
 	/*
@@ -560,12 +560,12 @@ restartScanEntry:
 	rumPrepareEntryScan(&btreeEntry, entry->attnum,
 						entry->queryKey, entry->queryCategory,
 						rumstate);
-	btreeEntry.searchMode = TRUE;
+	btreeEntry.searchMode = true;
 	stackEntry = rumFindLeafPage(&btreeEntry, NULL);
 	page = BufferGetPage(stackEntry->buffer);
-	needUnlock = TRUE;
+	needUnlock = true;
 
-	entry->isFinished = TRUE;
+	entry->isFinished = true;
 
 	PredicateLockPage(rumstate->index, BufferGetBlockNumber(stackEntry->buffer), snapshot);
 
@@ -602,7 +602,7 @@ restartScanEntry:
 		{
 			rum_tuplesort_performsort(entry->matchSortstate);
 			ItemPointerSetMin(&entry->collectRumItem.item.iptr);
-			entry->isFinished = FALSE;
+			entry->isFinished = false;
 		}
 	}
 	else if (btreeEntry.findItem(&btreeEntry, stackEntry) ||
@@ -631,8 +631,8 @@ restartScanEntry:
 			 * root of posting tree.
 			 */
 			LockBuffer(stackEntry->buffer, RUM_UNLOCK);
-			needUnlock = FALSE;
-			gdi = rumPrepareScanPostingTree(rumstate->index, rootPostingTree, TRUE,
+			needUnlock = false;
+			gdi = rumPrepareScanPostingTree(rumstate->index, rootPostingTree, true,
 											entry->scanDirection, entry->attnum, rumstate);
 
 			entry->buffer = rumScanBeginPostingTree(gdi, entry->useMarkAddInfo ?
@@ -713,9 +713,9 @@ cmpEntries(RumState *rumstate, RumScanEntry e1, RumScanEntry e2)
 {
 	int res;
 
-	if (e1->isFinished == TRUE)
+	if (e1->isFinished == true)
 	{
-		if (e2->isFinished == TRUE)
+		if (e2->isFinished == true)
 			return 0;
 		else
 			return 1;
@@ -780,7 +780,7 @@ startScan(IndexScanDesc scan)
 			for (i = 0; i < so->totalentries; i++)
 			{
 				so->entries[i]->predictNumberResult /= so->totalentries;
-				so->entries[i]->reduceResult = TRUE;
+				so->entries[i]->reduceResult = true;
 			}
 		}
 	}
@@ -900,7 +900,7 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 				ItemPointerSetInvalid(&entry->curItem.iptr);
 
 				entry->buffer = InvalidBuffer;
-				entry->isFinished = TRUE;
+				entry->isFinished = true;
 				entry->gdi->stack->buffer = InvalidBuffer;
 				return;
 			}
@@ -989,7 +989,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 		entry->nlist = 0;
 	}
 	entry->matchSortstate = NULL;
-	entry->reduceResult = FALSE;
+	entry->reduceResult = false;
 	entry->predictNumberResult = 0;
 
 	rumPrepareEntryScan(&btree, entry->attnum,
@@ -1003,7 +1003,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 	if (!moveRightIfItNeeded(&btree, entry->stack))
 	{
 		ItemPointerSetInvalid(&entry->curItem.iptr);
-		entry->isFinished = TRUE;
+		entry->isFinished = true;
 		LockBuffer(entry->stack->buffer, RUM_UNLOCK);
 		return false;
 	}
@@ -1019,7 +1019,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 	if (rumtuple_get_attrnum(btree.rumstate, itup) != entry->attnum)
 	{
 		ItemPointerSetInvalid(&entry->curItem.iptr);
-		entry->isFinished = TRUE;
+		entry->isFinished = true;
 		LockBuffer(entry->stack->buffer, RUM_UNLOCK);
 		return false;
 	}
@@ -1049,7 +1049,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 		LockBuffer(entry->stack->buffer, RUM_UNLOCK);
 		needUnlock = false;
 		gdi = rumPrepareScanPostingTree(rumstate->index,
-						rootPostingTree, TRUE, entry->scanDirection,
+						rootPostingTree, true, entry->scanDirection,
 						entry->attnumOrig, rumstate);
 
 		entry->buffer = rumScanBeginPostingTree(gdi, NULL);
@@ -1082,7 +1082,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 		}
 
 		LockBuffer(entry->buffer, RUM_UNLOCK);
-		entry->isFinished = FALSE;
+		entry->isFinished = false;
 	}
 	else if (RumGetNPosting(itup) > 0)
 	{
@@ -1117,7 +1117,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 
 /*
  * Sets entry->curItem to next heap item pointer for one entry of one scan key,
- * or sets entry->isFinished to TRUE if there are no more.
+ * or sets entry->isFinished to true if there are no more.
  *
  * Item pointers must be returned in ascending order.
  */
@@ -1141,7 +1141,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
 			/* We are finished, but should return last result */
 			if (ItemPointerIsMax(&entry->collectRumItem.item.iptr))
 			{
-				entry->isFinished = TRUE;
+				entry->isFinished = true;
 				rum_tuplesort_end(entry->matchSortstate);
 				entry->matchSortstate = NULL;
 				break;
@@ -1250,7 +1250,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
 				/* even current call is last */
 				if (ItemPointerIsMin(&entry->curItem.iptr))
 				{
-					entry->isFinished = TRUE;
+					entry->isFinished = true;
 					rum_tuplesort_end(entry->matchSortstate);
 					entry->matchSortstate = NULL;
 					break;
@@ -1274,7 +1274,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
 		else
 		{
 			ItemPointerSetInvalid(&entry->curItem.iptr);
-			entry->isFinished = TRUE;
+			entry->isFinished = true;
 		}
 	}
 	/* Get next item from posting tree */
@@ -1283,12 +1283,12 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
 		do
 		{
 			entryGetNextItem(rumstate, entry, snapshot);
-		} while (entry->isFinished == FALSE &&
-				 entry->reduceResult == TRUE &&
+		} while (entry->isFinished == false &&
+				 entry->reduceResult == true &&
 				 dropItem(entry));
 		if (entry->stack && entry->isFinished)
 		{
-			entry->isFinished = FALSE;
+			entry->isFinished = false;
 			if (entryGetNextItemList(rumstate, entry, snapshot) && nextEntryList)
 				*nextEntryList = true;
 		}
@@ -1304,7 +1304,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
  * TID passes the consistentFn test.  If so, key->recheckCurItem is set true
  * iff recheck is needed for this item pointer
  *
- * If all entry streams are exhausted, sets key->isFinished to TRUE.
+ * If all entry streams are exhausted, sets key->isFinished to true.
  *
  * Item pointers must be returned in ascending order.
  */
@@ -1366,7 +1366,7 @@ keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 	if (allFinished)
 	{
 		/* all entries are finished */
-		key->isFinished = TRUE;
+		key->isFinished = true;
 		return;
 	}
 
@@ -1390,16 +1390,16 @@ keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 	for (i = 0; i < key->nentries; i++)
 	{
 		entry = key->scanEntry[i];
-		if (entry->isFinished == FALSE &&
+		if (entry->isFinished == false &&
 			rumCompareItemPointers(&entry->curItem.iptr, &key->curItem.iptr) == 0)
 		{
-			key->entryRes[i] = TRUE;
+			key->entryRes[i] = true;
 			key->addInfo[i] = entry->curItem.addInfo;
 			key->addInfoIsNull[i] = entry->curItem.addInfoIsNull;
 		}
 		else
 		{
-			key->entryRes[i] = FALSE;
+			key->entryRes[i] = false;
 			key->addInfo[i] = (Datum) 0;
 			key->addInfoIsNull[i] = true;
 		}
@@ -1441,13 +1441,13 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 		 * scan direction. On first call myAdvancePast is invalid,
 		 * so anyway we are needed to call entryGetItem()
 		 */
-		allFinished = TRUE;
+		allFinished = true;
 
 		for (i = 0; i < so->totalentries; i++)
 		{
 			RumScanEntry entry = so->entries[i];
 
-			while (entry->isFinished == FALSE &&
+			while (entry->isFinished == false &&
 				   (!ItemPointerIsValid(&myAdvancePast.iptr) ||
 				   compareCurRumItemScanDirection(rumstate, entry,
 												 &myAdvancePast) <= 0))
@@ -1687,7 +1687,7 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumItem * item, Snapshot 
 {
 	if (entry->nlist == 0)
 	{
-		entry->isFinished = TRUE;
+		entry->isFinished = true;
 		return;
 	}
 
@@ -1720,7 +1720,7 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumItem * item, Snapshot 
 
 	if (!BufferIsValid(entry->buffer))
 	{
-		entry->isFinished = TRUE;
+		entry->isFinished = true;
 		return;
 	}
 
@@ -1762,7 +1762,7 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumItem * item, Snapshot 
 		if (entry->buffer == InvalidBuffer)
 		{
 			ItemPointerSetInvalid(&entry->curItem.iptr);
-			entry->isFinished = TRUE;
+			entry->isFinished = true;
 			return;
 		}
 
@@ -1927,7 +1927,7 @@ scanGetItemFast(IndexScanDesc scan, RumItem *advancePast,
 		 * If we found false in preConsistent then we can safely move entries
 		 * which was true in preConsistent argument.
 		 */
-		if (so->sortedEntries[i - 1]->isFinished == TRUE)
+		if (so->sortedEntries[i - 1]->isFinished == true)
 			return false;
 
 		if (preConsistentResult == false)
@@ -1949,17 +1949,17 @@ scanGetItemFast(IndexScanDesc scan, RumItem *advancePast,
 			{
 				RumScanEntry entry = key->scanEntry[j];
 
-				if (entry->isFinished == FALSE &&
+				if (entry->isFinished == false &&
 					rumCompareItemPointers(&entry->curItem.iptr,
 				&so->sortedEntries[so->totalentries - 1]->curItem.iptr) == 0)
 				{
-					key->entryRes[j] = TRUE;
+					key->entryRes[j] = true;
 					key->addInfo[j] = entry->curItem.addInfo;
 					key->addInfoIsNull[j] = entry->curItem.addInfoIsNull;
 				}
 				else
 				{
-					key->entryRes[j] = FALSE;
+					key->entryRes[j] = false;
 					key->addInfo[j] = (Datum) 0;
 					key->addInfoIsNull[j] = true;
 				}
@@ -2029,11 +2029,11 @@ scanGetItemFull(IndexScanDesc scan, RumItem *advancePast,
 	entry = so->entries[0];
 
 	entryGetItem(&so->rumstate, entry, &nextEntryList, scan->xs_snapshot);
-	if (entry->isFinished == TRUE)
+	if (entry->isFinished == true)
 		return false;
 
 	/* Fill outerAddInfo */
-	key->entryRes[0] = TRUE;
+	key->entryRes[0] = true;
 	key->addInfo[0] = entry->curItem.addInfo;
 	key->addInfoIsNull[0] = entry->curItem.addInfoIsNull;
 	callAddInfoConsistentFn(&so->rumstate, key);
@@ -2045,7 +2045,7 @@ scanGetItemFull(IndexScanDesc scan, RumItem *advancePast,
 			RumScanEntry orderEntry = so->entries[i];
 			if (orderEntry->nlist > 0)
 			{
-				orderEntry->isFinished = FALSE;
+				orderEntry->isFinished = false;
 				orderEntry->offset = InvalidOffsetNumber;
 				RumItemSetMin(&orderEntry->curItem);
 			}
@@ -2055,7 +2055,7 @@ scanGetItemFull(IndexScanDesc scan, RumItem *advancePast,
 	{
 		RumScanEntry orderEntry = so->entries[i];
 
-		while (orderEntry->isFinished == FALSE &&
+		while (orderEntry->isFinished == false &&
 			   (!ItemPointerIsValid(&orderEntry->curItem.iptr) ||
 			   compareCurRumItemScanDirection(&so->rumstate, orderEntry,
 											  &entry->curItem) < 0))
@@ -2170,7 +2170,7 @@ keyGetOrdering(RumState * rumstate, MemoryContext tempCtx, RumScanKey key,
 	for (i = 0; i < key->nentries; i++)
 	{
 		entry = key->scanEntry[i];
-		if (entry->isFinished == FALSE &&
+		if (entry->isFinished == false &&
 			rumCompareItemPointers(&entry->curItem.iptr, iptr) == 0)
 		{
 			key->addInfo[i] = entry->curItem.addInfo;

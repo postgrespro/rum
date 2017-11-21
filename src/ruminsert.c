@@ -93,7 +93,7 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
  * Form a tuple for entry tree.
  *
  * If the tuple would be too big to be stored, function throws a suitable
- * error if errorTooBig is TRUE, or returns NULL if errorTooBig is FALSE.
+ * error if errorTooBig is true, or returns NULL if errorTooBig is false.
  *
  * See src/backend/access/gin/README for a description of the index tuple
  * format that is being built here.  We build on the assumption that we
@@ -297,7 +297,7 @@ addItemPointersToLeafTuple(RumState * rumstate,
 			buildStats->nDataPages++;
 
 		/* Now insert the TIDs-to-be-added into the posting tree */
-		gdi = rumPrepareScanPostingTree(rumstate->index, postingRoot, FALSE,
+		gdi = rumPrepareScanPostingTree(rumstate->index, postingRoot, false,
 										ForwardScanDirection, attnum, rumstate);
 		rumInsertItemPointers(rumstate, attnum, gdi, items, nitem, buildStats);
 
@@ -374,7 +374,7 @@ buildFreshLeafTuple(RumState * rumstate,
 		{
 			RumPostingTreeScan *gdi;
 
-			gdi = rumPrepareScanPostingTree(rumstate->index, postingRoot, FALSE,
+			gdi = rumPrepareScanPostingTree(rumstate->index, postingRoot, false,
 											ForwardScanDirection,
 											attnum, rumstate);
 
@@ -441,7 +441,7 @@ rumEntryInsert(RumState * rumstate,
 
 			/* insert into posting tree */
 			gdi = rumPrepareScanPostingTree(rumstate->index, rootPostingTree,
-											FALSE, ForwardScanDirection,
+											false, ForwardScanDirection,
 											attnum, rumstate);
 			rumInsertItemPointers(rumstate, attnum, gdi, items,
 								  nitem, buildStats);
@@ -454,7 +454,7 @@ rumEntryInsert(RumState * rumstate,
 		itup = addItemPointersToLeafTuple(rumstate, itup,
 										  items, nitem, buildStats);
 
-		btree.isDelete = TRUE;
+		btree.isDelete = true;
 	}
 	else
 	{
