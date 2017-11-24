@@ -13,7 +13,7 @@ OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
 
 DATA = rum--1.0.sql
 DATA_updates = rum--1.0--1.1.sql rum--1.1--1.2.sql
-DATA_built = rum--$(EXTVERSION).sql $(DATA_updates)
+SQL_built = rum--$(EXTVERSION).sql $(DATA_updates)
 
 INCLUDES = rum.h rumsort.h
 RELATIVE_INCLUDES = $(addprefix src/, $(INCLUDES))
@@ -47,7 +47,7 @@ endif
 wal-check: temp-install
 	$(prove_check)
 
-all: rum--$(EXTVERSION).sql
+all: $(SQL_built)
 
 #9.6 requires 1.2 file but 10.0 could live with update files
 rum--$(EXTVERSION).sql: $(DATA) $(DATA_updates)
@@ -62,11 +62,13 @@ install: installincludes
 installincludes:
 	$(INSTALL) -d '$(DESTDIR)$(includedir_server)/'
 	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(RELATIVE_INCLUDES)) '$(DESTDIR)$(includedir_server)/'
+	$(INSTALL_DATA) $(SQL_built) '$(DESTDIR)$(datadir)/$(datamoduledir)/'
 
 uninstall: uninstallincludes
 
 uninstallincludes:
 	rm -f $(addprefix '$(DESTDIR)$(includedir_server)/', $(INCLUDES))
+	rm -f $(addprefix '$(DESTDIR)$(datadir)/$(datamoduledir)'/, $(notdir $(SQL_built)))
 
 ISOLATIONCHECKS= predicate-rum predicate-rum-2
 
