@@ -11,8 +11,11 @@ OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
 	src/rumscan.o src/rumutil.o src/rumvacuum.o src/rumvalidate.o \
 	src/btree_rum.o src/rum_arr_utils.o $(WIN32RES)
 
-DATA = rum--1.0.sql
+DATA_first = rum--1.0.sql
 DATA_updates = rum--1.0--1.1.sql rum--1.1--1.2.sql
+DATA = $(DATA_first) rum--$(EXTVERSION).sql $(DATA_updates)
+
+# Do not use DATA_built. It removes built files if clean target was used
 SQL_built = rum--$(EXTVERSION).sql $(DATA_updates)
 
 INCLUDES = rum.h rumsort.h
@@ -50,8 +53,8 @@ wal-check: temp-install
 all: $(SQL_built)
 
 #9.6 requires 1.2 file but 10.0 could live with update files
-rum--$(EXTVERSION).sql: $(DATA) $(DATA_updates)
-	cat $(DATA) $(DATA_updates) > rum--$(EXTVERSION).sql
+rum--$(EXTVERSION).sql: $(DATA_first) $(DATA_updates)
+	cat $(DATA_first) $(DATA_updates) > rum--$(EXTVERSION).sql
 
 # rule for updates, e.g. rum--1.0--1.1.sql
 rum--%.sql: gen_rum_sql--%.pl
@@ -62,13 +65,11 @@ install: installincludes
 installincludes:
 	$(INSTALL) -d '$(DESTDIR)$(includedir_server)/'
 	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(RELATIVE_INCLUDES)) '$(DESTDIR)$(includedir_server)/'
-	$(INSTALL_DATA) $(SQL_built) '$(DESTDIR)$(datadir)/$(datamoduledir)/'
 
 uninstall: uninstallincludes
 
 uninstallincludes:
 	rm -f $(addprefix '$(DESTDIR)$(includedir_server)/', $(INCLUDES))
-	rm -f $(addprefix '$(DESTDIR)$(datadir)/$(datamoduledir)'/, $(notdir $(SQL_built)))
 
 ISOLATIONCHECKS= predicate-rum predicate-rum-2
 
