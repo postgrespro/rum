@@ -41,12 +41,20 @@ Before build and install **rum** you should ensure following:
 
 Typical installation procedure may look like this:
 
+### Using GitHub repository
+
     $ git clone https://github.com/postgrespro/rum
     $ cd rum
     $ make USE_PGXS=1
-    $ sudo make USE_PGXS=1 install
+    $ make USE_PGXS=1 install
     $ make USE_PGXS=1 installcheck
     $ psql DB -c "CREATE EXTENSION rum;"
+
+### Using PGXN
+
+    $ USE_PGXS=1 pgxn install rum
+
+> **Important:** Don't forget to set the `PG_CONFIG` variable in case you want to test `RUM` on a custom build of PostgreSQL. Read more [here](https://wiki.postgresql.org/wiki/Building_and_Installing_PostgreSQL_Extension_Modules).
 
 ## Common operators and functions
 
