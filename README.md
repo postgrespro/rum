@@ -1,3 +1,6 @@
+[![PGXN version](https://badge.fury.io/pg/rum.svg)](https://badge.fury.io/pg/rum)
+[![GitHub license](https://img.shields.io/badge/license-PostgreSQL-blue.svg)](https://raw.githubusercontent.com/postgrespro/rum/master/LICENSE)
+
 [![Postgres Professional](img/PGpro-logo.png)](https://postgrespro.com/)
 
 # RUM - RUM access method
