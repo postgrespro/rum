@@ -9,6 +9,7 @@ INSERT INTO test_invrum VALUES ('(a|b)&c'::tsquery);
 INSERT INTO test_invrum VALUES ('(!(a|b))&c'::tsquery);
 INSERT INTO test_invrum VALUES ('(a|b)&(c|d)'::tsquery);
 INSERT INTO test_invrum VALUES ('!a'::tsquery);
+INSERT INTO test_invrum VALUES ('(a|a1|a2|a3|a4|a5)&(b|b1|b2|b3|b4|b5|b6)&!(c|c1|c2|c3)'::tsquery);
 SELECT * FROM test_invrum WHERE q @@ ''::tsvector;
        q        
 ----------------
@@ -36,12 +37,13 @@ SELECT * FROM test_invrum WHERE q @@ 'b'::tsvector;
 (4 rows)
 
 SELECT * FROM test_invrum WHERE q @@ 'a b'::tsvector;
-     q      
-------------
+                                                               q                                                                
+--------------------------------------------------------------------------------------------------------------------------------
  'a' | 'b'
  'a' & 'b'
  !'a' | 'b'
-(3 rows)
+ ( 'a' | 'a1' | 'a2' | 'a3' | 'a4' | 'a5' ) & ( 'b' | 'b1' | 'b2' | 'b3' | 'b4' | 'b5' | 'b6' ) & !( 'c' | 'c1' | 'c2' | 'c3' )
+(4 rows)
 
 SELECT * FROM test_invrum WHERE q @@ 'c'::tsvector;
           q           
@@ -113,13 +115,14 @@ SELECT * FROM test_invrum WHERE q @@ 'b d'::tsvector;
 (5 rows)
 
 SELECT * FROM test_invrum WHERE q @@ 'a b d'::tsvector;
-               q               
--------------------------------
+                                                               q                                                                
+--------------------------------------------------------------------------------------------------------------------------------
  'a' | 'b'
  'a' & 'b'
  !'a' | 'b'
  ( 'a' | 'b' ) & ( 'c' | 'd' )
-(4 rows)
+ ( 'a' | 'a1' | 'a2' | 'a3' | 'a4' | 'a5' ) & ( 'b' | 'b1' | 'b2' | 'b3' | 'b4' | 'b5' | 'b6' ) & !( 'c' | 'c1' | 'c2' | 'c3' )
+(5 rows)
 
 SELECT * FROM test_invrum WHERE q @@ 'c d'::tsvector;
           q           
@@ -166,12 +169,13 @@ SELECT * FROM test_invrum WHERE q @@ 'b'::tsvector;
 (4 rows)
 
 SELECT * FROM test_invrum WHERE q @@ 'a b'::tsvector;
-     q      
-------------
+                                                               q                                                                
+--------------------------------------------------------------------------------------------------------------------------------
  'a' | 'b'
  'a' & 'b'
  !'a' | 'b'
-(3 rows)
+ ( 'a' | 'a1' | 'a2' | 'a3' | 'a4' | 'a5' ) & ( 'b' | 'b1' | 'b2' | 'b3' | 'b4' | 'b5' | 'b6' ) & !( 'c' | 'c1' | 'c2' | 'c3' )
+(4 rows)
 
 SELECT * FROM test_invrum WHERE q @@ 'c'::tsvector;
           q           
@@ -243,13 +247,14 @@ SELECT * FROM test_invrum WHERE q @@ 'b d'::tsvector;
 (5 rows)
 
 SELECT * FROM test_invrum WHERE q @@ 'a b d'::tsvector;
-               q               
--------------------------------
+                                                               q                                                                
+--------------------------------------------------------------------------------------------------------------------------------
  'a' | 'b'
  'a' & 'b'
  !'a' | 'b'
  ( 'a' | 'b' ) & ( 'c' | 'd' )
-(4 rows)
+ ( 'a' | 'a1' | 'a2' | 'a3' | 'a4' | 'a5' ) & ( 'b' | 'b1' | 'b2' | 'b3' | 'b4' | 'b5' | 'b6' ) & !( 'c' | 'c1' | 'c2' | 'c3' )
+(5 rows)
 
 SELECT * FROM test_invrum WHERE q @@ 'c d'::tsvector;
           q           

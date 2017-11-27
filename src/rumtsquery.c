@@ -25,9 +25,7 @@ typedef struct QueryItemWrap
 	QueryItemType type;
 	int8		oper;
 	bool		not;
-	int			operandsCount,
-				operandsAllocated;
-	struct QueryItemWrap *operands;
+	List	   *operands;
 	struct QueryItemWrap *parent;
 	int			distance,
 				length;
@@ -40,29 +38,12 @@ add_child(QueryItemWrap * parent)
 {
 	QueryItemWrap *result;
 
-	if (!parent)
+	result = (QueryItemWrap *) palloc0(sizeof(QueryItemWrap));
+
+	if (parent)
 	{
-		result = (QueryItemWrap *) palloc0(sizeof(QueryItemWrap));
-	}
-	else
-	{
-		parent->operandsCount++;
-		while (parent->operandsCount > parent->operandsAllocated)
-		{
-			if (parent->operandsAllocated > 0)
-			{
-				parent->operandsAllocated *= 2;
-				parent->operands = (QueryItemWrap *) repalloc(parent->operands, parent->operandsAllocated * sizeof(*parent->operands));
-			}
-			else
-			{
-				parent->operandsAllocated = 4;
-				parent->operands = (QueryItemWrap *) palloc(parent->operandsAllocated * sizeof(*parent->operands));
-			}
-		}
-		result = &parent->operands[parent->operandsCount - 1];
-		memset(result, 0, sizeof(*result));
 		result->parent = parent;
+		parent->operands = lappend(parent->operands, result);
 	}
 	return result;
 }
@@ -129,13 +110,15 @@ make_query_item_wrap(QueryItem *item, QueryItemWrap * parent, bool not)
 static int
 calc_wraps(QueryItemWrap * wrap, int *num)
 {
-	int			i,
-				notCount = 0,
+	int			notCount = 0,
 				result;
+	ListCell   *lc;
 
-	for (i = 0; i < wrap->operandsCount; i++)
+	foreach(lc, wrap->operands)
 	{
-		if (wrap->operands[i].not)
+		QueryItemWrap *item = (QueryItemWrap *) lfirst(lc);
+
+		if (item->not)
 			notCount++;
 	}
 
@@ -143,7 +126,7 @@ calc_wraps(QueryItemWrap * wrap, int *num)
 	{
 		wrap->num = (*num)++;
 		if (wrap->oper == OP_AND)
-			wrap->sum = notCount + 1 - wrap->operandsCount;
+			wrap->sum = notCount + 1 - list_length(wrap->operands);
 		if (wrap->oper == OP_OR)
 			wrap->sum = notCount;
 	}
@@ -153,8 +136,12 @@ calc_wraps(QueryItemWrap * wrap, int *num)
 	}
 
 	result = 0;
-	for (i = 0; i < wrap->operandsCount; i++)
-		result += calc_wraps(&wrap->operands[i], num);
+	foreach(lc, wrap->operands)
+	{
+		QueryItemWrap *item = (QueryItemWrap *) lfirst(lc);
+
+		result += calc_wraps(item, num);
+	}
 	return result;
 }
 
@@ -167,22 +154,26 @@ check_allnegative(QueryItemWrap * wrap)
 	}
 	else if (wrap->oper == OP_AND)
 	{
-		int			i;
+		ListCell   *lc;
 
-		for (i = 0; i < wrap->operandsCount; i++)
+		foreach(lc, wrap->operands)
 		{
-			if (!check_allnegative(&wrap->operands[i]))
+			QueryItemWrap *item = (QueryItemWrap *) lfirst(lc);
+
+			if (!check_allnegative(item))
 				return false;
 		}
 		return true;
 	}
 	else if (wrap->oper == OP_OR)
 	{
-		int			i;
+		ListCell   *lc;
 
-		for (i = 0; i < wrap->operandsCount; i++)
+		foreach(lc, wrap->operands)
 		{
-			if (check_allnegative(&wrap->operands[i]))
+			QueryItemWrap *item = (QueryItemWrap *) lfirst(lc);
+
+			if (check_allnegative(item))
 				return true;
 		}
 		return false;
@@ -348,10 +339,14 @@ extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 	}
 	else if (wrap->type == QI_OPR)
 	{
-		int			i;
+		ListCell   *lc;
 
-		for (i = 0; i < wrap->operandsCount; i++)
-			extract_wraps(&wrap->operands[i], context, level + 1);
+		foreach(lc, wrap->operands)
+		{
+			QueryItemWrap *item = (QueryItemWrap *) lfirst(lc);
+
+			extract_wraps(item, context, level + 1);
+		}
 	}
 }
 

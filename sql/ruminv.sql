@@ -10,6 +10,7 @@ INSERT INTO test_invrum VALUES ('(a|b)&c'::tsquery);
 INSERT INTO test_invrum VALUES ('(!(a|b))&c'::tsquery);
 INSERT INTO test_invrum VALUES ('(a|b)&(c|d)'::tsquery);
 INSERT INTO test_invrum VALUES ('!a'::tsquery);
+INSERT INTO test_invrum VALUES ('(a|a1|a2|a3|a4|a5)&(b|b1|b2|b3|b4|b5|b6)&!(c|c1|c2|c3)'::tsquery);
 
 SELECT * FROM test_invrum WHERE q @@ ''::tsvector;
 SELECT * FROM test_invrum WHERE q @@ 'a'::tsvector;
