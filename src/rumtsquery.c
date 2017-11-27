@@ -282,11 +282,6 @@ extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 			context->addInfo[index] = PointerGetDatum(addinfo);
 			context->addInfoIsNull[index] = false;
 			context->index++;
-
-			/*
-			 * ptrEnd = (unsigned char *) VARDATA(addinfo) + VARHDRSZ + 2 *
-			 * Max(level, 1) * MAX_ENCODED_LEN;
-			 */
 		}
 		else
 		{
@@ -295,25 +290,13 @@ extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 					 VARSIZE(addinfo) + 2 * Max(level, 1) * MAX_ENCODED_LEN);
 			context->addInfo[index] = PointerGetDatum(addinfo);
 			ptr = (unsigned char *) VARDATA(addinfo) + VARSIZE_ANY_EXHDR(addinfo);
-
-			/*
-			 * ptrEnd = (unsigned char *) VARDATA(addinfo) +
-			 * VARSIZE_ANY_EXHDR(addinfo) + 2 * Max(level, 1) *
-			 * MAX_ENCODED_LEN;
-			 */
 		}
-
-		/*
-		 * elog(NOTICE, "%s",
-		 * text_to_cstring(DatumGetTextP(context->entries[index])));
-		 */
 
 		while (wrap->parent)
 		{
 			QueryItemWrap *parent = wrap->parent;
 			uint32		sum;
 
-			/* elog(NOTICE, "%d %d %d", parent->num, parent->sum, wrap->not); */
 			encode_varbyte((uint32) parent->num, &ptr);
 			sum = (uint32) abs(parent->sum);
 			sum <<= 2;
@@ -329,13 +312,7 @@ extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 			encode_varbyte(1, &ptr);
 			encode_varbyte(4 | 1, &ptr);
 		}
-		/* Assert(ptr <= ptrEnd); */
 		SET_VARSIZE(addinfo, ptr - (unsigned char *) addinfo);
-
-		/*
-		 * elog(NOTICE, "%s", DatumGetPointer(DirectFunctionCall1(byteaout,
-		 * PointerGetDatum(addinfo))));
-		 */
 	}
 	else if (wrap->type == QI_OPR)
 	{
@@ -349,21 +326,6 @@ extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 		}
 	}
 }
-
-/*PG_FUNCTION_INFO_V1(rum_process_tsquery);
-Datum
-rum_process_tsquery(PG_FUNCTION_ARGS)
-{
-	TSQuery		query = PG_GETARG_TSQUERY(0);
-	QueryItem  *item = GETQUERY(query);
-	QueryItemWrap *wrap = make_query_item_wrap(item, NULL, false);
-	int			num = 1;
-
-	calc_wraps(wrap, &num);
-	print_wraps(wrap, , 0);
-
-	PG_RETURN_VOID();
-}*/
 
 PG_FUNCTION_INFO_V1(ruminv_extract_tsquery);
 Datum
@@ -413,12 +375,6 @@ ruminv_extract_tsquery(PG_FUNCTION_ARGS)
 		(*addInfoIsNull)[count - 1] = true;
 	}
 	*nentries = count;
-
-/*	elog(NOTICE, "%d", *nentries);
-	for (i = 0; i < *nentries; i++)
-	{
-		elog(NOTICE, "%s", text_to_cstring(DatumGetPointer((entries)[i])));
-	}*/
 
 	PG_FREE_IF_COPY(query, 0);
 	PG_RETURN_POINTER(entries);
@@ -518,11 +474,6 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 		ptr = (unsigned char *) VARDATA_ANY(DatumGetPointer(addInfo[i]));
 		size = VARSIZE_ANY_EXHDR(DatumGetPointer(addInfo[i]));
 
-		/*
-		 * elog(NOTICE, "%d %s", i,
-		 * DatumGetPointer(DirectFunctionCall1(byteaout, addInfo[i])));
-		 */
-
 		if (size == 0)
 		{
 			res = true;
@@ -543,8 +494,6 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 			sum = (sumVal & 2) ? (-sum) : (sum);
 
 			index = num - 1;
-
-			/* elog(NOTICE, "a %d %d %d %d", i, index, sum, not); */
 
 			if (child)
 			{
@@ -585,11 +534,6 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 	}
 	else
 	{
-		/*
-		 * for (i = 0; i < lastIndex; i++) { elog(NOTICE, "s %d %d %d %d", i,
-		 * nodes[i].sum, nodes[i].parent, nodes[i].not); }
-		 */
-
 		for (i = lastIndex - 1; i >= 0; i--)
 		{
 			if (nodes[i].parent != -2)
@@ -611,8 +555,6 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 			}
 		}
 	}
-
-/*	elog(NOTICE, "%d", res);*/
 
 	PG_RETURN_BOOL(res);
 }
