@@ -20,6 +20,9 @@
 
 #include "rum.h"
 
+/*
+ * A "wrapper" over tsquery item.  More suitable representation for pocessing.
+ */
 typedef struct QueryItemWrap
 {
 	QueryItemType type;
@@ -33,8 +36,11 @@ typedef struct QueryItemWrap
 	int			num;
 }	QueryItemWrap;
 
+/*
+ * Add child to tsquery item wrap.
+ */
 static QueryItemWrap *
-add_child(QueryItemWrap * parent)
+add_child(QueryItemWrap *parent)
 {
 	QueryItemWrap *result;
 
@@ -48,8 +54,11 @@ add_child(QueryItemWrap * parent)
 	return result;
 }
 
+/*
+ * Make wrapper over tsquery item.  Flattern tree if needed.
+ */
 static QueryItemWrap *
-make_query_item_wrap(QueryItem *item, QueryItemWrap * parent, bool not)
+make_query_item_wrap(QueryItem *item, QueryItemWrap *parent, bool not)
 {
 	if (item->type == QI_VAL)
 	{
@@ -107,8 +116,11 @@ make_query_item_wrap(QueryItem *item, QueryItemWrap * parent, bool not)
 	return NULL;
 }
 
+/*
+ * Recursively calculate "sum" for tsquery item wraps.
+ */
 static int
-calc_wraps(QueryItemWrap * wrap, int *num)
+calc_wraps(QueryItemWrap *wrap, int *num)
 {
 	int			notCount = 0,
 				result;
@@ -145,6 +157,10 @@ calc_wraps(QueryItemWrap * wrap, int *num)
 	return result;
 }
 
+/*
+ * Check if tsquery doesn't need any positive lexeme occurence for satisfaction.
+ * That is this funciton returns true when tsquery maches empty tsvector.
+ */
 static bool
 check_allnegative(QueryItemWrap * wrap)
 {
@@ -186,6 +202,7 @@ check_allnegative(QueryItemWrap * wrap)
 
 }
 
+/* Max length of variable-length encoded 32-bit integer */
 #define MAX_ENCODED_LEN 5
 
 /*
@@ -253,8 +270,11 @@ typedef struct
 	char	   *operand;
 }	ExtractContext;
 
+/*
+ * Recursively extract entries from tsquery wraps.  Encode paths into addInfos.
+ */
 static void
-extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
+extract_wraps(QueryItemWrap *wrap, ExtractContext *context, int level)
 {
 	if (wrap->type == QI_VAL)
 	{
@@ -262,7 +282,7 @@ extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 		unsigned char *ptr;
 		int			index;
 
-
+		/* Check if given lexeme was already extracted */
 		for (index = 0; index < context->index; index++)
 		{
 			text	   *entry;
@@ -273,6 +293,7 @@ extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 				break;
 		}
 
+		/* Either allocate new addInfo or extend existing addInfo */
 		if (index >= context->index)
 		{
 			index = context->index;
@@ -292,6 +313,7 @@ extract_wraps(QueryItemWrap * wrap, ExtractContext * context, int level)
 			ptr = (unsigned char *) VARDATA(addinfo) + VARSIZE_ANY_EXHDR(addinfo);
 		}
 
+		/* Encode path into addInfo */
 		while (wrap->parent)
 		{
 			QueryItemWrap *parent = wrap->parent;
@@ -471,6 +493,7 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 		if (addInfoIsNull[i])
 			elog(ERROR, "Unexpected addInfoIsNull");
 
+		/* Iterate path making corresponding calculation */
 		ptr = (unsigned char *) VARDATA_ANY(DatumGetPointer(addInfo[i]));
 		size = VARSIZE_ANY_EXHDR(DatumGetPointer(addInfo[i]));
 
@@ -528,6 +551,7 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 		}
 	}
 
+	/* Iterate over nodes */
 	if (allFalse && check[nkeys - 1])
 	{
 		res = true;
