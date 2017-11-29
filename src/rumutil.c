@@ -13,8 +13,10 @@
 
 #include "postgres.h"
 
+#include "access/htup_details.h"
 #include "access/reloptions.h"
 #include "catalog/pg_collation.h"
+#include "catalog/pg_opclass.h"
 #include "catalog/pg_type.h"
 #include "miscadmin.h"
 #include "storage/indexfsm.h"
@@ -23,6 +25,7 @@
 #include "utils/guc.h"
 #include "utils/index_selfuncs.h"
 #include "utils/lsyscache.h"
+#include "utils/syscache.h"
 #include "utils/typcache.h"
 
 #include "rum.h"
@@ -111,6 +114,9 @@ rumhandler(PG_FUNCTION_ARGS)
 	amroutine->amstorage = true;
 	amroutine->amclusterable = false;
 	amroutine->ampredlocks = true;
+#if PG_VERSION_NUM >= 100000
+	amroutine->amcanparallel = false;
+#endif
 	amroutine->amkeytype = InvalidOid;
 
 	amroutine->ambuild = rumbuild;
@@ -121,6 +127,7 @@ rumhandler(PG_FUNCTION_ARGS)
 	amroutine->amcanreturn = NULL;
 	amroutine->amcostestimate = gincostestimate;
 	amroutine->amoptions = rumoptions;
+	amroutine->amproperty = rumproperty;
 	amroutine->amvalidate = rumvalidate;
 	amroutine->ambeginscan = rumbeginscan;
 	amroutine->amrescan = rumrescan;
@@ -129,6 +136,11 @@ rumhandler(PG_FUNCTION_ARGS)
 	amroutine->amendscan = rumendscan;
 	amroutine->ammarkpos = NULL;
 	amroutine->amrestrpos = NULL;
+#if PG_VERSION_NUM >= 100000
+	amroutine->amestimateparallelscan = NULL;
+	amroutine->aminitparallelscan = NULL;
+	amroutine->amparallelrescan = NULL;
+#endif
 
 	PG_RETURN_POINTER(amroutine);
 }
@@ -875,6 +887,82 @@ rumoptions(Datum reloptions, bool validate)
 	pfree(options);
 
 	return (bytea *) rdopts;
+}
+
+bool
+rumproperty(Oid index_oid, int attno,
+			IndexAMProperty prop, const char *propname,
+			bool *res, bool *isnull)
+{
+	HeapTuple	tuple;
+	Form_pg_index rd_index PG_USED_FOR_ASSERTS_ONLY;
+	Form_pg_opclass rd_opclass;
+	Datum		datum;
+	bool		disnull;
+	oidvector  *indclass;
+	Oid			opclass,
+				opfamily,
+				opcintype;
+	int16		procno;
+
+	/* Only answer column-level inquiries */
+	if (attno == 0)
+		return false;
+
+	switch (prop)
+	{
+		case AMPROP_DISTANCE_ORDERABLE:
+			procno = RUM_ORDERING_PROC;
+			break;
+		default:
+			return false;
+	}
+
+	/* First we need to know the column's opclass. */
+
+	tuple = SearchSysCache1(INDEXRELID, ObjectIdGetDatum(index_oid));
+	if (!HeapTupleIsValid(tuple))
+	{
+		*isnull = true;
+		return true;
+	}
+	rd_index = (Form_pg_index) GETSTRUCT(tuple);
+
+	/* caller is supposed to guarantee this */
+	Assert(attno > 0 && attno <= rd_index->indnatts);
+
+	datum = SysCacheGetAttr(INDEXRELID, tuple,
+							Anum_pg_index_indclass, &disnull);
+	Assert(!disnull);
+
+	indclass = ((oidvector *) DatumGetPointer(datum));
+	opclass = indclass->values[attno - 1];
+
+	ReleaseSysCache(tuple);
+
+	/* Now look up the opclass family and input datatype. */
+
+	tuple = SearchSysCache1(CLAOID, ObjectIdGetDatum(opclass));
+	if (!HeapTupleIsValid(tuple))
+	{
+		*isnull = true;
+		return true;
+	}
+	rd_opclass = (Form_pg_opclass) GETSTRUCT(tuple);
+
+	opfamily = rd_opclass->opcfamily;
+	opcintype = rd_opclass->opcintype;
+
+	ReleaseSysCache(tuple);
+
+	/* And now we can check whether the function is provided. */
+
+	*res = SearchSysCacheExists4(AMPROCNUM,
+								 ObjectIdGetDatum(opfamily),
+								 ObjectIdGetDatum(opcintype),
+								 ObjectIdGetDatum(opcintype),
+								 Int16GetDatum(procno));
+	return true;
 }
 
 /*

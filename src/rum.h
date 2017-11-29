@@ -400,6 +400,9 @@ typedef struct RumState
 
 /* rumutil.c */
 extern bytea *rumoptions(Datum reloptions, bool validate);
+extern bool rumproperty(Oid index_oid, int attno,
+			 IndexAMProperty prop, const char *propname,
+			 bool *res, bool *isnull);
 extern Datum rumhandler(PG_FUNCTION_ARGS);
 extern void initRumState(RumState * state, Relation index);
 extern Buffer RumNewBuffer(Relation index);
