@@ -1,30 +1,11 @@
 CREATE EXTENSION rum;
 
--- First validate operator classes
-SELECT opcname, amvalidate(opc.oid)
-FROM pg_opclass opc JOIN pg_am am ON am.oid = opcmethod
-WHERE amname = 'rum'
-ORDER BY opcname;
-
 CREATE TABLE test_rum( t text, a tsvector );
 
 CREATE TRIGGER tsvectorupdate
 BEFORE UPDATE OR INSERT ON test_rum
 FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('a', 'pg_catalog.english', 't');
 CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
-
--- Access method properties
-SELECT a.amname, p.name, pg_indexam_has_property(a.oid,p.name)
-FROM pg_am a, unnest(array['can_order','can_unique','can_multi_col','can_exclude']) p(name)
-WHERE a.amname = 'rum' ORDER BY a.amname;
-
--- Index properties
-SELECT p.name, pg_index_has_property('rumidx'::regclass,p.name)
-FROM unnest(array['clusterable','index_scan','bitmap_scan','backward_scan']) p(name);
-
--- Index column properties
-SELECT p.name, pg_index_column_has_property('rumidx'::regclass,1,p.name)
-FROM unnest(array['asc','desc','nulls_first','nulls_last','orderable','distance_orderable','returnable','search_array','search_nulls']) p(name);
 
 \copy test_rum(t) from 'data/rum.data';
 

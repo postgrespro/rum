@@ -1,0 +1,121 @@
+--
+-- Various sanity tests
+--
+-- First validate operator classes
+SELECT opcname, amvalidate(opc.oid)
+FROM pg_opclass opc JOIN pg_am am ON am.oid = opcmethod
+WHERE amname = 'rum'
+ORDER BY opcname;
+              opcname              | amvalidate 
+-----------------------------------+------------
+ rum_anyarray_addon_ops            | t
+ rum_anyarray_ops                  | t
+ rum_bit_ops                       | t
+ rum_bytea_ops                     | t
+ rum_char_ops                      | t
+ rum_cidr_ops                      | t
+ rum_date_ops                      | t
+ rum_float4_ops                    | t
+ rum_float8_ops                    | t
+ rum_inet_ops                      | t
+ rum_int2_ops                      | t
+ rum_int4_ops                      | t
+ rum_int8_ops                      | t
+ rum_interval_ops                  | t
+ rum_macaddr_ops                   | t
+ rum_money_ops                     | t
+ rum_numeric_ops                   | t
+ rum_oid_ops                       | t
+ rum_text_ops                      | t
+ rum_time_ops                      | t
+ rum_timestamp_ops                 | t
+ rum_timestamptz_ops               | t
+ rum_timetz_ops                    | t
+ rum_tsquery_ops                   | t
+ rum_tsvector_addon_ops            | t
+ rum_tsvector_hash_addon_ops       | t
+ rum_tsvector_hash_ops             | t
+ rum_tsvector_hash_timestamp_ops   | t
+ rum_tsvector_hash_timestamptz_ops | t
+ rum_tsvector_ops                  | t
+ rum_tsvector_timestamp_ops        | t
+ rum_tsvector_timestamptz_ops      | t
+ rum_varbit_ops                    | t
+ rum_varchar_ops                   | t
+(34 rows)
+
+--
+-- Test access method and 'rumidx' index properties
+--
+-- Access method properties
+SELECT a.amname, p.name, pg_indexam_has_property(a.oid,p.name)
+FROM pg_am a, unnest(array['can_order','can_unique','can_multi_col','can_exclude']) p(name)
+WHERE a.amname = 'rum' ORDER BY a.amname;
+ amname |     name      | pg_indexam_has_property 
+--------+---------------+-------------------------
+ rum    | can_order     | f
+ rum    | can_unique    | f
+ rum    | can_multi_col | t
+ rum    | can_exclude   | t
+(4 rows)
+
+-- Index properties
+SELECT p.name, pg_index_has_property('rumidx'::regclass,p.name)
+FROM unnest(array['clusterable','index_scan','bitmap_scan','backward_scan']) p(name);
+     name      | pg_index_has_property 
+---------------+-----------------------
+ clusterable   | f
+ index_scan    | t
+ bitmap_scan   | t
+ backward_scan | f
+(4 rows)
+
+-- Index column properties
+SELECT p.name, pg_index_column_has_property('rumidx'::regclass,1,p.name)
+FROM unnest(array['asc','desc','nulls_first','nulls_last','orderable','distance_orderable','returnable','search_array','search_nulls']) p(name);
+        name        | pg_index_column_has_property 
+--------------------+------------------------------
+ asc                | f
+ desc               | f
+ nulls_first        | f
+ nulls_last         | f
+ orderable          | f
+ distance_orderable | t
+ returnable         | f
+ search_array       | f
+ search_nulls       | f
+(9 rows)
+
+--
+-- Check incorrect operator class
+--
+DROP INDEX rumidx;
+-- Check incorrect operator class
+CREATE OPERATOR CLASS rum_tsvector_norm_ops
+FOR TYPE tsvector USING rum
+AS
+	OPERATOR        1       @@ (tsvector, tsquery),
+	OPERATOR        2       <=> (tsvector, rum_distance_query) FOR ORDER BY pg_catalog.float_ops,
+	FUNCTION        1       gin_cmp_tslexeme(text, text),
+	FUNCTION        2       rum_extract_tsvector(tsvector,internal,internal,internal,internal),
+	FUNCTION        3       rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal),
+	FUNCTION        4       rum_tsquery_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
+	FUNCTION        5       gin_cmp_prefix(text,text,smallint,internal),
+	FUNCTION        6       rum_tsvector_config(internal),
+	FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
+	FUNCTION        8       rum_tsquery_distance(internal,smallint,tsvector,int,internal,internal,internal,internal,internal),
+	FUNCTION        10      rum_ts_join_pos(internal, internal),
+	STORAGE         text;
+CREATE INDEX rum_norm_idx ON test_rum USING rum(a rum_tsvector_norm_ops);
+SET enable_seqscan=off;
+SET enable_bitmapscan=off;
+SET enable_indexscan=on;
+SELECT a
+	FROM test_rum
+	WHERE a @@ to_tsquery('pg_catalog.english', 'bar')
+	ORDER BY a <=> (to_tsquery('pg_catalog.english', 'bar'),0)
+              a               
+------------------------------
+ 'bar':2,8 'foo':1,3,6 'qq':7
+(1 row)
+

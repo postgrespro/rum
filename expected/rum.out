@@ -1,91 +1,9 @@
 CREATE EXTENSION rum;
--- First validate operator classes
-SELECT opcname, amvalidate(opc.oid)
-FROM pg_opclass opc JOIN pg_am am ON am.oid = opcmethod
-WHERE amname = 'rum'
-ORDER BY opcname;
-              opcname              | amvalidate 
------------------------------------+------------
- rum_anyarray_addon_ops            | t
- rum_anyarray_ops                  | t
- rum_bit_ops                       | t
- rum_bytea_ops                     | t
- rum_char_ops                      | t
- rum_cidr_ops                      | t
- rum_date_ops                      | t
- rum_float4_ops                    | t
- rum_float8_ops                    | t
- rum_inet_ops                      | t
- rum_int2_ops                      | t
- rum_int4_ops                      | t
- rum_int8_ops                      | t
- rum_interval_ops                  | t
- rum_macaddr_ops                   | t
- rum_money_ops                     | t
- rum_numeric_ops                   | t
- rum_oid_ops                       | t
- rum_text_ops                      | t
- rum_time_ops                      | t
- rum_timestamp_ops                 | t
- rum_timestamptz_ops               | t
- rum_timetz_ops                    | t
- rum_tsquery_ops                   | t
- rum_tsvector_addon_ops            | t
- rum_tsvector_hash_addon_ops       | t
- rum_tsvector_hash_ops             | t
- rum_tsvector_hash_timestamp_ops   | t
- rum_tsvector_hash_timestamptz_ops | t
- rum_tsvector_ops                  | t
- rum_tsvector_timestamp_ops        | t
- rum_tsvector_timestamptz_ops      | t
- rum_varbit_ops                    | t
- rum_varchar_ops                   | t
-(34 rows)
-
 CREATE TABLE test_rum( t text, a tsvector );
 CREATE TRIGGER tsvectorupdate
 BEFORE UPDATE OR INSERT ON test_rum
 FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('a', 'pg_catalog.english', 't');
 CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
--- Access method properties
-SELECT a.amname, p.name, pg_indexam_has_property(a.oid,p.name)
-FROM pg_am a, unnest(array['can_order','can_unique','can_multi_col','can_exclude']) p(name)
-WHERE a.amname = 'rum' ORDER BY a.amname;
- amname |     name      | pg_indexam_has_property 
---------+---------------+-------------------------
- rum    | can_order     | f
- rum    | can_unique    | f
- rum    | can_multi_col | t
- rum    | can_exclude   | t
-(4 rows)
-
--- Index properties
-SELECT p.name, pg_index_has_property('rumidx'::regclass,p.name)
-FROM unnest(array['clusterable','index_scan','bitmap_scan','backward_scan']) p(name);
-     name      | pg_index_has_property 
----------------+-----------------------
- clusterable   | f
- index_scan    | t
- bitmap_scan   | t
- backward_scan | f
-(4 rows)
-
--- Index column properties
-SELECT p.name, pg_index_column_has_property('rumidx'::regclass,1,p.name)
-FROM unnest(array['asc','desc','nulls_first','nulls_last','orderable','distance_orderable','returnable','search_array','search_nulls']) p(name);
-        name        | pg_index_column_has_property 
---------------------+------------------------------
- asc                | f
- desc               | f
- nulls_first        | f
- nulls_last         | f
- orderable          | f
- distance_orderable | t
- returnable         | f
- search_array       | f
- search_nulls       | f
-(9 rows)
-
 \copy test_rum(t) from 'data/rum.data';
 CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_addon_ops);
 ERROR:  additional information attribute "a" is not found in index

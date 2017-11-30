@@ -383,7 +383,9 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasPartialMatch)
 	 */
 	if (skey->sk_flags & SK_ISNULL)
 	{
-		so->isVoidRes = true;
+		/* Do not set isVoidRes for order keys */
+		if ((skey->sk_flags & SK_ORDER_BY) == 0)
+			so->isVoidRes = true;
 		return;
 	}
 
@@ -415,7 +417,9 @@ initScanKey(RumScanOpaque so, ScanKey skey, bool *hasPartialMatch)
 	{
 		if (searchMode == GIN_SEARCH_MODE_DEFAULT)
 		{
-			so->isVoidRes = true;
+			/* Do not set isVoidRes for order keys */
+			if ((skey->sk_flags & SK_ORDER_BY) == 0)
+				so->isVoidRes = true;
 			return;
 		}
 		nQueryValues = 0;		/* ensure sane value */
@@ -612,11 +616,7 @@ rumNewScanKey(IndexScanDesc scan)
 	}
 
 	for (i = 0; i < scan->numberOfOrderBys; i++)
-	{
 		initScanKey(so, &scan->orderByData[i], NULL);
-		if (so->isVoidRes)
-			break;
-	}
 
 	/*
 	 * Fill markAddInfo if possible
