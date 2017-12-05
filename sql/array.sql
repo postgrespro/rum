@@ -197,3 +197,17 @@ EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i <@ '{}';
 EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i % '{}';
 DROP INDEX idx_array;
 
+/*
+ * Check ordering using distance operator
+ */
+
+CREATE TABLE test_array_order (
+    i int2[]
+);
+\copy test_array_order(i) from 'data/rum_array.data';
+
+CREATE INDEX idx_array_order ON test_array_order USING rum (i rum_anyarray_ops);
+
+EXPLAIN (COSTS OFF)
+SELECT *, i <=> '{51}' from test_array_order WHERE i @> '{23,20}' order by i <=> '{51}';
+SELECT *, i <=> '{51}' from test_array_order WHERE i @> '{23,20}' order by i <=> '{51}';

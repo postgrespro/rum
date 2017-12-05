@@ -841,3 +841,37 @@ EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i % '{}';
 (2 rows)
 
 DROP INDEX idx_array;
+/*
+ * Check ordering using distance operator
+ */
+CREATE TABLE test_array_order (
+    i int2[]
+);
+\copy test_array_order(i) from 'data/rum_array.data';
+CREATE INDEX idx_array_order ON test_array_order USING rum (i rum_anyarray_ops);
+EXPLAIN (COSTS OFF)
+SELECT *, i <=> '{51}' from test_array_order WHERE i @> '{23,20}' order by i <=> '{51}';
+                      QUERY PLAN                      
+------------------------------------------------------
+ Index Scan using idx_array_order on test_array_order
+   Index Cond: (i @> '{23,20}'::smallint[])
+   Order By: (i <=> '{51}'::smallint[])
+(3 rows)
+
+SELECT *, i <=> '{51}' from test_array_order WHERE i @> '{23,20}' order by i <=> '{51}';
+          i          |     ?column?     
+---------------------+------------------
+ {20,23,51}          | 1.73205080756888
+ {33,51,20,77,23,65} | 2.44948974278318
+ {23,76,34,23,2,20}  |         Infinity
+ {20,60,45,23,29}    |         Infinity
+ {23,89,38,20,40,95} |         Infinity
+ {23,20,72}          |         Infinity
+ {73,23,20}          |         Infinity
+ {6,97,20,89,23}     |         Infinity
+ {20,98,30,23,1,66}  |         Infinity
+ {57,23,39,46,50,20} |         Infinity
+ {81,20,26,22,23}    |         Infinity
+ {18,23,10,90,15,20} |         Infinity
+(12 rows)
+

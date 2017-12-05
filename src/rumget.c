@@ -1519,6 +1519,7 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 					continue;
 			}
 			match = false;
+			break;
 		}
 
 		if (match)
@@ -1540,9 +1541,23 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 		RumScanKey	key = so->keys[i];
 
 		if (key->orderBy)
-			continue;
+		{
+			int			j;
 
-		if (key->recheckCurItem)
+			/* Catch up order key with *item */
+			for (j = 0; j < key->nentries; j++)
+			{
+				RumScanEntry entry = key->scanEntry[j];
+
+				while (entry->isFinished == false &&
+					   compareRumItem(rumstate, key->attnumOrig,
+									  &entry->curItem, item) < 0)
+				{
+					entryGetItem(rumstate, entry, NULL, scan->xs_snapshot);
+				}
+			}
+		}
+		else if (key->recheckCurItem)
 		{
 			*recheck = true;
 			break;
