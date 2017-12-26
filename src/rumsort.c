@@ -877,11 +877,7 @@ rum_tuplesort_begin_common(int workMem, bool randomAccess)
 	 * Create a working memory context for this sort operation. All data
 	 * needed by the sort will live inside this context.
 	 */
-	sortcontext = AllocSetContextCreate(CurrentMemoryContext,
-										"TupleSort",
-										ALLOCSET_DEFAULT_MINSIZE,
-										ALLOCSET_DEFAULT_INITSIZE,
-										ALLOCSET_DEFAULT_MAXSIZE);
+	sortcontext = RumContextCreate(CurrentMemoryContext, "TupleSort");
 
 	/*
 	 * Make the Tuplesortstate within the per-sort context.  This way, we

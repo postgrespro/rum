@@ -1057,4 +1057,20 @@ extern Datum FunctionCall10Coll(FmgrInfo *flinfo, Oid collation,
 				   Datum arg6, Datum arg7, Datum arg8,
 				   Datum arg9, Datum arg10);
 
+/* PostgreSQL version-agnostic creation of memory context */
+#if PG_VERSION_NUM >= 110000
+	#define RumContextCreate(parent, name) \
+		AllocSetContextCreateExtended(parent, name, \
+									  MEMCONTEXT_COPY_NAME, \
+									  ALLOCSET_DEFAULT_MINSIZE, \
+									  ALLOCSET_DEFAULT_INITSIZE, \
+									  ALLOCSET_DEFAULT_MAXSIZE)
+#else
+	#define RumContextCreate(parent, name) \
+		AllocSetContextCreate(parent, name, \
+							  ALLOCSET_DEFAULT_MINSIZE, \
+							  ALLOCSET_DEFAULT_INITSIZE, \
+							  ALLOCSET_DEFAULT_MAXSIZE)
+#endif
+
 #endif   /* __RUM_H__ */

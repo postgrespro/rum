@@ -633,17 +633,11 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	 * create a temporary memory context that is reset once for each tuple
 	 * inserted into the index
 	 */
-	buildstate.tmpCtx = AllocSetContextCreate(CurrentMemoryContext,
-											  "Rum build temporary context",
-											  ALLOCSET_DEFAULT_MINSIZE,
-											  ALLOCSET_DEFAULT_INITSIZE,
-											  ALLOCSET_DEFAULT_MAXSIZE);
+	buildstate.tmpCtx = RumContextCreate(CurrentMemoryContext,
+										 "Rum build temporary context");
 
-	buildstate.funcCtx = AllocSetContextCreate(CurrentMemoryContext,
-					 "Rum build temporary context for user-defined function",
-											   ALLOCSET_DEFAULT_MINSIZE,
-											   ALLOCSET_DEFAULT_INITSIZE,
-											   ALLOCSET_DEFAULT_MAXSIZE);
+	buildstate.funcCtx = RumContextCreate(CurrentMemoryContext,
+					 "Rum build temporary context for user-defined function");
 
 	buildstate.accum.rumstate = &buildstate.rumstate;
 	rumInitBA(&buildstate.accum);
@@ -813,11 +807,8 @@ ruminsert(Relation index, Datum *values, bool *isnull,
 	Datum		outerAddInfo = (Datum) 0;
 	bool		outerAddInfoIsNull = true;
 
-	insertCtx = AllocSetContextCreate(CurrentMemoryContext,
-									  "Rum insert temporary context",
-									  ALLOCSET_DEFAULT_MINSIZE,
-									  ALLOCSET_DEFAULT_INITSIZE,
-									  ALLOCSET_DEFAULT_MAXSIZE);
+	insertCtx = RumContextCreate(CurrentMemoryContext,
+								 "Rum insert temporary context");
 
 	oldCtx = MemoryContextSwitchTo(insertCtx);
 

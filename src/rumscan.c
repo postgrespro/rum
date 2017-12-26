@@ -35,16 +35,10 @@ rumbeginscan(Relation rel, int nkeys, int norderbys)
 	so->firstCall = true;
 	so->totalentries = 0;
 	so->sortedEntries = NULL;
-	so->tempCtx = AllocSetContextCreate(CurrentMemoryContext,
-										"Rum scan temporary context",
-										ALLOCSET_DEFAULT_MINSIZE,
-										ALLOCSET_DEFAULT_INITSIZE,
-										ALLOCSET_DEFAULT_MAXSIZE);
-	so->keyCtx = AllocSetContextCreate(CurrentMemoryContext,
-									   "Rum scan key context",
-									   ALLOCSET_DEFAULT_MINSIZE,
-									   ALLOCSET_DEFAULT_INITSIZE,
-									   ALLOCSET_DEFAULT_MAXSIZE);
+	so->tempCtx = RumContextCreate(CurrentMemoryContext,
+								   "Rum scan temporary context");
+	so->keyCtx = RumContextCreate(CurrentMemoryContext,
+								  "Rum scan key context");
 
 	initRumState(&so->rumstate, scan->indexRelation);
 
