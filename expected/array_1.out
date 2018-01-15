@@ -525,14 +525,7 @@ EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i && '{1}' ORDER BY add_info 
 (4 rows)
 
 SELECT * FROM test_array WHERE i && '{1}' ORDER BY add_info <=> '2016-05-16 14:21:25' LIMIT 10;
-     i     |         add_info         
------------+--------------------------
- {1}       | Thu May 19 14:21:25 2016
- {1,2}     | Fri May 20 14:21:25 2016
- {1,2,3}   | Sat May 21 14:21:25 2016
- {1,2,3,4} | Sun May 22 14:21:25 2016
-(4 rows)
-
+ERROR:  doesn't support order by over pass-by-reference column
 DROP INDEX idx_array;
 /*
  * Sanity checks for popular array types.
