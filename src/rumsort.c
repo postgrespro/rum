@@ -162,6 +162,19 @@ bool		optimize_bounded_sort = true;
 #define LogicalTapeRewindForWrite(x, y) LogicalTapeRewind((x), (y), true)
 #endif
 
+#if PG_VERSION_NUM >= 110000
+#define RUM_SORT_START(INT1, INT2, INT3, INT4, INT5) \
+TRACE_POSTGRESQL_SORT_START(INT1, INT2, INT3, INT4, INT5, false)
+#else
+#define RUM_SORT_START(INT1, INT2, INT3, INT4, INT5) \
+TRACE_POSTGRESQL_SORT_START(INT1, INT2, INT3, INT4, INT5)
+#endif
+
+#if PG_VERSION_NUM >= 110000
+#define LogicalTapeSetCreate(X) LogicalTapeSetCreate(X, NULL, NULL, 1)
+#define LogicalTapeFreeze(X, Y) LogicalTapeFreeze(X, Y, NULL)
+#endif
+
 /*
  * The objects we actually sort are SortTuple structs.  These contain
  * a pointer to the tuple proper (might be a MinimalTuple or IndexTuple),
@@ -963,11 +976,11 @@ rum_tuplesort_begin_heap(TupleDesc tupDesc,
 
 	state->nKeys = nkeys;
 
-	TRACE_POSTGRESQL_SORT_START(HEAP_SORT,
-								false,	/* no unique check */
-								nkeys,
-								workMem,
-								randomAccess);
+	RUM_SORT_START(HEAP_SORT,
+				   false,	/* no unique check */
+				   nkeys,
+				   workMem,
+				   randomAccess);
 
 	state->comparetup = comparetup_heap;
 	state->copytup = copytup_heap;
@@ -1025,11 +1038,11 @@ rum_tuplesort_begin_cluster(TupleDesc tupDesc,
 
 	state->nKeys = RelationGetNumberOfAttributes(indexRel);
 
-	TRACE_POSTGRESQL_SORT_START(CLUSTER_SORT,
-								false,	/* no unique check */
-								state->nKeys,
-								workMem,
-								randomAccess);
+	RUM_SORT_START(CLUSTER_SORT,
+				   false,	/* no unique check */
+				   state->nKeys,
+				   workMem,
+				   randomAccess);
 
 	state->comparetup = comparetup_cluster;
 	state->copytup = copytup_cluster;
@@ -1085,11 +1098,11 @@ rum_tuplesort_begin_index_btree(Relation heapRel,
 
 	state->nKeys = RelationGetNumberOfAttributes(indexRel);
 
-	TRACE_POSTGRESQL_SORT_START(INDEX_SORT,
-								enforceUnique,
-								state->nKeys,
-								workMem,
-								randomAccess);
+	RUM_SORT_START(INDEX_SORT,
+				   enforceUnique,
+				   state->nKeys,
+				   workMem,
+				   randomAccess);
 
 	state->comparetup = comparetup_index_btree;
 	state->copytup = copytup_index;
@@ -1162,11 +1175,11 @@ rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess,
 
 	state->nKeys = nKeys;
 
-	TRACE_POSTGRESQL_SORT_START(INDEX_SORT,
-								false,	/* no unique check */
-								state->nKeys,
-								workMem,
-								randomAccess);
+	RUM_SORT_START(INDEX_SORT,
+				   false,	/* no unique check */
+				   state->nKeys,
+				   workMem,
+				   randomAccess);
 
 	state->comparetup = comparetup_rum;
 	state->copytup = copytup_rum;
@@ -1195,11 +1208,11 @@ rum_tuplesort_begin_rumitem(int workMem, FmgrInfo *cmp)
 			 "begin rumitem sort: workMem = %d", workMem);
 #endif
 
-	TRACE_POSTGRESQL_SORT_START(INDEX_SORT,
-								false,	/* no unique check */
-								2,
-								workMem,
-								false);
+	RUM_SORT_START(INDEX_SORT,
+				   false,	/* no unique check */
+				   2,
+				   workMem,
+				   false);
 
 	state->cmp = cmp;
 	state->comparetup = comparetup_rumitem;
@@ -1236,11 +1249,11 @@ rum_tuplesort_begin_datum(Oid datumType, Oid sortOperator, Oid sortCollation,
 
 	state->nKeys = 1;			/* always a one-column sort */
 
-	TRACE_POSTGRESQL_SORT_START(DATUM_SORT,
-								false,	/* no unique check */
-								1,
-								workMem,
-								randomAccess);
+	RUM_SORT_START(DATUM_SORT,
+				   false,	/* no unique check */
+				   1,
+				   workMem,
+				   randomAccess);
 
 	state->comparetup = comparetup_datum;
 	state->copytup = copytup_datum;

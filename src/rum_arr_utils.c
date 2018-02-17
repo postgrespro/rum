@@ -102,6 +102,12 @@ typedef struct SimpleArray
 } SimpleArray;
 
 
+#if PG_VERSION_NUM < 110000
+#define SearchSysCacheList(A, B, C, D, E) \
+SearchSysCacheList(A, B, C, D, E, 0)
+#endif
+
+
 float8	RumArraySimilarityThreshold	= RUM_SIMILARITY_THRESHOLD_DEFAULT;
 int		RumArraySimilarityFunction	= RUM_SIMILARITY_FUNCTION_DEFAULT;
 
@@ -563,7 +569,7 @@ getAMProc(Oid amOid, Oid typid)
 			 */
 			catlist = SearchSysCacheList(CASTSOURCETARGET, 1,
 										 ObjectIdGetDatum(typid),
-										 0, 0, 0);
+										 0, 0);
 			for (i = 0; i < catlist->n_members; i++)
 			{
 				HeapTuple		tuple = &catlist->members[i]->tuple;

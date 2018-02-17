@@ -32,6 +32,11 @@ typedef struct
 	BuildAccumulator accum;
 }	RumBuildState;
 
+#if PG_VERSION_NUM >= 110000
+#define IndexBuildHeapScan(A, B, C, D, E, F) \
+IndexBuildHeapScan(A, B, C, D, E, F, NULL)
+#endif
+
 /*
  * Creates new posting tree with one page, containing the given TIDs.
  * Returns the page number (which will be the root of this posting tree).
