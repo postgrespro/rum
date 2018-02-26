@@ -13,10 +13,23 @@ sub test_index_replay
 {
 	my ($test_name) = @_;
 
+	# Check server version
+	my $server_version = $node_master->safe_psql("postgres", "SELECT current_setting('server_version_num');") + 0;
+
 	# Wait for standby to catch up
 	my $applname = $node_standby->name;
-	my $caughtup_query =
-		"SELECT pg_current_wal_lsn() <= write_lsn FROM pg_stat_replication WHERE application_name = '$applname';";
+	my $caughtup_query;
+
+	if ($server_version < 100000)
+	{
+		$caughtup_query =
+			"SELECT pg_current_xlog_location() <= write_location FROM pg_stat_replication WHERE application_name = '$applname';";
+	}
+	else
+	{
+		$caughtup_query =
+			"SELECT pg_current_wal_lsn() <= write_lsn FROM pg_stat_replication WHERE application_name = '$applname';";
+	}
 	$node_master->poll_query_until('postgres', $caughtup_query)
 	  or die "Timed out while waiting for standby 1 to catch up";
 
