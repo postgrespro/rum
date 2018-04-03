@@ -1061,7 +1061,6 @@ extern Datum FunctionCall10Coll(FmgrInfo *flinfo, Oid collation,
 #if PG_VERSION_NUM >= 110000
 	#define RumContextCreate(parent, name) \
 		AllocSetContextCreateExtended(parent, name, \
-									  MEMCONTEXT_COPY_NAME, \
 									  ALLOCSET_DEFAULT_MINSIZE, \
 									  ALLOCSET_DEFAULT_INITSIZE, \
 									  ALLOCSET_DEFAULT_MAXSIZE)
