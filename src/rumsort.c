@@ -3443,7 +3443,11 @@ comparetup_cluster(const SortTuple *a, const SortTuple *b,
 	int32		compare;
 
 	/* Compare the leading sort key, if it's simple */
+#if PG_VERSION_NUM >= 110000
+	if (state->indexInfo->ii_IndexAttrNumbers[0] != 0)
+#else
 	if (state->indexInfo->ii_KeyAttrNumbers[0] != 0)
+#endif
 	{
 		compare = inlineApplySortFunction(&scanKey->sk_func, scanKey->sk_flags,
 										  scanKey->sk_collation,
@@ -3472,7 +3476,11 @@ comparetup_cluster(const SortTuple *a, const SortTuple *b,
 
 		for (; nkey < state->nKeys; nkey++, scanKey++)
 		{
+#if PG_VERSION_NUM >= 110000
+			AttrNumber	attno = state->indexInfo->ii_IndexAttrNumbers[nkey];
+#else
 			AttrNumber	attno = state->indexInfo->ii_KeyAttrNumbers[nkey];
+#endif
 			Datum		datum1,
 						datum2;
 			bool		isnull1,
@@ -3538,15 +3546,20 @@ static void
 copytup_cluster(RumTuplesortstate *state, SortTuple *stup, void *tup)
 {
 	HeapTuple	tuple = (HeapTuple) tup;
+#if PG_VERSION_NUM >= 110000
+	AttrNumber	attno = state->indexInfo->ii_IndexAttrNumbers[0];
+#else
+	AttrNumber	attno = state->indexInfo->ii_KeyAttrNumbers[0];
+#endif
 
 	/* copy the tuple into sort storage */
 	tuple = heap_copytuple(tuple);
 	stup->tuple = (void *) tuple;
 	USEMEM(state, GetMemoryChunkSpace(tuple));
 	/* set up first-column key value, if it's a simple column */
-	if (state->indexInfo->ii_KeyAttrNumbers[0] != 0)
+	if (attno != 0)
 		stup->datum1 = heap_getattr(tuple,
-									state->indexInfo->ii_KeyAttrNumbers[0],
+									attno,
 									state->tupDesc,
 									&stup->isnull1);
 }
@@ -3578,6 +3591,11 @@ readtup_cluster(RumTuplesortstate *state, SortTuple *stup,
 {
 	unsigned int t_len = tuplen - sizeof(ItemPointerData) - sizeof(int);
 	HeapTuple	tuple = (HeapTuple) palloc(t_len + HEAPTUPLESIZE);
+#if PG_VERSION_NUM >= 110000
+	AttrNumber	attno = state->indexInfo->ii_IndexAttrNumbers[0];
+#else
+	AttrNumber	attno = state->indexInfo->ii_KeyAttrNumbers[0];
+#endif
 
 	USEMEM(state, GetMemoryChunkSpace(tuple));
 	/* Reconstruct the HeapTupleData header */
@@ -3595,9 +3613,9 @@ readtup_cluster(RumTuplesortstate *state, SortTuple *stup,
 							 &tuplen, sizeof(tuplen));
 	stup->tuple = (void *) tuple;
 	/* set up first-column key value, if it's a simple column */
-	if (state->indexInfo->ii_KeyAttrNumbers[0] != 0)
+	if (attno != 0)
 		stup->datum1 = heap_getattr(tuple,
-									state->indexInfo->ii_KeyAttrNumbers[0],
+									attno,
 									state->tupDesc,
 									&stup->isnull1);
 }
