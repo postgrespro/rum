@@ -7,6 +7,15 @@ BEFORE UPDATE OR INSERT ON test_rum
 FOR EACH ROW EXECUTE PROCEDURE tsvector_update_trigger('a', 'pg_catalog.english', 't');
 CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 
+-- Check empty table using index scan
+SELECT
+	a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'),
+	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	*
+	FROM test_rum
+	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
+
+-- Fill the table with data
 \copy test_rum(t) from 'data/rum.data';
 
 CREATE INDEX failed_rumidx ON test_rum USING rum (a rum_tsvector_addon_ops);

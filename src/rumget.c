@@ -609,7 +609,17 @@ restartScanEntry:
 			 (entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
 			  entry->scanWithAddInfo))
 	{
-		IndexTuple	itup = (IndexTuple) PageGetItem(page, PageGetItemId(page, stackEntry->off));
+		IndexTuple	itup;
+		ItemId		itemid = PageGetItemId(page, stackEntry->off);
+
+		/*
+		 * We don't want to crash if line pointer is not used.
+		 */
+		if (entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
+			!ItemIdHasStorage(itemid))
+			goto endScanEntry;
+
+		itup = (IndexTuple) PageGetItem(page, itemid);
 
 		if (RumIsPostingTree(itup))
 		{
@@ -689,6 +699,7 @@ restartScanEntry:
 		SCAN_ENTRY_GET_KEY(entry, rumstate, itup);
 	}
 
+endScanEntry:
 	if (needUnlock)
 		LockBuffer(stackEntry->buffer, RUM_UNLOCK);
 	if (entry->stack == NULL)
@@ -2043,8 +2054,12 @@ scanGetItemFull(IndexScanDesc scan, RumItem *advancePast,
 	 */
 	entry = so->entries[0];
 
+	if (entry->isFinished)
+		return false;
+
 	entryGetItem(&so->rumstate, entry, &nextEntryList, scan->xs_snapshot);
-	if (entry->isFinished == true)
+
+	if (entry->isFinished)
 		return false;
 
 	/* Fill outerAddInfo */
