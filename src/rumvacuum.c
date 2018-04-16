@@ -182,6 +182,8 @@ RumFormTuple(RumState * rumstate,
 	{
 		itup = repalloc(itup, newsize);
 
+		memset((char *) itup + IndexTupleSize(itup),
+			   0, newsize - IndexTupleSize(itup));
 		/* set new size in tuple header */
 		itup->t_info &= ~INDEX_SIZE_MASK;
 		itup->t_info |= newsize;
