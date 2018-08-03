@@ -19,6 +19,9 @@
 #include "miscadmin.h"
 #include "utils/builtins.h"
 #include "utils/datum.h"
+#if PG_VERSION_NUM >= 120000
+#include "utils/float.h"
+#endif
 #include "utils/memutils.h"
 
 #include "rum.h"

@@ -20,6 +20,9 @@
 #include "tsearch/ts_utils.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
+#if PG_VERSION_NUM >= 120000
+#include "utils/float.h"
+#endif
 #include "utils/typcache.h"
 
 #include "rum.h"

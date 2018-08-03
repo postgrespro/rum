@@ -24,6 +24,9 @@
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/catcache.h"
+#if PG_VERSION_NUM >= 120000
+#include "utils/float.h"
+#endif
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
 #include "utils/typcache.h"

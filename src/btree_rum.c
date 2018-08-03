@@ -7,6 +7,9 @@
 #include "utils/bytea.h"
 #include "utils/cash.h"
 #include "utils/date.h"
+#if PG_VERSION_NUM >= 120000
+#include "utils/float.h"
+#endif
 #include "utils/inet.h"
 #include "utils/numeric.h"
 #include "utils/timestamp.h"
