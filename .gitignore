@@ -5,6 +5,7 @@ results
 __pycache__
 *.pyc
 tmp_install
+log
 
 # virtualenv
 bin
