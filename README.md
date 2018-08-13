@@ -29,7 +29,7 @@ idea of `RUM` by the following picture:
 
 Drawback of `RUM` is that it has slower build and insert time than `GIN`.
 It is because we need to store additional information besides keys and because
-`RUM` uses generic WAL.
+`RUM` uses generic WAL records.
 
 ## License
 
@@ -150,7 +150,7 @@ numeric, timestamp, timestamptz
 
 Supported operations: `<`, `<=`, `=`, `>=`, `>` for all types and
 `<=>`, `<=|` and `|=>` for int2, int4, int8, float4, float8, money, oid,
-timestamp and timestamptz types. 
+timestamp and timestamptz types.
 
 Supports ordering by `<=>`, `<=|` and `|=>` operators. Can be used with
 `rum_tsvector_addon_ops`, `rum_tsvector_hash_addon_ops' and `rum_anyarray_addon_ops` operator classes.
@@ -176,7 +176,7 @@ Now we can execute the following queries:
 ```sql
 EXPLAIN (costs off)
     SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
-                                    QUERY PLAN                                     
+                                    QUERY PLAN
 -----------------------------------------------------------------------------------
  Limit
    ->  Index Scan using tsts_idx on tsts
@@ -185,7 +185,7 @@ EXPLAIN (costs off)
 (4 rows)
 
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
- id  |                d                |   ?column?    
+ id  |                d                |   ?column?
 -----+---------------------------------+---------------
  355 | Mon May 16 14:21:22.326724 2016 |      2.673276
  354 | Mon May 16 13:21:22.326724 2016 |   3602.673276
@@ -225,7 +225,7 @@ Now we can execute the following fast query:
 ```sql
 SELECT * FROM query
     WHERE to_tsvector('black holes never exists before we think about them') @@ q;
-        q         |  tag  
+        q         |  tag
 ------------------+-------
  'black'          | color
  'black' & 'hole' | color
