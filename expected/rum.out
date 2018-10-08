@@ -8,11 +8,12 @@ CREATE INDEX rumidx ON test_rum USING rum (a rum_tsvector_ops);
 SELECT
 	a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'),
 	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
 	*
 	FROM test_rum
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
- ?column? | rum_ts_distance | t | a 
-----------+-----------------+---+---
+ ?column? | rum_ts_distance | rum_ts_score | t | a 
+----------+-----------------+--------------+---+---
 (0 rows)
 
 -- Fill the table with data
@@ -131,26 +132,30 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
      1
 (1 row)
 
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), 
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way')),
+	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
- rum_ts_distance |                                    t                                     |                               a                               
------------------+--------------------------------------------------------------------------+---------------------------------------------------------------
-         16.4493 | my appreciation of you in a more complimentary way than by sending this  | 'appreci':2 'complimentari':8 'send':12 'way':9
-         16.4493 | itself. Put on your "specs" and look at the castle, half way up the      | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-         16.4493 | so well that only a fragment, as it were, gave way. It still hangs as if | 'fragment':6 'gave':10 'hang':14 'still':13 'way':11 'well':2
-         16.4493 | thinking--"to go or not to go?" We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+ rum_ts_distance | rum_ts_score |                                    t                                     |                               a                               
+-----------------+--------------+--------------------------------------------------------------------------+---------------------------------------------------------------
+         16.4493 |    0.0607927 | my appreciation of you in a more complimentary way than by sending this  | 'appreci':2 'complimentari':8 'send':12 'way':9
+         16.4493 |    0.0607927 | itself. Put on your "specs" and look at the castle, half way up the      | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         16.4493 |    0.0607927 | so well that only a fragment, as it were, gave way. It still hangs as if | 'fragment':6 'gave':10 'hang':14 'still':13 'way':11 'well':2
+         16.4493 |    0.0607927 | thinking--"to go or not to go?" We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (4 rows)
 
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')), *
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
- rum_ts_distance |                                  t                                  |                            a                            
------------------+---------------------------------------------------------------------+---------------------------------------------------------
-         8.22467 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-         57.5727 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+ rum_ts_distance | rum_ts_score |                                  t                                  |                            a                            
+-----------------+--------------+---------------------------------------------------------------------+---------------------------------------------------------
+         8.22467 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         57.5727 |    0.0173693 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (2 rows)
 
 SELECT
@@ -166,26 +171,30 @@ SELECT
 (2 rows)
 
 -- Check ranking normalization
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0), *
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'), 0),
+	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
- rum_ts_distance |                                    t                                     |                               a                               
------------------+--------------------------------------------------------------------------+---------------------------------------------------------------
-         16.4493 | my appreciation of you in a more complimentary way than by sending this  | 'appreci':2 'complimentari':8 'send':12 'way':9
-         16.4493 | itself. Put on your "specs" and look at the castle, half way up the      | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-         16.4493 | so well that only a fragment, as it were, gave way. It still hangs as if | 'fragment':6 'gave':10 'hang':14 'still':13 'way':11 'well':2
-         16.4493 | thinking--"to go or not to go?" We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+ rum_ts_distance | rum_ts_score |                                    t                                     |                               a                               
+-----------------+--------------+--------------------------------------------------------------------------+---------------------------------------------------------------
+         16.4493 |    0.0607927 | my appreciation of you in a more complimentary way than by sending this  | 'appreci':2 'complimentari':8 'send':12 'way':9
+         16.4493 |    0.0607927 | itself. Put on your "specs" and look at the castle, half way up the      | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         16.4493 |    0.0607927 | so well that only a fragment, as it were, gave way. It still hangs as if | 'fragment':6 'gave':10 'hang':14 'still':13 'way':11 'well':2
+         16.4493 |    0.0607927 | thinking--"to go or not to go?" We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (4 rows)
 
-SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query), *
+SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
+	   rum_ts_score(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
+	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
- rum_ts_distance |                                  t                                  |                            a                            
------------------+---------------------------------------------------------------------+---------------------------------------------------------
-         8.22467 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-         57.5727 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+ rum_ts_distance | rum_ts_score |                                  t                                  |                            a                            
+-----------------+--------------+---------------------------------------------------------------------+---------------------------------------------------------
+         8.22467 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         57.5727 |    0.0173693 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (2 rows)
 
 INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');

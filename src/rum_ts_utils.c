@@ -46,6 +46,9 @@ PG_FUNCTION_INFO_V1(rum_tsquery_distance);
 PG_FUNCTION_INFO_V1(rum_ts_distance_tt);
 PG_FUNCTION_INFO_V1(rum_ts_distance_ttf);
 PG_FUNCTION_INFO_V1(rum_ts_distance_td);
+PG_FUNCTION_INFO_V1(rum_ts_score_tt);
+PG_FUNCTION_INFO_V1(rum_ts_score_ttf);
+PG_FUNCTION_INFO_V1(rum_ts_score_td);
 PG_FUNCTION_INFO_V1(rum_ts_join_pos);
 
 PG_FUNCTION_INFO_V1(tsquery_to_distance_query);
@@ -1473,15 +1476,9 @@ rum_ts_distance_ttf(PG_FUNCTION_ARGS)
 		PG_RETURN_FLOAT4(1.0 / res);
 }
 
-/*
- * Implementation of <=> operator. Uses specified normalization method.
- */
-Datum
-rum_ts_distance_td(PG_FUNCTION_ARGS)
+static float4
+calc_score_parse_opt(TSVector txt, HeapTupleHeader d)
 {
-	TSVector	txt = PG_GETARG_TSVECTOR(0);
-	HeapTupleHeader d = PG_GETARG_HEAPTUPLEHEADER(1);
-
 	Oid			tupType = HeapTupleHeaderGetTypeId(d);
 	int32		tupTypmod = HeapTupleHeaderGetTypMod(d);
 	TupleDesc	tupdesc = lookup_rowtype_tupdesc(tupType, tupTypmod);
@@ -1501,8 +1498,6 @@ rum_ts_distance_td(PG_FUNCTION_ARGS)
 	if (isnull)
 	{
 		ReleaseTupleDesc(tupdesc);
-		PG_FREE_IF_COPY(txt, 0);
-		PG_FREE_IF_COPY(d, 1);
 		elog(ERROR, "NULL query value is not allowed");
 	}
 
@@ -1513,6 +1508,22 @@ rum_ts_distance_td(PG_FUNCTION_ARGS)
 	res = calc_score(weights, txt, query, method);
 
 	ReleaseTupleDesc(tupdesc);
+
+	return res;
+}
+
+/*
+ * Implementation of <=> operator. Uses specified normalization method.
+ */
+Datum
+rum_ts_distance_td(PG_FUNCTION_ARGS)
+{
+	TSVector	txt = PG_GETARG_TSVECTOR(0);
+	HeapTupleHeader d = PG_GETARG_HEAPTUPLEHEADER(1);
+	float4		res;
+
+	res = calc_score_parse_opt(txt, d);
+
 	PG_FREE_IF_COPY(txt, 0);
 	PG_FREE_IF_COPY(d, 1);
 
@@ -1520,6 +1531,61 @@ rum_ts_distance_td(PG_FUNCTION_ARGS)
 		PG_RETURN_FLOAT4(get_float4_infinity());
 	else
 		PG_RETURN_FLOAT4(1.0 / res);
+}
+
+/*
+ * Calculate score (inverted distance). Uses default normalization method.
+ */
+Datum
+rum_ts_score_tt(PG_FUNCTION_ARGS)
+{
+	TSVector	txt = PG_GETARG_TSVECTOR(0);
+	TSQuery		query = PG_GETARG_TSQUERY(1);
+	float4		res;
+
+	res = calc_score(weights, txt, query, DEF_NORM_METHOD);
+
+	PG_FREE_IF_COPY(txt, 0);
+	PG_FREE_IF_COPY(query, 1);
+
+	PG_RETURN_FLOAT4(res);
+}
+
+/*
+ * Calculate score (inverted distance). Uses specified normalization method.
+ */
+Datum
+rum_ts_score_ttf(PG_FUNCTION_ARGS)
+{
+	TSVector	txt = PG_GETARG_TSVECTOR(0);
+	TSQuery		query = PG_GETARG_TSQUERY(1);
+	int			method = PG_GETARG_INT32(2);
+	float4		res;
+
+	res = calc_score(weights, txt, query, method);
+
+	PG_FREE_IF_COPY(txt, 0);
+	PG_FREE_IF_COPY(query, 1);
+
+	PG_RETURN_FLOAT4(res);
+}
+
+/*
+ * Calculate score (inverted distance). Uses specified normalization method.
+ */
+Datum
+rum_ts_score_td(PG_FUNCTION_ARGS)
+{
+	TSVector	txt = PG_GETARG_TSVECTOR(0);
+	HeapTupleHeader d = PG_GETARG_HEAPTUPLEHEADER(1);
+	float4		res;
+
+	res = calc_score_parse_opt(txt, d);
+
+	PG_FREE_IF_COPY(txt, 0);
+	PG_FREE_IF_COPY(d, 1);
+
+	PG_RETURN_FLOAT4(res);
 }
 
 /*

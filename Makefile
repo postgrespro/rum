@@ -2,7 +2,7 @@
 
 MODULE_big = rum
 EXTENSION = rum
-EXTVERSION = 1.2
+EXTVERSION = 1.3
 PGFILEDESC = "RUM index access method"
 
 OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
@@ -12,7 +12,9 @@ OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
 	src/btree_rum.o src/rum_arr_utils.o $(WIN32RES)
 
 DATA_first = rum--1.0.sql
-DATA_updates = rum--1.0--1.1.sql rum--1.1--1.2.sql
+DATA_updates = rum--1.0--1.1.sql rum--1.1--1.2.sql \
+			   rum--1.2--1.3.sql
+
 DATA = $(DATA_first) rum--$(EXTVERSION).sql $(DATA_updates)
 
 # Do not use DATA_built. It removes built files if clean target was used
@@ -52,7 +54,7 @@ wal-check: temp-install
 
 all: $(SQL_built)
 
-#9.6 requires 1.2 file but 10.0 could live with update files
+#9.6 requires 1.3 file but 10.0 could live with update files
 rum--$(EXTVERSION).sql: $(DATA_first) $(DATA_updates)
 	cat $(DATA_first) $(DATA_updates) > rum--$(EXTVERSION).sql
 

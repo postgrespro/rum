@@ -35,27 +35,36 @@ SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
 SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <2> fgr');
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), *
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way')),
+	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')), *
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
 SELECT
 	a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
 	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
 	*
 	FROM test_rum_hash
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
 
 -- Check ranking normalization
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0), *
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'), 0),
+	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
-SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query), *
+SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
+	   rum_ts_score(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
+	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
