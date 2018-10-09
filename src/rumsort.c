@@ -3517,11 +3517,19 @@ comparetup_cluster(const SortTuple *a, const SortTuple *b,
 
 		ecxt_scantuple = GetPerTupleExprContext(state->estate)->ecxt_scantuple;
 
+#if PG_VERSION_NUM >= 120000
+		ExecStoreHeapTuple(ltup, ecxt_scantuple, false);
+#else
 		ExecStoreTuple(ltup, ecxt_scantuple, InvalidBuffer, false);
+#endif
 		FormIndexDatum(state->indexInfo, ecxt_scantuple, state->estate,
 					   l_index_values, l_index_isnull);
 
+#if PG_VERSION_NUM >= 120000
+		ExecStoreHeapTuple(rtup, ecxt_scantuple, false);
+#else
 		ExecStoreTuple(rtup, ecxt_scantuple, InvalidBuffer, false);
+#endif
 		FormIndexDatum(state->indexInfo, ecxt_scantuple, state->estate,
 					   r_index_values, r_index_isnull);
 
