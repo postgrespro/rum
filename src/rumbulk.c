@@ -22,7 +22,7 @@
 #define DEF_NPTR	5			/* ItemPointer initial allocation quantum */
 
 /* PostgreSQL pre 10 has different names for this functions */
-#if PG_VERSION_NUM < 100000
+#if PG_VERSION_NUM <= 100006
 #define rbt_create(node_size, comparator, combiner, allocfunc, freefunc, arg) \
 	(rb_create(node_size, comparator, combiner, allocfunc, freefunc, arg))
 #define rbt_insert(rbt, data, isNew) \
@@ -280,8 +280,10 @@ qsortCompareRumItem(const void *a, const void *b, void *arg)
 void
 rumBeginBAScan(BuildAccumulator *accum)
 {
-#if PG_VERSION_NUM >= 100000
+#if PG_VERSION_NUM > 100006
 	rbt_begin_iterate(accum->tree, LeftRightWalk, &accum->tree_walk);
+#elif PG_VERSION_NUM >= 100000
+	rb_begin_iterate(accum->tree, LeftRightWalk, &accum->tree_walk);
 #else
 	rb_begin_iterate(accum->tree, LeftRightWalk);
 #endif
@@ -300,8 +302,10 @@ rumGetBAEntry(BuildAccumulator *accum,
 	RumEntryAccumulator *entry;
 	RumItem	   *list;
 
-#if PG_VERSION_NUM >= 100000
+#if PG_VERSION_NUM > 100006
 	entry = (RumEntryAccumulator *) rbt_iterate(&accum->tree_walk);
+#elif PG_VERSION_NUM >= 100000
+	entry = (RumEntryAccumulator *) rb_iterate(&accum->tree_walk);
 #else
 	entry = (RumEntryAccumulator *) rb_iterate(accum->tree);
 #endif

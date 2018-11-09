@@ -773,7 +773,7 @@ extern IndexBulkDeleteResult *rumvacuumcleanup(IndexVacuumInfo *info,
 extern bool rumvalidate(Oid opclassoid);
 
 /* rumbulk.c */
-#if PG_VERSION_NUM < 100000
+#if PG_VERSION_NUM <= 100006
 #define RBTNode RBNode
 #endif
 
