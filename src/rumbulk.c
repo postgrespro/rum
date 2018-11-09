@@ -21,10 +21,18 @@
 #define DEF_NENTRY	2048		/* RumEntryAccumulator allocation quantum */
 #define DEF_NPTR	5			/* ItemPointer initial allocation quantum */
 
+/* PostgreSQL pre 10 has different names for this functions */
+#if PG_VERSION_NUM < 100000
+#define rbt_create(node_size, comparator, combiner, allocfunc, freefunc, arg) \
+	(rb_create(node_size, comparator, combiner, allocfunc, freefunc, arg))
+#define rbt_insert(rbt, data, isNew) \
+	(rb_insert(rbt, data, isNew))
+#endif
+
 
 /* Combiner function for rbtree.c */
 static void
-rumCombineData(RBNode *existing, const RBNode *newdata, void *arg)
+rumCombineData(RBTNode *existing, const RBTNode *newdata, void *arg)
 {
 	RumEntryAccumulator *eo = (RumEntryAccumulator *) existing;
 	const RumEntryAccumulator *en = (const RumEntryAccumulator *) newdata;
@@ -65,7 +73,7 @@ rumCombineData(RBNode *existing, const RBNode *newdata, void *arg)
 
 /* Comparator function for rbtree.c */
 static int
-cmpEntryAccumulator(const RBNode *a, const RBNode *b, void *arg)
+cmpEntryAccumulator(const RBTNode *a, const RBTNode *b, void *arg)
 {
 	const RumEntryAccumulator *ea = (const RumEntryAccumulator *) a;
 	const RumEntryAccumulator *eb = (const RumEntryAccumulator *) b;
@@ -77,7 +85,7 @@ cmpEntryAccumulator(const RBNode *a, const RBNode *b, void *arg)
 }
 
 /* Allocator function for rbtree.c */
-static RBNode *
+static RBTNode *
 rumAllocEntryAccumulator(void *arg)
 {
 	BuildAccumulator *accum = (BuildAccumulator *) arg;
@@ -85,7 +93,7 @@ rumAllocEntryAccumulator(void *arg)
 
 	/*
 	 * Allocate memory by rather big chunks to decrease overhead.  We have no
-	 * need to reclaim RBNodes individually, so this costs nothing.
+	 * need to reclaim RBTNodes individually, so this costs nothing.
 	 */
 	if (accum->entryallocator == NULL || accum->eas_used >= DEF_NENTRY)
 	{
@@ -94,11 +102,11 @@ rumAllocEntryAccumulator(void *arg)
 		accum->eas_used = 0;
 	}
 
-	/* Allocate new RBNode from current chunk */
+	/* Allocate new RBTNode from current chunk */
 	ea = accum->entryallocator + accum->eas_used;
 	accum->eas_used++;
 
-	return (RBNode *) ea;
+	return (RBTNode *) ea;
 }
 
 void
@@ -108,12 +116,12 @@ rumInitBA(BuildAccumulator *accum)
 	accum->allocatedMemory = 0;
 	accum->entryallocator = NULL;
 	accum->eas_used = 0;
-	accum->tree = rb_create(sizeof(RumEntryAccumulator),
-							cmpEntryAccumulator,
-							rumCombineData,
-							rumAllocEntryAccumulator,
-							NULL,		/* no freefunc needed */
-							(void *) accum);
+	accum->tree = rbt_create(sizeof(RumEntryAccumulator),
+							 cmpEntryAccumulator,
+							 rumCombineData,
+							 rumAllocEntryAccumulator,
+							 NULL,		/* no freefunc needed */
+							 (void *) accum);
 }
 
 /*
@@ -163,8 +171,8 @@ rumInsertBAEntry(BuildAccumulator *accum,
 	item.addInfo = addInfo;
 	item.addInfoIsNull = addInfoIsNull;
 
-	ea = (RumEntryAccumulator *) rb_insert(accum->tree, (RBNode *) &eatmp,
-										   &isNew);
+	ea = (RumEntryAccumulator *) rbt_insert(accum->tree, (RBTNode *) &eatmp,
+											&isNew);
 
 	if (isNew)
 	{
@@ -273,7 +281,7 @@ void
 rumBeginBAScan(BuildAccumulator *accum)
 {
 #if PG_VERSION_NUM >= 100000
-	rb_begin_iterate(accum->tree, LeftRightWalk, &accum->tree_walk);
+	rbt_begin_iterate(accum->tree, LeftRightWalk, &accum->tree_walk);
 #else
 	rb_begin_iterate(accum->tree, LeftRightWalk);
 #endif
@@ -293,7 +301,7 @@ rumGetBAEntry(BuildAccumulator *accum,
 	RumItem	   *list;
 
 #if PG_VERSION_NUM >= 100000
-	entry = (RumEntryAccumulator *) rb_iterate(&accum->tree_walk);
+	entry = (RumEntryAccumulator *) rbt_iterate(&accum->tree_walk);
 #else
 	entry = (RumEntryAccumulator *) rb_iterate(accum->tree);
 #endif

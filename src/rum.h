@@ -773,9 +773,13 @@ extern IndexBulkDeleteResult *rumvacuumcleanup(IndexVacuumInfo *info,
 extern bool rumvalidate(Oid opclassoid);
 
 /* rumbulk.c */
+#if PG_VERSION_NUM < 100000
+#define RBTNode RBNode
+#endif
+
 typedef struct RumEntryAccumulator
 {
-	RBNode		rbnode;
+	RBTNode		rbnode;
 	Datum		key;
 	RumNullCategory category;
 	OffsetNumber attnum;
