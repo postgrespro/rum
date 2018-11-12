@@ -527,7 +527,7 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 			else
 			{
 				BlockNumber	rightrightBlkno = InvalidBlockNumber;
-				Buffer		rightrightBuffer;
+				Buffer		rightrightBuffer = InvalidBuffer;
 
 				/* split non-root page */
 				if (btree->rumstate->isBuild)

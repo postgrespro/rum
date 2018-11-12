@@ -774,7 +774,7 @@ extern bool rumvalidate(Oid opclassoid);
 
 /* rumbulk.c */
 #if PG_VERSION_NUM <= 100006
-#define RBTNode RBNode
+typedef RBNode RBTNode;
 #endif
 
 typedef struct RumEntryAccumulator
