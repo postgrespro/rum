@@ -1062,7 +1062,10 @@ extern Datum FunctionCall10Coll(FmgrInfo *flinfo, Oid collation,
 				   Datum arg9, Datum arg10);
 
 /* PostgreSQL version-agnostic creation of memory context */
-#if PG_VERSION_NUM >= 110000
+#if PG_VERSION_NUM >= 120000
+#define RumContextCreate(parent, name) \
+	AllocSetContextCreate(parent, name, ALLOCSET_DEFAULT_SIZES)
+#elif PG_VERSION_NUM >= 110000
 	#define RumContextCreate(parent, name) \
 		AllocSetContextCreateExtended(parent, name, \
 									  ALLOCSET_DEFAULT_MINSIZE, \

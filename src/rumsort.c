@@ -1067,7 +1067,11 @@ rum_tuplesort_begin_cluster(TupleDesc tupDesc,
 		 * scantuple has to point to that slot, too.
 		 */
 		state->estate = CreateExecutorState();
+#if PG_VERSION_NUM >= 120000
+		slot = MakeSingleTupleTableSlot(tupDesc, &TTSOpsVirtual);
+#else
 		slot = MakeSingleTupleTableSlot(tupDesc);
+#endif
 		econtext = GetPerTupleExprContext(state->estate);
 		econtext->ecxt_scantuple = slot;
 	}
