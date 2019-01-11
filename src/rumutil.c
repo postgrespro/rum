@@ -245,7 +245,11 @@ initRumState(RumState * state, Relation index)
 		if (state->oneCol)
 		{
 			state->tupdesc[i] = CreateTemplateTupleDesc(
+#if PG_VERSION_NUM >= 120000
+						OidIsValid(rumConfig->addInfoTypeOid) ? 2 : 1);
+#else
 						OidIsValid(rumConfig->addInfoTypeOid) ? 2 : 1, false);
+#endif
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 1, NULL,
 							   origAttr->atttypid,
 							   origAttr->atttypmod,
@@ -266,7 +270,11 @@ initRumState(RumState * state, Relation index)
 		else
 		{
 			state->tupdesc[i] = CreateTemplateTupleDesc(
+#if PG_VERSION_NUM >= 120000
+						OidIsValid(rumConfig->addInfoTypeOid) ? 3 : 2);
+#else
 						OidIsValid(rumConfig->addInfoTypeOid) ? 3 : 2, false);
+#endif
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 1, NULL,
 							   INT2OID, -1, 0);
 			TupleDescInitEntry(state->tupdesc[i], (AttrNumber) 2, NULL,
