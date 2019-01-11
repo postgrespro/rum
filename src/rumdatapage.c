@@ -1280,8 +1280,8 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
 	if (RumPageIsLeaf(newlPage))
-		btree->pitem.item.iptr = *(ItemPointerData *) RumDataPageGetItem(newlPage,
-										 RumPageGetOpaque(newlPage)->maxoff);
+		btree->pitem.item.iptr = ((PostingItem *) RumDataPageGetItem(newlPage,
+								   RumPageGetOpaque(newlPage)->maxoff))->item.iptr;
 	else
 		btree->pitem.item = ((PostingItem *) RumDataPageGetItem(newlPage,
 								   RumPageGetOpaque(newlPage)->maxoff))->item;
@@ -1433,10 +1433,12 @@ rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
 	PostingItem li,
 				ri;
 
+	memset(&li, 0, sizeof(PostingItem));
 	li.item = *RumDataPageGetRightBound(lpage);
 	PostingItemSetBlockNumber(&li, BufferGetBlockNumber(lbuf));
 	RumDataPageAddItem(page, &li, InvalidOffsetNumber);
 
+	memset(&ri, 0, sizeof(PostingItem));
 	ri.item = *RumDataPageGetRightBound(rpage);
 	PostingItemSetBlockNumber(&ri, BufferGetBlockNumber(rbuf));
 	RumDataPageAddItem(page, &ri, InvalidOffsetNumber);
