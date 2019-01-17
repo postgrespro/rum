@@ -37,6 +37,7 @@ SELECT id FROM test_text_o WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
 
 CREATE TABLE test_text_a AS SELECT id::text, t FROM tsts;
 
+-- Should fail, temporarly it isn't allowed to order an index over pass-by-reference column
 CREATE INDEX test_text_a_idx ON test_text_a USING rum
 	(t rum_tsvector_addon_ops, id)
 	WITH (attach = 'id', to = 't', order_by_attach='t');
@@ -67,6 +68,7 @@ SELECT id FROM test_text_h_o WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
 
 CREATE TABLE test_text_h_a AS SELECT id::text, t FROM tsts;
 
+-- Should fail, temporarly it isn't allowed to order an index over pass-by-reference column
 CREATE INDEX test_text_h_a_idx ON test_text_h_a USING rum
 	(t rum_tsvector_hash_addon_ops, id)
 	WITH (attach = 'id', to = 't', order_by_attach='t');

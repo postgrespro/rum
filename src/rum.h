@@ -262,6 +262,16 @@ typedef signed char RumNullCategory;
 /*
  * Data (posting tree) pages
  */
+/*
+ * FIXME -- Currently RumItem is placed as a pages right bound and PostingItem
+ * is placed as a non-leaf pages item. Both RumItem and PostingItem stores
+ * AddInfo as a raw Datum, which is bogus. It is fine for pass-by-value
+ * attributes, but it isn't for pass-by-reference, which may have variable
+ * length of data. This AddInfo is used only by order_by_attach indexes, so it
+ * isn't allowed to create index using ordering over pass-by-reference AddInfo,
+ * see initRumState(). This can be solved by having non-fixed length right bound
+ * and non-fixed non-leaf posting tree item.
+ */
 #define RumDataPageGetRightBound(page)	((RumItem*) PageGetContents(page))
 #define RumDataPageGetData(page)	\
 	(PageGetContents(page) + MAXALIGN(sizeof(RumItem)))

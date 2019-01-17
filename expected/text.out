@@ -125,16 +125,18 @@ SELECT id FROM test_text_o WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
 (8 rows)
 
 CREATE TABLE test_text_a AS SELECT id::text, t FROM tsts;
+-- Should fail, temporarly it isn't allowed to order an index over pass-by-reference column
 CREATE INDEX test_text_a_idx ON test_text_a USING rum
 	(t rum_tsvector_addon_ops, id)
 	WITH (attach = 'id', to = 't', order_by_attach='t');
+ERROR:  doesn't support order index over pass-by-reference column
 EXPLAIN (costs off)
 SELECT count(*) FROM test_text_a WHERE id < '400';
-                      QUERY PLAN                       
--------------------------------------------------------
+             QUERY PLAN             
+------------------------------------
  Aggregate
-   ->  Index Scan using test_text_a_idx on test_text_a
-         Index Cond: (id < '400'::text)
+   ->  Seq Scan on test_text_a
+         Filter: (id < '400'::text)
 (3 rows)
 
 SELECT count(*) FROM test_text_a WHERE id < '400';
@@ -145,12 +147,12 @@ SELECT count(*) FROM test_text_a WHERE id < '400';
 
 EXPLAIN (costs off)
 SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
-                                   QUERY PLAN                                    
----------------------------------------------------------------------------------
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
  Sort
    Sort Key: id
-   ->  Index Scan using test_text_a_idx on test_text_a
-         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::text))
+   ->  Seq Scan on test_text_a
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::text))
 (4 rows)
 
 SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
@@ -169,12 +171,12 @@ SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
 
 EXPLAIN (costs off)
 SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
-                                   QUERY PLAN                                    
----------------------------------------------------------------------------------
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
  Sort
    Sort Key: id
-   ->  Index Scan using test_text_a_idx on test_text_a
-         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::text))
+   ->  Seq Scan on test_text_a
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::text))
 (4 rows)
 
 SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
@@ -242,16 +244,18 @@ SELECT id FROM test_text_h_o WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
 (8 rows)
 
 CREATE TABLE test_text_h_a AS SELECT id::text, t FROM tsts;
+-- Should fail, temporarly it isn't allowed to order an index over pass-by-reference column
 CREATE INDEX test_text_h_a_idx ON test_text_h_a USING rum
 	(t rum_tsvector_hash_addon_ops, id)
 	WITH (attach = 'id', to = 't', order_by_attach='t');
+ERROR:  doesn't support order index over pass-by-reference column
 EXPLAIN (costs off)
 SELECT count(*) FROM test_text_h_a WHERE id < '400';
-                        QUERY PLAN                         
------------------------------------------------------------
+             QUERY PLAN             
+------------------------------------
  Aggregate
-   ->  Index Scan using test_text_h_a_idx on test_text_h_a
-         Index Cond: (id < '400'::text)
+   ->  Seq Scan on test_text_h_a
+         Filter: (id < '400'::text)
 (3 rows)
 
 SELECT count(*) FROM test_text_h_a WHERE id < '400';
@@ -262,12 +266,12 @@ SELECT count(*) FROM test_text_h_a WHERE id < '400';
 
 EXPLAIN (costs off)
 SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
-                                   QUERY PLAN                                    
----------------------------------------------------------------------------------
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
  Sort
    Sort Key: id
-   ->  Index Scan using test_text_h_a_idx on test_text_h_a
-         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::text))
+   ->  Seq Scan on test_text_h_a
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::text))
 (4 rows)
 
 SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
@@ -286,12 +290,12 @@ SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
 
 EXPLAIN (costs off)
 SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
-                                   QUERY PLAN                                    
----------------------------------------------------------------------------------
+                                 QUERY PLAN                                  
+-----------------------------------------------------------------------------
  Sort
    Sort Key: id
-   ->  Index Scan using test_text_h_a_idx on test_text_h_a
-         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::text))
+   ->  Seq Scan on test_text_h_a
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::text))
 (4 rows)
 
 SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;

@@ -239,6 +239,9 @@ initRumState(RumState * state, Relation index)
 			if (OidIsValid(rumConfig->addInfoTypeOid))
 				elog(ERROR, "AddTo could should not have AddInfo");
 
+			if (state->useAlternativeOrder && origAddAttr->attbyval == false)
+				elog(ERROR, "doesn't support order index over pass-by-reference column");
+
 			rumConfig->addInfoTypeOid = origAddAttr->atttypid;
 		}
 
@@ -565,6 +568,7 @@ RumInitPage(Page page, uint32 f, Size pageSize)
 	opaque->flags = f;
 	opaque->leftlink = InvalidBlockNumber;
 	opaque->rightlink = InvalidBlockNumber;
+	RumItemSetMin(RumDataPageGetRightBound(page));
 }
 
 void
