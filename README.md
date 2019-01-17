@@ -195,6 +195,8 @@ SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY 
 (5 rows)
 ```
 
+> **Warning:** Currently RUM has bogus behaviour when one creates an index using ordering over pass-by-reference additional information. This is due to the fact that posting trees have fixed length right bound and fixed length non-leaf posting items. It isn't allowed to create such indexes.
+
 ### rum_tsvector_hash_addon_ops
 
 For type: `tsvector`
