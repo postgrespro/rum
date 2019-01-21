@@ -219,14 +219,15 @@ CREATE TABLE test_int8_a AS SELECT id::int8, t FROM tsts;
 CREATE INDEX test_int8_a_idx ON test_int8_a USING rum
 	(t rum_tsvector_addon_ops, id)
 	WITH (attach = 'id', to = 't', order_by_attach='t');
+ERROR:  doesn't support order index over pass-by-reference column
 SET enable_bitmapscan=OFF;
 EXPLAIN (costs off)
 SELECT count(*) FROM test_int8_a WHERE id < 400::int8;
-                      QUERY PLAN                       
--------------------------------------------------------
+              QUERY PLAN              
+--------------------------------------
  Aggregate
-   ->  Index Scan using test_int8_a_idx on test_int8_a
-         Index Cond: (id < '400'::bigint)
+   ->  Seq Scan on test_int8_a
+         Filter: (id < '400'::bigint)
 (3 rows)
 
 SELECT count(*) FROM test_int8_a WHERE id < 400::int8;
@@ -237,48 +238,75 @@ SELECT count(*) FROM test_int8_a WHERE id < 400::int8;
 
 EXPLAIN (costs off)
 SELECT id, id <=> 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
-                      QUERY PLAN                       
--------------------------------------------------------
+                       QUERY PLAN                        
+---------------------------------------------------------
  Limit
-   ->  Index Scan using test_int8_a_idx on test_int8_a
-         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
-         Order By: (id <=> '400'::bigint)
-(4 rows)
+   ->  Sort
+         Sort Key: ((id <=> '400'::bigint))
+         ->  Seq Scan on test_int8_a
+               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
+(5 rows)
 
 SELECT id, id <=> 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
-ERROR:  doesn't support order by over pass-by-reference column
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 371 |       29
+ 355 |       45
+(5 rows)
+
 EXPLAIN (costs off)
 SELECT id, id <=| 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
-                      QUERY PLAN                       
--------------------------------------------------------
+                       QUERY PLAN                        
+---------------------------------------------------------
  Limit
-   ->  Index Scan using test_int8_a_idx on test_int8_a
-         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
-         Order By: (id <=| '400'::bigint)
-(4 rows)
+   ->  Sort
+         Sort Key: ((id <=| '400'::bigint))
+         ->  Seq Scan on test_int8_a
+               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
+(5 rows)
 
 SELECT id, id <=| 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
-ERROR:  doesn't support order by over pass-by-reference column
+ id  | ?column? 
+-----+----------
+ 371 |       29
+ 355 |       45
+ 354 |       46
+ 252 |      148
+ 232 |      168
+(5 rows)
+
 EXPLAIN (costs off)
 SELECT id, id |=> 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
-                      QUERY PLAN                       
--------------------------------------------------------
+                       QUERY PLAN                        
+---------------------------------------------------------
  Limit
-   ->  Index Scan using test_int8_a_idx on test_int8_a
-         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
-         Order By: (id |=> '400'::bigint)
-(4 rows)
+   ->  Sort
+         Sort Key: ((id |=> '400'::bigint))
+         ->  Seq Scan on test_int8_a
+               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
+(5 rows)
 
 SELECT id, id |=> 400 FROM test_int8_a WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
-ERROR:  doesn't support order by over pass-by-reference column
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 457 |       57
+ 458 |       58
+(5 rows)
+
 EXPLAIN (costs off)
 SELECT id FROM test_int8_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
  Sort
    Sort Key: id
-   ->  Index Scan using test_int8_a_idx on test_int8_a
-         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::bigint))
+   ->  Seq Scan on test_int8_a
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::bigint))
 (4 rows)
 
 SELECT id FROM test_int8_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
@@ -298,12 +326,12 @@ SELECT id FROM test_int8_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
 
 EXPLAIN (costs off)
 SELECT id FROM test_int8_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
  Sort
    Sort Key: id
-   ->  Index Scan using test_int8_a_idx on test_int8_a
-         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::bigint))
+   ->  Seq Scan on test_int8_a
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::bigint))
 (4 rows)
 
 SELECT id FROM test_int8_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
@@ -474,14 +502,15 @@ CREATE TABLE test_int8_h_a AS SELECT id::int8, t FROM tsts;
 CREATE INDEX test_int8_h_a_idx ON test_int8_h_a USING rum
 	(t rum_tsvector_hash_addon_ops, id)
 	WITH (attach = 'id', to = 't', order_by_attach='t');
+ERROR:  doesn't support order index over pass-by-reference column
 SET enable_bitmapscan=OFF;
 EXPLAIN (costs off)
 SELECT count(*) FROM test_int8_h_a WHERE id < 400::int8;
-                        QUERY PLAN                         
------------------------------------------------------------
+              QUERY PLAN              
+--------------------------------------
  Aggregate
-   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
-         Index Cond: (id < '400'::bigint)
+   ->  Seq Scan on test_int8_h_a
+         Filter: (id < '400'::bigint)
 (3 rows)
 
 SELECT count(*) FROM test_int8_h_a WHERE id < 400::int8;
@@ -492,48 +521,75 @@ SELECT count(*) FROM test_int8_h_a WHERE id < 400::int8;
 
 EXPLAIN (costs off)
 SELECT id, id <=> 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
-                        QUERY PLAN                         
------------------------------------------------------------
+                       QUERY PLAN                        
+---------------------------------------------------------
  Limit
-   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
-         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
-         Order By: (id <=> '400'::bigint)
-(4 rows)
+   ->  Sort
+         Sort Key: ((id <=> '400'::bigint))
+         ->  Seq Scan on test_int8_h_a
+               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
+(5 rows)
 
 SELECT id, id <=> 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
-ERROR:  doesn't support order by over pass-by-reference column
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 371 |       29
+ 355 |       45
+(5 rows)
+
 EXPLAIN (costs off)
 SELECT id, id <=| 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
-                        QUERY PLAN                         
------------------------------------------------------------
+                       QUERY PLAN                        
+---------------------------------------------------------
  Limit
-   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
-         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
-         Order By: (id <=| '400'::bigint)
-(4 rows)
+   ->  Sort
+         Sort Key: ((id <=| '400'::bigint))
+         ->  Seq Scan on test_int8_h_a
+               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
+(5 rows)
 
 SELECT id, id <=| 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id <=| 400 LIMIT 5;
-ERROR:  doesn't support order by over pass-by-reference column
+ id  | ?column? 
+-----+----------
+ 371 |       29
+ 355 |       45
+ 354 |       46
+ 252 |      148
+ 232 |      168
+(5 rows)
+
 EXPLAIN (costs off)
 SELECT id, id |=> 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
-                        QUERY PLAN                         
------------------------------------------------------------
+                       QUERY PLAN                        
+---------------------------------------------------------
  Limit
-   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
-         Index Cond: (t @@ '''wr'' & ''qh'''::tsquery)
-         Order By: (id |=> '400'::bigint)
-(4 rows)
+   ->  Sort
+         Sort Key: ((id |=> '400'::bigint))
+         ->  Seq Scan on test_int8_h_a
+               Filter: (t @@ '''wr'' & ''qh'''::tsquery)
+(5 rows)
 
 SELECT id, id |=> 400 FROM test_int8_h_a WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
-ERROR:  doesn't support order by over pass-by-reference column
+ id  | ?column? 
+-----+----------
+ 406 |        6
+ 415 |       15
+ 428 |       28
+ 457 |       57
+ 458 |       58
+(5 rows)
+
 EXPLAIN (costs off)
 SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
  Sort
    Sort Key: id
-   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
-         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::bigint))
+   ->  Seq Scan on test_int8_h_a
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::bigint))
 (4 rows)
 
 SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
@@ -553,12 +609,12 @@ SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id
 
 EXPLAIN (costs off)
 SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
  Sort
    Sort Key: id
-   ->  Index Scan using test_int8_h_a_idx on test_int8_h_a
-         Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::bigint))
+   ->  Seq Scan on test_int8_h_a
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::bigint))
 (4 rows)
 
 SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
@@ -578,12 +634,26 @@ CREATE INDEX test_int8_id_t_idx ON test_int8_o USING rum
 	(t rum_tsvector_ops, id);
 EXPLAIN (costs off)
 SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id <=> 400::int8;
-                                 QUERY PLAN                                  
------------------------------------------------------------------------------
- Index Scan using test_int8_h_a_idx on test_int8_h_a
-   Index Cond: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::bigint))
-   Order By: (id <=> '400'::bigint)
-(3 rows)
+                                  QUERY PLAN                                   
+-------------------------------------------------------------------------------
+ Sort
+   Sort Key: ((id <=> '400'::bigint))
+   ->  Seq Scan on test_int8_h_a
+         Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::bigint))
+(4 rows)
 
 SELECT id FROM test_int8_h_a WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id <=> 400::int8;
-ERROR:  doesn't support order by over pass-by-reference column
+ id  
+-----
+ 371
+ 355
+ 354
+ 252
+ 232
+ 168
+ 135
+  71
+  39
+  16
+(10 rows)
+
