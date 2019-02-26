@@ -52,6 +52,8 @@ endif
 wal-check: temp-install
 	$(prove_check)
 
+check: wal-check
+
 all: $(SQL_built)
 
 #9.6 requires 1.3 file but 10.0 could live with update files
