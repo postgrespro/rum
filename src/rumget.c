@@ -2241,8 +2241,8 @@ insertScanItem(RumScanOpaque so, bool recheck)
 				j;
 
 	item = (RumSortItem *)
-		MemoryContextAlloc(rum_tuplesort_get_memorycontext(so->sortstate),
-						   RumSortItemSize(so->norderbys));
+		MemoryContextAllocZero(rum_tuplesort_get_memorycontext(so->sortstate),
+							   RumSortItemSize(so->norderbys));
 	item->iptr = so->item.iptr;
 	item->recheck = recheck;
 

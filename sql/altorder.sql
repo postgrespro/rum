@@ -1,13 +1,16 @@
 CREATE TABLE atsts (id int, t tsvector, d timestamp);
 
 \copy atsts from 'data/tsts.data'
+\copy atsts from 'data/tsts.data'
+\copy atsts from 'data/tsts.data'
+\copy atsts from 'data/tsts.data'
 
 CREATE INDEX atsts_idx ON atsts USING rum (t rum_tsvector_addon_ops, d)
 	WITH (attach = 'd', to = 't', order_by_attach='t');
 
 
-INSERT INTO atsts VALUES (-1, 't1 t2',  '2016-05-02 02:24:22.326724'); 
-INSERT INTO atsts VALUES (-2, 't1 t2 t3',  '2016-05-02 02:26:22.326724'); 
+INSERT INTO atsts VALUES (-1, 't1 t2',  '2016-05-02 02:24:22.326724');
+INSERT INTO atsts VALUES (-2, 't1 t2 t3',  '2016-05-02 02:26:22.326724');
 
 
 SELECT count(*) FROM atsts WHERE t @@ 'wr|qh';
