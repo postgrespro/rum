@@ -1056,6 +1056,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	int			maxItemIndex = btree->curitem;
 	static char lpageCopy[BLCKSZ];
 
+	memset(&item, 0, sizeof(item));
 	dataPrepareData(btree, newlPage, off);
 	maxoff = RumPageGetOpaque(newlPage)->maxoff;
 

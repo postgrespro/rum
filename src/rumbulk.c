@@ -167,6 +167,7 @@ rumInsertBAEntry(BuildAccumulator *accum,
 	eatmp.category = category;
 	/* temporarily set up single-entry itempointer list */
 	eatmp.list = &item;
+	memset(&item, 0, sizeof(item));
 	item.iptr = *heapptr;
 	item.addInfo = addInfo;
 	item.addInfoIsNull = addInfoIsNull;
