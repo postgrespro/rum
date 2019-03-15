@@ -1,6 +1,7 @@
 CREATE TABLE atsts (id int, t tsvector, d timestamp);
 
 \copy atsts from 'data/tsts.data'
+-- PGPRO-2537: We need more data to test rumsort.c with logtape.c
 \copy atsts from 'data/tsts.data'
 \copy atsts from 'data/tsts.data'
 \copy atsts from 'data/tsts.data'
