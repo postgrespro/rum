@@ -6,8 +6,8 @@ CREATE INDEX atstsh_idx ON atstsh USING rum (t rum_tsvector_hash_addon_ops, d)
 	WITH (attach = 'd', to = 't', order_by_attach='t');
 
 
-INSERT INTO atstsh VALUES (-1, 't1 t2',  '2016-05-02 02:24:22.326724'); 
-INSERT INTO atstsh VALUES (-2, 't1 t2 t3',  '2016-05-02 02:26:22.326724'); 
+INSERT INTO atstsh VALUES (-1, 't1 t2',  '2016-05-02 02:24:22.326724');
+INSERT INTO atstsh VALUES (-2, 't1 t2 t3',  '2016-05-02 02:26:22.326724');
 
 
 SELECT count(*) FROM atstsh WHERE t @@ 'wr|qh';
@@ -30,9 +30,8 @@ SELECT count(*) FROM atstsh WHERE d > '2016-05-16 14:21:25';
 SELECT id, d FROM atstsh WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
 SELECT id, d FROM atstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
 
-RESET enable_indexscan;
-RESET enable_indexonlyscan;
-RESET enable_bitmapscan;
+-- Test bitmap index scan
+SET enable_bitmapscan=on;
 SET enable_seqscan = off;
 
 EXPLAIN (costs off)
@@ -51,6 +50,11 @@ SELECT count(*) FROM atstsh WHERE d < '2016-05-16 14:21:25';
 EXPLAIN (costs off)
 SELECT count(*) FROM atstsh WHERE d > '2016-05-16 14:21:25';
 SELECT count(*) FROM atstsh WHERE d > '2016-05-16 14:21:25';
+
+-- Test index scan
+SET enable_indexscan=on;
+SET enable_indexonlyscan=on;
+SET enable_bitmapscan=off;
 
 EXPLAIN (costs off)
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM atstsh WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;

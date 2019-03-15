@@ -2,8 +2,8 @@ CREATE TABLE atstsh (id int, t tsvector, d timestamp);
 \copy atstsh from 'data/tsts.data'
 CREATE INDEX atstsh_idx ON atstsh USING rum (t rum_tsvector_hash_addon_ops, d)
 	WITH (attach = 'd', to = 't', order_by_attach='t');
-INSERT INTO atstsh VALUES (-1, 't1 t2',  '2016-05-02 02:24:22.326724'); 
-INSERT INTO atstsh VALUES (-2, 't1 t2 t3',  '2016-05-02 02:26:22.326724'); 
+INSERT INTO atstsh VALUES (-1, 't1 t2',  '2016-05-02 02:24:22.326724');
+INSERT INTO atstsh VALUES (-2, 't1 t2 t3',  '2016-05-02 02:26:22.326724');
 SELECT count(*) FROM atstsh WHERE t @@ 'wr|qh';
  count 
 -------
@@ -112,9 +112,8 @@ SELECT id, d FROM atstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDE
  496 | Sun May 22 11:21:22.326724 2016
 (8 rows)
 
-RESET enable_indexscan;
-RESET enable_indexonlyscan;
-RESET enable_bitmapscan;
+-- Test bitmap index scan
+SET enable_bitmapscan=on;
 SET enable_seqscan = off;
 EXPLAIN (costs off)
 SELECT count(*) FROM atstsh WHERE t @@ 'wr|qh';
@@ -197,6 +196,10 @@ SELECT count(*) FROM atstsh WHERE d > '2016-05-16 14:21:25';
    153
 (1 row)
 
+-- Test index scan
+SET enable_indexscan=on;
+SET enable_indexonlyscan=on;
+SET enable_bitmapscan=off;
 EXPLAIN (costs off)
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM atstsh WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
                                     QUERY PLAN                                     
