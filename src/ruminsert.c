@@ -789,6 +789,7 @@ rumHeapTupleInsert(RumState * rumstate, OffsetNumber attnum,
 				 NameStr(attr->attname));
 		}
 
+		memset(&insert_item, 0, sizeof(insert_item));
 		insert_item.iptr = *item;
 		insert_item.addInfo = addInfo[i];
 		insert_item.addInfoIsNull = addInfoIsNull[i];
