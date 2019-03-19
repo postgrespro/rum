@@ -31,7 +31,7 @@ FROM unnest(array['asc','desc','nulls_first','nulls_last','orderable','distance_
 
 DROP INDEX rumidx;
 
--- Check incorrect operator class
+-- PGPRO-1175: Check incorrect operator class, i.e. it shouldn't work correctly
 CREATE OPERATOR CLASS rum_tsvector_norm_ops
 FOR TYPE tsvector USING rum
 AS
@@ -54,6 +54,7 @@ SET enable_seqscan=off;
 SET enable_bitmapscan=off;
 SET enable_indexscan=on;
 
+-- PGPRO-1175: Select using incorrect operator class
 SELECT a
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'bar')
