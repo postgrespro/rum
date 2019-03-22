@@ -589,7 +589,7 @@ findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
 		*iptrOut = item.iptr;
 
 		ptr = rumDataPageLeafRead(ptr, btree->entryAttnum, &item,
-								  btree->rumstate);
+								  false, btree->rumstate);
 
 		cmp = compareRumItem(btree->rumstate, btree->entryAttnum,
 							 &btree->items[btree->curitem], &item);
@@ -899,7 +899,8 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 			if (copyItemEmpty == true && off <= maxoff)
 			{
 				copyPtr = rumDataPageLeafRead(copyPtr, btree->entryAttnum,
-											  &copyItem, btree->rumstate);
+											  &copyItem, false,
+											  btree->rumstate);
 				copyItemEmpty = false;
 			}
 
@@ -1091,7 +1092,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 		prevIptr = item.iptr;
 		copyPtr = rumDataPageLeafRead(copyPtr, btree->entryAttnum, &item,
-									  btree->rumstate);
+									  false, btree->rumstate);
 
 		prevTotalsize = totalsize;
 		totalsize = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
@@ -1169,7 +1170,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		}
 
 		copyPtr = rumDataPageLeafRead(copyPtr, btree->entryAttnum, &item,
-									  btree->rumstate);
+									  false, btree->rumstate);
 
 		curItem = item;
 		ptr = rumPlaceToDataPageLeaf(ptr, btree->entryAttnum, &item,
@@ -1351,7 +1352,7 @@ updateItemIndexes(Page page, OffsetNumber attnum, RumState * rumstate)
 			}
 			j++;
 		}
-		ptr = rumDataPageLeafRead(ptr, attnum, &item, rumstate);
+		ptr = rumDataPageLeafRead(ptr, attnum, &item, false, rumstate);
 	}
 	/* Fill rest of page indexes with InvalidOffsetNumber if any */
 	for (; j < RumDataLeafIndexCount; j++)

@@ -19,6 +19,7 @@
 #include "access/sdir.h"
 #include "lib/rbtree.h"
 #include "storage/bufmgr.h"
+#include "utils/datum.h"
 
 #include "rumsort.h"
 
@@ -529,7 +530,7 @@ extern void rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rb
 				 Page page, Page lpage, Page rpage);
 extern IndexTuple rumPageGetLinkItup(RumBtree btree, Buffer buf, Page page);
 extern void rumReadTuple(RumState * rumstate, OffsetNumber attnum,
-			 IndexTuple itup, RumItem * items);
+			 IndexTuple itup, RumItem * items, bool copyAddInfo);
 extern void rumReadTuplePointers(RumState * rumstate, OffsetNumber attnum,
 					 IndexTuple itup, ItemPointerData *ipd);
 extern void updateItemIndexes(Page page, OffsetNumber attnum, RumState * rumstate);
@@ -941,10 +942,14 @@ rumDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
  * Reads next item pointer and additional information from leaf data page.
  * Replaces current item pointer with the next one. Zero item pointer should be
  * passed in order to read the first item pointer.
+ *
+ * It is necessary to pass copyAddInfo=true if additional information is used
+ * when the data page is unlocked. If the additional information is used without
+ * locking one can get unexpected behaviour.
  */
 static inline Pointer
 rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumItem * item,
-					RumState * rumstate)
+					bool copyAddInfo, RumState * rumstate)
 {
 	Form_pg_attribute attr;
 
@@ -1009,8 +1014,13 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumItem * item,
 		}
 		else
 		{
-			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen, ptr);
-			item->addInfo = fetch_att(ptr, attr->attbyval, attr->attlen);
+			Datum		addInfo;
+
+			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen,
+											  ptr);
+			addInfo = fetch_att(ptr, attr->attbyval, attr->attlen);
+			item->addInfo = copyAddInfo ?
+				datumCopy(addInfo, attr->attbyval, attr->attlen) : addInfo;
 		}
 
 		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);

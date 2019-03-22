@@ -258,7 +258,8 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 			ptr = RumDataPageGetData(page);
 			for (i = FirstOffsetNumber; i <= maxoff; i++)
 			{
-				ptr = rumDataPageLeafRead(ptr, attnum, &item.item, rumstate);
+				ptr = rumDataPageLeafRead(ptr, attnum, &item.item, false,
+										  rumstate);
 				SCAN_ITEM_PUT_KEY(scanEntry, item, idatum, icategory);
 				rum_tuplesort_putrumitem(scanEntry->matchSortstate, &item);
 			}
@@ -468,7 +469,7 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 			for (i = 0; i < RumGetNPosting(itup); i++)
 			{
 				ptr = rumDataPageLeafRead(ptr, scanEntry->attnum, &item.item,
-										  rumstate);
+										  false, rumstate);
 				SCAN_ITEM_PUT_KEY(scanEntry, item, idatum, icategory);
 				rum_tuplesort_putrumitem(scanEntry->matchSortstate, &item);
 			}
@@ -674,7 +675,8 @@ restartScanEntry:
 
 			for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 			{
-				ptr = rumDataPageLeafRead(ptr, entry->attnum, &item, rumstate);
+				ptr = rumDataPageLeafRead(ptr, entry->attnum, &item, true,
+										  rumstate);
 				entry->list[i - FirstOffsetNumber] = item;
 			}
 
@@ -689,7 +691,7 @@ restartScanEntry:
 			entry->predictNumberResult = entry->nlist;
 			entry->list = (RumItem *) palloc(sizeof(RumItem) * entry->nlist);
 
-			rumReadTuple(rumstate, entry->attnum, itup, entry->list);
+			rumReadTuple(rumstate, entry->attnum, itup, entry->list, true);
 			entry->isFinished = setListPositionScanEntry(rumstate, entry);
 			if (!entry->isFinished)
 				entry->curItem = entry->list[entry->offset];
@@ -935,7 +937,8 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 
 			for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 			{
-				ptr = rumDataPageLeafRead(ptr, entry->attnum, &item, rumstate);
+				ptr = rumDataPageLeafRead(ptr, entry->attnum, &item, true,
+										  rumstate);
 				entry->list[i - FirstOffsetNumber] = item;
 
 				if (searchBorder)
@@ -1091,7 +1094,8 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 
 		for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 		{
-			ptr = rumDataPageLeafRead(ptr, entry->attnum, &item, rumstate);
+			ptr = rumDataPageLeafRead(ptr, entry->attnum, &item, true,
+									  rumstate);
 			entry->list[i - FirstOffsetNumber] = item;
 		}
 
@@ -1104,7 +1108,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 		entry->predictNumberResult = entry->nlist;
 		entry->list = (RumItem *) palloc(sizeof(RumItem) * entry->nlist);
 
-		rumReadTuple(rumstate, entry->attnum, itup, entry->list);
+		rumReadTuple(rumstate, entry->attnum, itup, entry->list, true);
 		entry->isFinished = setListPositionScanEntry(rumstate, entry);
 	}
 
@@ -1659,7 +1663,8 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumItem *item, bool equalOk)
 	bound = -1;
 	for (i = first; i <= maxoff; i++)
 	{
-		ptr = rumDataPageLeafRead(ptr, entry->attnum, &iter_item, rumstate);
+		ptr = rumDataPageLeafRead(ptr, entry->attnum, &iter_item, true,
+								  rumstate);
 		entry->list[i - first] = iter_item;
 
 		if (bound != -1)
