@@ -34,9 +34,8 @@ SELECT count(*) FROM atsts WHERE d > '2016-05-16 14:21:25';
 SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
 SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d;
 
-RESET enable_indexscan;
-RESET enable_indexonlyscan;
-RESET enable_bitmapscan;
+-- Test bitmap index scan
+SET enable_bitmapscan=on;
 SET enable_seqscan = off;
 
 EXPLAIN (costs off)
@@ -55,6 +54,11 @@ SELECT count(*) FROM atsts WHERE d < '2016-05-16 14:21:25';
 EXPLAIN (costs off)
 SELECT count(*) FROM atsts WHERE d > '2016-05-16 14:21:25';
 SELECT count(*) FROM atsts WHERE d > '2016-05-16 14:21:25';
+
+-- Test index scan
+SET enable_indexscan=on;
+SET enable_indexonlyscan=on;
+SET enable_bitmapscan=off;
 
 EXPLAIN (costs off)
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM atsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
