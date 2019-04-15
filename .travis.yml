@@ -5,8 +5,11 @@ language: c
 services:
     - docker
 
+before_install:
+    - cp travis/* .
+
 install:
-    - ./travis/mk_dockerfile.sh
+    - ./mk_dockerfile.sh
     - docker-compose build
 
 script:

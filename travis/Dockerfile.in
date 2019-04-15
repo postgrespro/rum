@@ -21,7 +21,7 @@ RUN	chown postgres:postgres ${PGDATA} && \
 	chmod a+rwx /usr/local/lib/postgresql && \
 	chmod a+rwx /usr/local/share/postgresql/extension
 
-COPY travis/run_tests.sh /run.sh
+COPY run_tests.sh /run.sh
 RUN chmod 755 /run.sh
 
 COPY . /pg/testdir
