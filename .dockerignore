@@ -1,3 +1,5 @@
 # Don't send some content to the Docker host when building
+img
+travis
 .git
 .travis.yml

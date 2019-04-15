@@ -15,17 +15,17 @@ ENV LANG=C.UTF-8 PGDATA=/pg/data
 RUN	mkdir -p ${PGDATA} && \
 	mkdir -p /pg/testdir
 
-# Grant privileges
-RUN	chown postgres:postgres ${PGDATA} && \
-	chown postgres:postgres /pg/testdir && \
-	chmod a+rwx /usr/local/lib/postgresql && \
-	chmod a+rwx /usr/local/share/postgresql/extension
-
 COPY run_tests.sh /run.sh
 RUN chmod 755 /run.sh
 
 COPY . /pg/testdir
 WORKDIR /pg/testdir
+
+# Grant privileges
+RUN	chown postgres:postgres ${PGDATA} && \
+	chown -R postgres:postgres /pg/testdir && \
+	chmod a+rwx /usr/local/lib/postgresql && \
+	chmod a+rwx /usr/local/share/postgresql/extension
 
 USER postgres
 ENTRYPOINT LEVEL=${LEVEL} /run.sh
