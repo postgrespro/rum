@@ -1,0 +1,24 @@
+sudo: required
+
+language: c
+
+services:
+    - docker
+
+install:
+    - ./travis/mk_dockerfile.sh
+    - docker-compose build
+
+script:
+    - docker-compose run $(bash <(curl -s https://codecov.io/env)) tests
+
+notifications:
+    email:
+        on_success: change
+        on_failure: always
+
+env:
+    - PG_VERSION=11 LEVEL=hardcore
+    - PG_VERSION=11
+    - PG_VERSION=10
+    - PG_VERSION=9.6
