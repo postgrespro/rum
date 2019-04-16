@@ -1,3 +1,5 @@
+[![Build Status](https://api.travis-ci.com/postgrespro/rum.svg?branch=master)](https://travis-ci.com/postgrespro/rum)
+<!-- [![codecov](https://codecov.io/gh/postgrespro/rum/branch/master/graph/badge.svg)](https://codecov.io/gh/postgrespro/rum) -->
 [![PGXN version](https://badge.fury.io/pg/rum.svg)](https://badge.fury.io/pg/rum)
 [![GitHub license](https://img.shields.io/badge/license-PostgreSQL-blue.svg)](https://raw.githubusercontent.com/postgrespro/rum/master/LICENSE)
 
