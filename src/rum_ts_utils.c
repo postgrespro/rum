@@ -1242,7 +1242,7 @@ calc_score_docr(float4 *arrdata, DocRepresentation *doc, uint32 doclen,
 		int			new_cover_key = 0;
 		int			nitems = 0;
 
-		while (ptr <= ext.end)
+		while (ptr && ptr <= ext.end)
 		{
 			InvSum += arrdata[ptr->wclass];
 			/* SK: Quick and dirty hash key. Hope collisions will be not too frequent. */

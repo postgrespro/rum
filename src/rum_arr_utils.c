@@ -733,6 +733,7 @@ cmpAscArrayElem(const void *a, const void *b, void *arg)
 {
 	FmgrInfo	*cmpFunc = (FmgrInfo*)arg;
 
+	Assert(a && b);
 	return DatumGetInt32(FunctionCall2Coll(cmpFunc, DEFAULT_COLLATION_OID, *(Datum*)a, *(Datum*)b));
 }
 

@@ -2426,7 +2426,6 @@ mergeruns(RumTuplesortstate *state)
 	else
 	{
 		numInputTapes = state->tapeRange;
-		numTapes = state->maxTapes;
 	}
 
 	state->read_buffer_size = Max(state->availMem / numInputTapes, 0);

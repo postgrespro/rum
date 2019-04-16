@@ -1112,7 +1112,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 		entry->isFinished = setListPositionScanEntry(rumstate, entry);
 	}
 
-	Assert(entry->nlist > 0);
+	Assert(entry->nlist > 0 && entry->list);
 
 	entry->curItem = entry->list[entry->offset];
 	entry->offset += entry->scanDirection;
@@ -1169,7 +1169,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
 			if (!ItemPointerIsMin(&entry->collectRumItem.item.iptr))
 				collected = entry->collectRumItem;
 			else
-				ItemPointerSetMin(&collected.item.iptr);
+				MemSet(&collected, 0, sizeof(collected));
 
 			ItemPointerSetMin(&entry->curItem.iptr);
 

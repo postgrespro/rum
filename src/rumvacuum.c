@@ -53,6 +53,7 @@ rumVacuumPostingList(RumVacuumState * gvs, OffsetNumber attnum, Pointer src,
 				prev,
 				ptr = src;
 
+	*newSize = 0;
 	ItemPointerSetMin(&item.iptr);
 
 	/*

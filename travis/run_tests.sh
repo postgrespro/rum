@@ -5,7 +5,6 @@
 #
 # supported levels:
 #		* standard
-#		* scan-build
 #		* hardcore
 #
 
@@ -60,8 +59,7 @@ fi
 pg_config
 
 # perform code checks if asked to
-if [ "$LEVEL" = "scan-build" ] || \
-   [ "$LEVEL" = "hardcore" ]; then
+if [ "$LEVEL" = "hardcore" ]; then
 
 	# perform static analyzis
 	scan-build --status-bugs make USE_PGXS=1 || status=$?
