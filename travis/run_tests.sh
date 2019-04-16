@@ -99,7 +99,7 @@ if test -f regression.diffs; then cat regression.diffs; fi
 if [ $status -ne 0 ]; then exit 1; fi
 
 # generate *.gcov files
-gcov *.c *.h
+gcov src/*.c src/*.h
 
 
 set +ux

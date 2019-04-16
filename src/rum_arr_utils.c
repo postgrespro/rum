@@ -51,7 +51,11 @@
 
 #define CHECKARRVALID(x) \
 	do { \
-		if (x) { \
+		if (x == NULL) \
+			ereport(ERROR, \
+					(errcode(ERRCODE_NULL_VALUE_NOT_ALLOWED), \
+					 errmsg("array must not be NULL"))); \
+		else if (x) { \
 			if (ARR_NDIM(x) != NDIM && ARR_NDIM(x) != 0) \
 				ereport(ERROR, \
 						(errcode(ERRCODE_ARRAY_SUBSCRIPT_ERROR), \

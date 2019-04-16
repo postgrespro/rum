@@ -3,3 +3,9 @@ img
 travis
 .git
 .travis.yml
+
+*.gcno
+*.gcda
+*.gcov
+*.so
+*.o
