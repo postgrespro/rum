@@ -24,6 +24,7 @@ WORKDIR /pg/testdir
 # Grant privileges
 RUN	chown postgres:postgres ${PGDATA} && \
 	chown -R postgres:postgres /pg/testdir && \
+	chown postgres:postgres /usr/local/include/postgresql/server/ && \
 	chmod a+rwx /usr/local/lib/postgresql && \
 	chmod a+rwx /usr/local/share/postgresql/extension
 
