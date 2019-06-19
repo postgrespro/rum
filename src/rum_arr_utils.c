@@ -3,7 +3,7 @@
  * rum_arr_utils.c
  *		various anyarray-search functions
  *
- * Portions Copyright (c) 2015-2016, Postgres Professional
+ * Portions Copyright (c) 2015-2019, Postgres Professional
  * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  *
  *-------------------------------------------------------------------------
