@@ -4,7 +4,7 @@
  *	  insert routines for the postgres inverted index access method.
  *
  *
- * Portions Copyright (c) 2015-2016, Postgres Professional
+ * Portions Copyright (c) 2015-2019, Postgres Professional
  * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -14,10 +14,12 @@
 #include "postgres.h"
 
 #include "access/generic_xlog.h"
+#if PG_VERSION_NUM >= 120000
+#include "access/tableam.h"
+#endif
 #include "storage/predicate.h"
 #include "catalog/index.h"
 #include "miscadmin.h"
-#include "utils/memutils.h"
 #include "utils/datum.h"
 
 #include "rum.h"
@@ -32,7 +34,11 @@ typedef struct
 	BuildAccumulator accum;
 }	RumBuildState;
 
-#if PG_VERSION_NUM >= 110000
+
+#if PG_VERSION_NUM >= 120000
+#define IndexBuildHeapScan(A, B, C, D, E, F) \
+table_index_build_scan(A, B, C, D, true, E, F, NULL)
+#elif PG_VERSION_NUM >= 110000
 #define IndexBuildHeapScan(A, B, C, D, E, F) \
 IndexBuildHeapScan(A, B, C, D, E, F, NULL)
 #endif

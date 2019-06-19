@@ -3,7 +3,7 @@
  * rum.h
  *	  Exported definitions for RUM index.
  *
- * Portions Copyright (c) 2015-2016, Postgres Professional
+ * Portions Copyright (c) 2015-2019, Postgres Professional
  * Portions Copyright (c) 2006-2016, PostgreSQL Global Development Group
  *
  *-------------------------------------------------------------------------
@@ -20,6 +20,7 @@
 #include "lib/rbtree.h"
 #include "storage/bufmgr.h"
 #include "utils/datum.h"
+#include "utils/memutils.h"
 
 #include "rumsort.h"
 

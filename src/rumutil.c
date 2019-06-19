@@ -4,7 +4,7 @@
  *	  utilities routines for the postgres inverted index access method.
  *
  *
- * Portions Copyright (c) 2015-2016, Postgres Professional
+ * Portions Copyright (c) 2015-2019, Postgres Professional
  * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -1057,8 +1057,40 @@ FunctionCall10Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
 				   Datum arg6, Datum arg7, Datum arg8,
 				   Datum arg9, Datum arg10)
 {
-	FunctionCallInfoData fcinfo;
 	Datum		result;
+#if PG_VERSION_NUM >= 120000
+	LOCAL_FCINFO(fcinfo, 10);
+
+	InitFunctionCallInfoData(*fcinfo, flinfo, 10, collation, NULL, NULL);
+
+	fcinfo->args[0].value = arg1;
+	fcinfo->args[0].isnull = false;
+	fcinfo->args[1].value = arg2;
+	fcinfo->args[1].isnull = false;
+	fcinfo->args[2].value = arg3;
+	fcinfo->args[2].isnull = false;
+	fcinfo->args[3].value = arg4;
+	fcinfo->args[3].isnull = false;
+	fcinfo->args[4].value = arg5;
+	fcinfo->args[4].isnull = false;
+	fcinfo->args[5].value = arg6;
+	fcinfo->args[5].isnull = false;
+	fcinfo->args[6].value = arg7;
+	fcinfo->args[6].isnull = false;
+	fcinfo->args[7].value = arg8;
+	fcinfo->args[7].isnull = false;
+	fcinfo->args[8].value = arg9;
+	fcinfo->args[8].isnull = false;
+	fcinfo->args[9].value = arg10;
+	fcinfo->args[9].isnull = false;
+
+	result = FunctionCallInvoke(fcinfo);
+
+	/* Check for null result, since caller is clearly not expecting one */
+	if (fcinfo->isnull)
+		elog(ERROR, "function %u returned NULL", fcinfo->flinfo->fn_oid);
+#else
+	FunctionCallInfoData fcinfo;
 
 	InitFunctionCallInfoData(fcinfo, flinfo, 10, collation, NULL, NULL);
 
@@ -1088,6 +1120,7 @@ FunctionCall10Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
 	/* Check for null result, since caller is clearly not expecting one */
 	if (fcinfo.isnull)
 		elog(ERROR, "function %u returned NULL", fcinfo.flinfo->fn_oid);
+#endif
 
 	return result;
 }

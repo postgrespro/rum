@@ -4,7 +4,7 @@
  *	  fetch tuples from a RUM scan.
  *
  *
- * Portions Copyright (c) 2015-2016, Postgres Professional
+ * Portions Copyright (c) 2015-2019, Postgres Professional
  * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -22,7 +22,6 @@
 #if PG_VERSION_NUM >= 120000
 #include "utils/float.h"
 #endif
-#include "utils/memutils.h"
 
 #include "rum.h"
 
@@ -2357,6 +2356,14 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 	RumSortItem *item;
 	bool		should_free;
 
+#if PG_VERSION_NUM >= 120000
+#define GET_SCAN_TID(scan)		((scan)->xs_heaptid)
+#define SET_SCAN_TID(scan, tid)	((scan)->xs_heaptid = (tid))
+#else
+#define GET_SCAN_TID(scan)		((scan)->xs_ctup.t_self)
+#define SET_SCAN_TID(scan, tid)	((scan)->xs_ctup.t_self = (tid))
+#endif
+
 	if (so->firstCall)
 	{
 		/*
@@ -2389,7 +2396,7 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 	{
 		if (scanGetItem(scan, &so->item, &so->item, &recheck))
 		{
-			scan->xs_ctup.t_self = so->item.iptr;
+			SET_SCAN_TID(scan, so->item.iptr);
 			scan->xs_recheck = recheck;
 			scan->xs_recheckorderby = false;
 
@@ -2411,7 +2418,7 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 		uint32		i,
 					j = 0;
 
-		if (rumCompareItemPointers(&scan->xs_ctup.t_self, &item->iptr) == 0)
+		if (rumCompareItemPointers(&GET_SCAN_TID(scan), &item->iptr) == 0)
 		{
 			if (should_free)
 				pfree(item);
@@ -2419,7 +2426,7 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 			continue;
 		}
 
-		scan->xs_ctup.t_self = item->iptr;
+		SET_SCAN_TID(scan, item->iptr);
 		scan->xs_recheck = item->recheck;
 		scan->xs_recheckorderby = false;
 
