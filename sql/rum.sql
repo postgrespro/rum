@@ -47,34 +47,34 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
 SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <2> fgr');
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), 
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way')),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'))::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'))::numeric(10,7),
 	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,6),
 	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
 SELECT
-	a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
-	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	(a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4) AS distance,
+	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4),
 	*
 	FROM test_rum
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
 
 -- Check ranking normalization
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0),
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'), 0),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0)::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'), 0)::numeric(10,7),
 	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
-SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
-	   rum_ts_score(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
+SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query)::numeric(10,4),
+	   rum_ts_score(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query)::numeric(10,6),
 	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
@@ -93,7 +93,13 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'rat')
 SELECT a FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'bar') ORDER BY a;
 
 -- Check full-index scan with order by
-SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') FROM test_rum ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
+SELECT
+	CASE WHEN distance = 'Infinity' THEN -1
+		ELSE distance::numeric(10,4)
+	END distance
+	FROM
+		(SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') AS distance
+		FROM test_rum ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote')) t;
 
 CREATE TABLE tst (i int4, t tsvector);
 INSERT INTO tst SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(1,100000) i;
@@ -126,14 +132,14 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
-SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
+SELECT (a <=> to_tsquery('pg_catalog.english', 'w:*'))::numeric(10,4) AS distance, *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
-SELECT a <=> to_tsquery('pg_catalog.english', 'b:*'), *
+SELECT (a <=> to_tsquery('pg_catalog.english', 'b:*'))::numeric(10,4) AS distance, *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'b:*')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'b:*');
 
-select  'bjarn:6237 stroustrup:6238'::tsvector <=> 'bjarn <-> stroustrup'::tsquery;
-SELECT  'stroustrup:5508B,6233B,6238B bjarn:6235B,6237B' <=> 'bjarn <-> stroustrup'::tsquery;
+select  ('bjarn:6237 stroustrup:6238'::tsvector <=> 'bjarn <-> stroustrup'::tsquery)::numeric(10,5) AS distance;
+SELECT  ('stroustrup:5508B,6233B,6238B bjarn:6235B,6237B' <=> 'bjarn <-> stroustrup'::tsquery)::numeric(10,5) AS distance;

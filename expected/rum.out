@@ -132,8 +132,8 @@ SELECT count(*) FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english',
      1
 (1 row)
 
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')), 
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way')),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'))::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'))::numeric(10,7),
 	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
@@ -146,33 +146,33 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')),
          16.4493 |    0.0607927 | thinking--"to go or not to go?" We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (4 rows)
 
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,6),
 	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
  rum_ts_distance | rum_ts_score |                                  t                                  |                            a                            
 -----------------+--------------+---------------------------------------------------------------------+---------------------------------------------------------
-         8.22467 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-         57.5727 |    0.0173693 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+          8.2247 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         57.5727 |     0.017369 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (2 rows)
 
 SELECT
-	a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
-	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	(a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4) AS distance,
+	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4),
 	*
 	FROM test_rum
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
- ?column? | rum_ts_distance |                                  t                                  |                            a                            
+ distance | rum_ts_distance |                                  t                                  |                            a                            
 ----------+-----------------+---------------------------------------------------------------------+---------------------------------------------------------
-  8.22467 |         8.22467 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+   8.2247 |          8.2247 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
   57.5727 |         57.5727 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (2 rows)
 
 -- Check ranking normalization
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0),
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'), 0),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0)::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'), 0)::numeric(10,7),
 	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
@@ -185,16 +185,16 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0),
          16.4493 |    0.0607927 | thinking--"to go or not to go?" We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (4 rows)
 
-SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
-	   rum_ts_score(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
+SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query)::numeric(10,4),
+	   rum_ts_score(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query)::numeric(10,6),
 	   *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
  rum_ts_distance | rum_ts_score |                                  t                                  |                            a                            
 -----------------+--------------+---------------------------------------------------------------------+---------------------------------------------------------
-         8.22467 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-         57.5727 |    0.0173693 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+          8.2247 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         57.5727 |     0.017369 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (2 rows)
 
 INSERT INTO test_rum (t) VALUES ('foo bar foo the over foo qq bar');
@@ -232,65 +232,71 @@ SELECT a FROM test_rum WHERE a @@ to_tsquery('pg_catalog.english', 'bar') ORDER 
 (1 row)
 
 -- Check full-index scan with order by
-SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') FROM test_rum ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
- ?column? 
+SELECT
+	CASE WHEN distance = 'Infinity' THEN -1
+		ELSE distance::numeric(10,4)
+	END distance
+	FROM
+		(SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') AS distance
+		FROM test_rum ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote')) t;
+ distance 
 ----------
   16.4493
   16.4493
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
 (56 rows)
 
 CREATE TABLE tst (i int4, t tsvector);
@@ -325,15 +331,15 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
    Order By: (a <=> '''w'':*'::tsquery)
 (3 rows)
 
-SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
+SELECT (a <=> to_tsquery('pg_catalog.english', 'w:*'))::numeric(10,4) AS distance, *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'w:*')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'w:*');
- ?column? |                                    t                                     |                                                    a                                                     
+ distance |                                    t                                     |                                                    a                                                     
 ----------+--------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------
-  8.22467 | so well that only a fragment, as it were, gave way. It still hangs as if | 'fragment':6 'gave':10 'hang':14 'still':13 'way':11 'well':2
-  8.22467 | wine, but wouldn't you divide with your neighbors! The columns in the    | 'column':11 'divid':6 'neighbor':9 'wine':1 'wouldn':3
-  8.22467 | not say, but you wrote as if you knew it by sight as well as by heart.   | 'heart':17 'knew':9 'say':2 'sight':12 'well':14 'wrote':5
+   8.2247 | so well that only a fragment, as it were, gave way. It still hangs as if | 'fragment':6 'gave':10 'hang':14 'still':13 'way':11 'well':2
+   8.2247 | wine, but wouldn't you divide with your neighbors! The columns in the    | 'column':11 'divid':6 'neighbor':9 'wine':1 'wouldn':3
+   8.2247 | not say, but you wrote as if you knew it by sight as well as by heart.   | 'heart':17 'knew':9 'say':2 'sight':12 'well':14 'wrote':5
   16.4493 | little series of pictures. Have you ever been here, I wonder? You did    | 'ever':7 'littl':1 'pictur':4 'seri':2 'wonder':11
   16.4493 | itself. Put on your "specs" and look at the castle, half way up the      | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
   16.4493 | _berg_, "the Jettenhuhl, a wooded spur of the Konigestuhl." Look at it   | 'berg':1 'jettenhuhl':3 'konigestuhl':9 'look':10 'spur':6 'wood':5
@@ -347,16 +353,16 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'w:*'), *
   16.4493 | my appreciation of you in a more complimentary way than by sending this  | 'appreci':2 'complimentari':8 'send':12 'way':9
 (14 rows)
 
-SELECT a <=> to_tsquery('pg_catalog.english', 'b:*'), *
+SELECT (a <=> to_tsquery('pg_catalog.english', 'b:*'))::numeric(10,4) AS distance, *
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'b:*')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'b:*');
- ?column? |                                    t                                     |                                                    a                                                     
+ distance |                                    t                                     |                                                    a                                                     
 ----------+--------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------
-  8.22467 | been trying my best to get all those "passes" into my brain. Now, thanks | 'best':4 'brain':12 'get':6 'pass':9 'thank':14 'tri':2
-  8.22467 | All the above information, I beg you to believe, I do not intend you     | 'beg':6 'believ':9 'inform':4 'intend':13
-  8.22467 | curious spectacle, but on the whole had "the banquet-hall deserted"      | 'banquet':10 'banquet-hal':9 'curious':1 'desert':12 'hall':11 'spectacl':2 'whole':6
-  8.22467 | oaks, limes and maples, bordered with flower-beds and shrubberies, and   | 'bed':9 'border':5 'flower':8 'flower-b':7 'lime':2 'mapl':4 'oak':1 'shrubberi':11
+   8.2247 | been trying my best to get all those "passes" into my brain. Now, thanks | 'best':4 'brain':12 'get':6 'pass':9 'thank':14 'tri':2
+   8.2247 | All the above information, I beg you to believe, I do not intend you     | 'beg':6 'believ':9 'inform':4 'intend':13
+   8.2247 | curious spectacle, but on the whole had "the banquet-hall deserted"      | 'banquet':10 'banquet-hal':9 'curious':1 'desert':12 'hall':11 'spectacl':2 'whole':6
+   8.2247 | oaks, limes and maples, bordered with flower-beds and shrubberies, and   | 'bed':9 'border':5 'flower':8 'flower-b':7 'lime':2 'mapl':4 'oak':1 'shrubberi':11
   13.1595 | foo bar foo the over foo qq bar                                          | 'bar':2,8 'foo':1,3,6 'qq':7
   16.4493 | ornamental building, and I wish you could see it, if you have not seen   | 'build':2 'could':7 'ornament':1 'see':8 'seen':14 'wish':5
   16.4493 | the--nearest guide-book!                                                 | 'book':5 'guid':4 'guide-book':3 'nearest':2
@@ -375,14 +381,14 @@ SELECT a <=> to_tsquery('pg_catalog.english', 'b:*'), *
   16.4493 | the few that escaped destruction in 1693. It is a beautiful, highly      | '1693':7 'beauti':11 'destruct':5 'escap':4 'high':12
 (20 rows)
 
-select  'bjarn:6237 stroustrup:6238'::tsvector <=> 'bjarn <-> stroustrup'::tsquery;
- ?column? 
+select  ('bjarn:6237 stroustrup:6238'::tsvector <=> 'bjarn <-> stroustrup'::tsquery)::numeric(10,5) AS distance;
+ distance 
 ----------
   8.22467
 (1 row)
 
-SELECT  'stroustrup:5508B,6233B,6238B bjarn:6235B,6237B' <=> 'bjarn <-> stroustrup'::tsquery;
- ?column? 
+SELECT  ('stroustrup:5508B,6233B,6238B bjarn:6235B,6237B' <=> 'bjarn <-> stroustrup'::tsquery)::numeric(10,5) AS distance;
+ distance 
 ----------
   2.05617
 (1 row)

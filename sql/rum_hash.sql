@@ -35,35 +35,35 @@ SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <-> fgr');
 SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english',
 													'def <2> fgr');
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')),
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way')),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'))::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'))::numeric(10,7),
 	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,6),
 	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
 SELECT
-	a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
-	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
-	rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	(a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4) AS distance,
+	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4),
+	rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,6),
 	*
 	FROM test_rum_hash
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
 
 -- Check ranking normalization
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0),
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'), 0),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0)::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'), 0)::numeric(10,7),
 	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way');
-SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
-	   rum_ts_score(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
+SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query)::numeric(10,4),
+	   rum_ts_score(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query)::numeric(10,6),
 	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
@@ -82,7 +82,13 @@ SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', '
 SELECT a FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'bar') ORDER BY a;
 
 -- Check full-index scan with order by
-SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') FROM test_rum_hash ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
+SELECT
+	CASE WHEN distance = 'Infinity' THEN -1
+		ELSE distance::numeric(10,4)
+	END distance
+	FROM
+		(SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') AS distance
+		FROM test_rum_hash ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote')) t;
 
 CREATE TABLE tst_hash (i int4, t tsvector);
 INSERT INTO tst_hash SELECT i%10, to_tsvector('simple', substr(md5(i::text), 1, 1)) FROM generate_series(1,100000) i;

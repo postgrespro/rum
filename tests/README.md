@@ -3,7 +3,7 @@
 Install testgres:
 
 ```
-pip install testgres
+pip install testgres==0.4.0
 ```
 
 Run command:

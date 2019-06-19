@@ -20,6 +20,7 @@
 #include "lib/rbtree.h"
 #include "storage/bufmgr.h"
 #include "utils/datum.h"
+#include "utils/memutils.h"
 
 #include "rumsort.h"
 

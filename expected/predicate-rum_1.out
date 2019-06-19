@@ -1,0 +1,521 @@
+Parsed test spec with 2 sessions
+
+starting permutation: rxy1 wx1 c1 rxy2 wy2 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step c1: COMMIT;
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+677            'qh'           
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step c2: COMMIT;
+
+starting permutation: rxy1 wx1 rxy2 c1 wy2 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step c1: COMMIT;
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+ERROR:  could not serialize access due to read/write dependencies among transactions
+step c2: COMMIT;
+
+starting permutation: rxy1 wx1 rxy2 wy2 c1 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step c1: COMMIT;
+step c2: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy1 wx1 rxy2 wy2 c2 c1
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step c2: COMMIT;
+step c1: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy1 rxy2 wx1 c1 wy2 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step c1: COMMIT;
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+ERROR:  could not serialize access due to read/write dependencies among transactions
+step c2: COMMIT;
+
+starting permutation: rxy1 rxy2 wx1 wy2 c1 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step c1: COMMIT;
+step c2: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy1 rxy2 wx1 wy2 c2 c1
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step c2: COMMIT;
+step c1: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy1 rxy2 wy2 wx1 c1 c2
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step c1: COMMIT;
+step c2: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy1 rxy2 wy2 wx1 c2 c1
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step c2: COMMIT;
+step c1: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy1 rxy2 wy2 c2 wx1 c1
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step c2: COMMIT;
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+ERROR:  could not serialize access due to read/write dependencies among transactions
+step c1: COMMIT;
+
+starting permutation: rxy2 rxy1 wx1 c1 wy2 c2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step c1: COMMIT;
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+ERROR:  could not serialize access due to read/write dependencies among transactions
+step c2: COMMIT;
+
+starting permutation: rxy2 rxy1 wx1 wy2 c1 c2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step c1: COMMIT;
+step c2: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy2 rxy1 wx1 wy2 c2 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step c2: COMMIT;
+step c1: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy2 rxy1 wy2 wx1 c1 c2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step c1: COMMIT;
+step c2: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy2 rxy1 wy2 wx1 c2 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step c2: COMMIT;
+step c1: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy2 rxy1 wy2 c2 wx1 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step c2: COMMIT;
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+ERROR:  could not serialize access due to read/write dependencies among transactions
+step c1: COMMIT;
+
+starting permutation: rxy2 wy2 rxy1 wx1 c1 c2
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step c1: COMMIT;
+step c2: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy2 wy2 rxy1 wx1 c2 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step c2: COMMIT;
+step c1: COMMIT;
+ERROR:  could not serialize access due to read/write dependencies among transactions
+
+starting permutation: rxy2 wy2 rxy1 c2 wx1 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+step c2: COMMIT;
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+ERROR:  could not serialize access due to read/write dependencies among transactions
+step c1: COMMIT;
+
+starting permutation: rxy2 wy2 c2 rxy1 wx1 c1
+step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
+id             tsv            
+
+424            'qh':1 'su':3 'vf':2
+238            'jd':1 'kp':6 'pm':3 'py':5 'qh':4 'ye':2
+299            'lm':1 'nh':6 'nl':3 'op':5 'pl':2 'qh':8 'un':7 'yt':4
+324            'ml':1 'oc':7 'ol':8 'ou':2 'pj':5 'qh':3 'sa':9 'uq':6 'zw':4
+413            'pw':1 'qd':3 'qh':7 'qu':8 'rm':2 'rv':4 'so':5 'sv':6 'tz':9
+147            'fq':1 'ga':2 'gg':3 'iu':9 'iz':10 'kd':5 'lf':4 'mx':7 'qh':11 'tj':6 'yj':8
+step wy2: INSERT INTO rum_tbl(tsv) values('hx');
+step c2: COMMIT;
+step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
+id             tsv            
+
+195            'hm':1 'hu':4 'hx':7 'ja':5 'jz':3 'pf':2 'yy':6
+131            'fa':1 'fo':8 'fs':4 'gq':5 'hx':6 'jh':7 'lw':2 'nx':3
+141            'fk':1 'fm':8 'ft':5 'hd':3 'hx':9 'je':2 'nm':4 'ph':7 're':6
+148            'fr':1 'gz':5 'hq':8 'hx':6 'ia':2 'jj':10 'jt':9 'lo':7 'no':4 'wm':3
+206            'hx':1 'iq':4 'ki':10 'kz':3 'lt':8 'ol':9 'pa':7 'tb':5 'ui':2 'xh':6
+45             'bs':1,5 'bu':8 'ce':7 'dm':6 'ea':9 'ej':10 'fd':2 'gj':11 'hx':4 'vo':3
+162            'gf':1,5 'gz':9 'hx':3 'ik':2 'je':11 'jk':10 'jy':4 'nz':6 'qz':7 'rw':8
+677            'hx'           
+step wx1: INSERT INTO rum_tbl(tsv) values('qh');
+step c1: COMMIT;

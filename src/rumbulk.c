@@ -14,7 +14,6 @@
 #include "postgres.h"
 
 #include "utils/datum.h"
-#include "utils/memutils.h"
 
 #include "rum.h"
 

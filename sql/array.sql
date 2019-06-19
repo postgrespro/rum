@@ -210,4 +210,10 @@ CREATE INDEX idx_array_order ON test_array_order USING rum (i rum_anyarray_ops);
 
 EXPLAIN (COSTS OFF)
 SELECT *, i <=> '{51}' from test_array_order WHERE i @> '{23,20}' order by i <=> '{51}';
-SELECT *, i <=> '{51}' from test_array_order WHERE i @> '{23,20}' order by i <=> '{51}';
+SELECT i,
+	CASE WHEN distance = 'Infinity' THEN -1
+		ELSE distance::numeric(18,14)
+	END distance
+	FROM
+		(SELECT *, (i <=> '{51}') AS distance
+		FROM test_array_order WHERE i @> '{23,20}' ORDER BY i <=> '{51}') t;

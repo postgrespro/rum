@@ -118,8 +118,8 @@ SELECT count(*) FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english',
      1
 (1 row)
 
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')),
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way')),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'))::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'))::numeric(10,7),
 	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
@@ -132,34 +132,34 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way')),
          16.4493 |    0.0607927 | thinking--"to go or not to go?" We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (4 rows)
 
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,6),
 	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
  rum_ts_distance | rum_ts_score |                                  t                                  |                            a                            
 -----------------+--------------+---------------------------------------------------------------------+---------------------------------------------------------
-         8.22467 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-         57.5727 |    0.0173693 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+          8.2247 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         57.5727 |     0.017369 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (2 rows)
 
 SELECT
-	a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'), 
-	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
-	rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)')),
+	(a <=> to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4) AS distance,
+	rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,4),
+	rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,6),
 	*
 	FROM test_rum_hash
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
- ?column? | rum_ts_distance | rum_ts_score |                                  t                                  |                            a                            
+ distance | rum_ts_distance | rum_ts_score |                                  t                                  |                            a                            
 ----------+-----------------+--------------+---------------------------------------------------------------------+---------------------------------------------------------
-  8.22467 |         8.22467 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-  57.5727 |         57.5727 |    0.0173693 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+   8.2247 |          8.2247 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+  57.5727 |         57.5727 |     0.017369 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (2 rows)
 
 -- Check ranking normalization
-SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0),
-	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'), 0),
+SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0)::numeric(10,4),
+	   rum_ts_score(a, to_tsquery('pg_catalog.english', 'way'), 0)::numeric(10,7),
 	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way')
@@ -172,16 +172,16 @@ SELECT rum_ts_distance(a, to_tsquery('pg_catalog.english', 'way'), 0),
          16.4493 |    0.0607927 | thinking--"to go or not to go?" We are this far on the way. Reached      | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (4 rows)
 
-SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
-	   rum_ts_score(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query),
+SELECT rum_ts_distance(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query)::numeric(10,4),
+	   rum_ts_score(a, row(to_tsquery('pg_catalog.english', 'way & (go | half)'), 0)::rum_distance_query)::numeric(10,6),
 	   *
 	FROM test_rum_hash
 	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)');
  rum_ts_distance | rum_ts_score |                                  t                                  |                            a                            
 -----------------+--------------+---------------------------------------------------------------------+---------------------------------------------------------
-         8.22467 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
-         57.5727 |    0.0173693 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
+          8.2247 |     0.121585 | itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12
+         57.5727 |     0.017369 | thinking--"to go or not to go?" We are this far on the way. Reached | 'far':11 'go':3,7 'reach':15 'think':1 'way':14
 (2 rows)
 
 INSERT INTO test_rum_hash (t) VALUES ('foo bar foo the over foo qq bar');
@@ -219,65 +219,71 @@ SELECT a FROM test_rum_hash WHERE a @@ to_tsquery('pg_catalog.english', 'bar') O
 (1 row)
 
 -- Check full-index scan with order by
-SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') FROM test_rum_hash ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote');
- ?column? 
+SELECT
+	CASE WHEN distance = 'Infinity' THEN -1
+		ELSE distance::numeric(10,4)
+	END distance
+	FROM
+		(SELECT a <=> to_tsquery('pg_catalog.english', 'ever|wrote') AS distance
+		FROM test_rum_hash ORDER BY a <=> to_tsquery('pg_catalog.english', 'ever|wrote')) t;
+ distance 
 ----------
   16.4493
   16.4493
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
- Infinity
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
+       -1
 (56 rows)
 
 CREATE TABLE tst_hash (i int4, t tsvector);
