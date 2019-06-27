@@ -57,6 +57,11 @@ TRACE_POSTGRESQL_SORT_START(INT1, INT2, INT3, INT4, INT5)
  * Below are copied definitions from src/backend/utils/sort/tuplesort.c.
  */
 
+/* GUC variables */
+#ifdef TRACE_SORT
+bool		trace_sort = false;
+#endif
+
 typedef struct
 {
 	void	   *tuple;			/* the tuple proper */
