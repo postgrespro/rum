@@ -41,6 +41,13 @@ rumbeginscan(Relation rel, int nkeys, int norderbys)
 
 	initRumState(&so->rumstate, scan->indexRelation);
 
+#if PG_VERSION_NUM >= 120000
+	/*
+	 * Starting from PG 12 we need to invalidate result's item pointer. Earlier
+	 * it was done by invalidating scan->xs_ctup by RelationGetIndexScan().
+	 */
+	ItemPointerSetInvalid(&scan->xs_heaptid);
+#endif
 	scan->opaque = so;
 
 	return scan;
