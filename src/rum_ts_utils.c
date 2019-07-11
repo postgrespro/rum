@@ -873,7 +873,7 @@ restart:
 
 	memset(qr->operandData, 0, sizeof(qr->operandData[0]) * qr->length);
 
-	ext->p = 0x7fffffff;
+	ext->p = PG_INT32_MAX;
 	ext->q = 0;
 	ptr = doc + ext->pos;
 
