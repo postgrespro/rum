@@ -83,13 +83,25 @@ _PG_init(void)
 
 	add_string_reloption(rum_relopt_kind, "attach",
 						 "Column name to attach as additional info",
-						 NULL, NULL);
+						 NULL, NULL
+#if PG_VERSION_NUM >= 130000
+						 ,AccessExclusiveLock
+#endif
+						);
 	add_string_reloption(rum_relopt_kind, "to",
 						 "Column name to add a order by column",
-						 NULL, NULL);
+						 NULL, NULL
+#if PG_VERSION_NUM >= 130000
+						 ,AccessExclusiveLock
+#endif
+						);
 	add_bool_reloption(rum_relopt_kind, "order_by_attach",
 			  "Use (addinfo, itempointer) order instead of just itempointer",
-					   false);
+					   false
+#if PG_VERSION_NUM >= 130000
+						 ,AccessExclusiveLock
+#endif
+						);
 }
 
 /*
