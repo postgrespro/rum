@@ -2373,6 +2373,7 @@ rumgettuple(IndexScanDesc scan, ScanDirection direction)
 			rumNewScanKey(scan);
 
 		so->firstCall = false;
+		ItemPointerSetInvalid(&GET_SCAN_TID(scan));
 
 		if (RumIsVoidRes(scan))
 			return false;
