@@ -24,7 +24,6 @@
 #include "utils/guc.h"
 #include "utils/logtape.h"
 #include "utils/pg_rusage.h"
-#include "utils/probes.h"
 
 #include "rum.h" /* RumItem */
 
@@ -41,14 +40,6 @@
 #endif
 
 #if PG_VERSION_NUM >= 110000
-#define RUM_SORT_START(INT1, INT2, INT3, INT4, INT5) \
-TRACE_POSTGRESQL_SORT_START(INT1, INT2, INT3, INT4, INT5, false)
-#else
-#define RUM_SORT_START(INT1, INT2, INT3, INT4, INT5) \
-TRACE_POSTGRESQL_SORT_START(INT1, INT2, INT3, INT4, INT5)
-#endif
-
-#if PG_VERSION_NUM >= 110000
 #define LogicalTapeSetCreate(X) LogicalTapeSetCreate(X, NULL, NULL, 1)
 #define LogicalTapeFreeze(X, Y) LogicalTapeFreeze(X, Y, NULL)
 #endif
@@ -56,6 +47,11 @@ TRACE_POSTGRESQL_SORT_START(INT1, INT2, INT3, INT4, INT5)
 /*
  * Below are copied definitions from src/backend/utils/sort/tuplesort.c.
  */
+
+/* GUC variables */
+#ifdef TRACE_SORT
+bool		trace_sort = false;
+#endif
 
 typedef struct
 {
@@ -740,12 +736,6 @@ rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess,
 
 	state->nKeys = nKeys;
 
-	RUM_SORT_START(INDEX_SORT,
-				   false,	/* no unique check */
-				   state->nKeys,
-				   workMem,
-				   randomAccess);
-
 	state->comparetup = comparetup_rum;
 	state->copytup = copytup_rum;
 	state->writetup = writetup_rum;
@@ -772,12 +762,6 @@ rum_tuplesort_begin_rumitem(int workMem, FmgrInfo *cmp)
 		elog(LOG,
 			 "begin rumitem sort: workMem = %d", workMem);
 #endif
-
-	RUM_SORT_START(INDEX_SORT,
-				   false,	/* no unique check */
-				   2,
-				   workMem,
-				   false);
 
 	state->cmp = cmp;
 	state->comparetup = comparetup_rumitem;
@@ -836,15 +820,6 @@ rum_tuplesort_end(RumTuplesortstate *state)
 			elog(LOG, "internal sort ended, %ld KB used: %s",
 				 spaceUsed, pg_rusage_show(&state->ru_start));
 	}
-
-	TRACE_POSTGRESQL_SORT_DONE(state->tapeset != NULL, spaceUsed);
-#else
-
-	/*
-	 * If you disabled TRACE_SORT, you can still probe sort__done, but you
-	 * ain't getting space-used stats.
-	 */
-	TRACE_POSTGRESQL_SORT_DONE(state->tapeset != NULL, 0L);
 #endif
 
 	/* Free any execution state created for CLUSTER case */
