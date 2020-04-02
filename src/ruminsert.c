@@ -550,7 +550,13 @@ rumHeapTupleBulkInsert(RumBuildState * buildstate, OffsetNumber attnum,
 }
 
 static void
-rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
+rumBuildCallback(Relation index,
+#if PG_VERSION_NUM < 130000
+				 HeapTuple htup,
+#else
+				 ItemPointer tid,
+#endif
+				 Datum *values,
 				 bool *isnull, bool tupleIsAlive, void *state)
 {
 	RumBuildState *buildstate = (RumBuildState *) state;
@@ -558,6 +564,9 @@ rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 	int			i;
 	Datum		outerAddInfo = (Datum) 0;
 	bool		outerAddInfoIsNull = true;
+#if PG_VERSION_NUM < 130000
+	ItemPointer tid = &htup->t_self;
+#endif
 
 	if (AttributeNumberIsValid(buildstate->rumstate.attrnAttachColumn))
 	{
@@ -570,7 +579,7 @@ rumBuildCallback(Relation index, HeapTuple htup, Datum *values,
 	for (i = 0; i < buildstate->rumstate.origTupdesc->natts; i++)
 		rumHeapTupleBulkInsert(buildstate, (OffsetNumber) (i + 1),
 							   values[i], isnull[i],
-							   &htup->t_self,
+							   tid,
 							   outerAddInfo, outerAddInfoIsNull);
 
 	/* If we've maxed out our available memory, dump everything to the index */

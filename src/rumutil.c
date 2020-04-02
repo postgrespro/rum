@@ -83,13 +83,25 @@ _PG_init(void)
 
 	add_string_reloption(rum_relopt_kind, "attach",
 						 "Column name to attach as additional info",
-						 NULL, NULL);
+						 NULL, NULL
+#if PG_VERSION_NUM >= 130000
+						 , AccessExclusiveLock
+#endif
+						 );
 	add_string_reloption(rum_relopt_kind, "to",
 						 "Column name to add a order by column",
-						 NULL, NULL);
+						 NULL, NULL
+#if PG_VERSION_NUM >= 130000
+						 , AccessExclusiveLock
+#endif
+						  );
 	add_bool_reloption(rum_relopt_kind, "order_by_attach",
 			  "Use (addinfo, itempointer) order instead of just itempointer",
-					   false);
+					   false
+#if PG_VERSION_NUM >= 130000
+					   , AccessExclusiveLock
+#endif
+					   );
 }
 
 /*
@@ -875,14 +887,15 @@ rumExtractEntries(RumState * rumstate, OffsetNumber attnum,
 bytea *
 rumoptions(Datum reloptions, bool validate)
 {
-	relopt_value *options;
-	RumOptions *rdopts;
-	int			numoptions;
 	static const relopt_parse_elt tab[] = {
 		{"attach", RELOPT_TYPE_STRING, offsetof(RumOptions, attachColumn)},
 		{"to", RELOPT_TYPE_STRING, offsetof(RumOptions, addToColumn)},
 		{"order_by_attach", RELOPT_TYPE_BOOL, offsetof(RumOptions, useAlternativeOrder)}
 	};
+#if PG_VERSION_NUM < 130000
+	relopt_value *options;
+	RumOptions *rdopts;
+	int			numoptions;
 
 	options = parseRelOptions(reloptions, validate, rum_relopt_kind,
 							  &numoptions);
@@ -899,6 +912,10 @@ rumoptions(Datum reloptions, bool validate)
 	pfree(options);
 
 	return (bytea *) rdopts;
+#else
+	return (bytea *) build_reloptions(reloptions, validate, rum_relopt_kind,
+									  sizeof(RumOptions), tab, lengthof(tab));
+#endif
 }
 
 bool
