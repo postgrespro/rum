@@ -71,7 +71,7 @@ $node_master->psql("postgres", "INSERT INTO tst SELECT i%10,
 					to_tsvector('simple', array_to_string(array(
 								select substr('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ', trunc(random() * 52)::integer + 1, 1)
 								FROM   generate_series(i, i + 4)), ''))
-					FROM generate_series(1,100000) i;");
+					FROM generate_series(1,16000) i;");
 $node_master->psql("postgres", "CREATE INDEX rumidx ON tst USING rum (t rum_tsvector_ops);");
 
 # Test that queries give same result
