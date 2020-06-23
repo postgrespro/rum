@@ -30,7 +30,7 @@ REGRESS = rum rum_validate rum_hash ruminv timestamp orderby orderby_hash \
 	int2 int4 int8 float4 float8 money oid \
     time timetz date interval \
     macaddr inet cidr text varchar char bytea bit varbit \
-	numeric
+	numeric rum_weight
 
 ifdef USE_PGXS
 PG_CONFIG = pg_config

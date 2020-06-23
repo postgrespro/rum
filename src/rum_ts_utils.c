@@ -34,6 +34,16 @@
 #define TS_EXEC_PHRASE_NO_POS TS_EXEC_PHRASE_AS_AND
 #endif
 
+#ifndef TSTernaryValue
+typedef enum
+{
+	TS_NO,						/* definitely no match */
+	TS_YES,						/* definitely does match */
+	TS_MAYBE					/* can't verify match for lack of pos data */
+} TSTernaryValue;
+typedef TSTernaryValue (*TSExecuteCallbackTernary) (void *arg, QueryOperand *val, ExecPhraseData *data);
+#endif
+
 PG_FUNCTION_INFO_V1(rum_extract_tsvector);
 PG_FUNCTION_INFO_V1(rum_extract_tsvector_hash);
 PG_FUNCTION_INFO_V1(rum_extract_tsquery);
@@ -59,6 +69,20 @@ static Datum build_tsvector_entry(TSVector vector, WordEntry *we);
 static Datum build_tsvector_hash_entry(TSVector vector, WordEntry *we);
 static Datum build_tsquery_entry(TSQuery query, QueryOperand *operand);
 static Datum build_tsquery_hash_entry(TSQuery query, QueryOperand *operand);
+
+static TSTernaryValue
+rum_phrase_output(ExecPhraseData *data, ExecPhraseData *Ldata, ExecPhraseData *Rdata,
+				  int emit,
+				  int Loffset,
+				  int Roffset,
+				  int max_npos);
+static TSTernaryValue
+rum_phrase_execute(QueryItem *curitem, void *arg, uint32 flags,
+				   TSExecuteCallbackTernary chkcond,
+				   ExecPhraseData *data);
+static TSTernaryValue
+rum_TS_execute(QueryItem *curitem, void *arg, uint32 flags,
+			   TSExecuteCallbackTernary chkcond);
 
 typedef Datum (*TSVectorEntryBuilder)(TSVector vector, WordEntry *we);
 typedef Datum (*TSQueryEntryBuilder)(TSQuery query, QueryOperand *operand);
@@ -148,6 +172,8 @@ static WordEntryPosVector POSNULL = {
 #define RANK_NORM_RDIVRPLUS1	0x20
 #define DEF_NORM_METHOD			RANK_NO_NORM
 
+#define TS_EXEC_IN_NEG          0x04
+
 #define QR_GET_OPERAND(q, v)	\
 	(&((q)->operandData[ ((QueryItem*)(v)) - GETQUERY((q)->query) ]))
 
@@ -202,63 +228,609 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 	PG_RETURN_BOOL(res);
 }
 
-static bool
+
+static TSTernaryValue
 checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 {
 	RumChkVal  *gcv = (RumChkVal *) checkval;
 	int			j;
 
-	/* if any val requiring a weight is used, set recheck flag */
-	if (val->weight != 0)
-		*(gcv->need_recheck) = true;
-
 	/* convert item's number to corresponding entry's (operand's) number */
 	j = gcv->map_item_operand[((QueryItem *) val) - gcv->first_item];
 
-	/* return presence of current entry in indexed value */
 	if (!gcv->check[j])
-		return false;
+		/* lexeme not present in indexed value */
+		return TS_NO;
 
-	/*
-	 * Fill position list for phrase operator if it's needed end it exists
-	 */
-	if (data)
+	else if (gcv->addInfo && gcv->addInfoIsNull[j] == false)
 	{
-		/* caller wants an array of positions (phrase search) */
+		bytea	   *positions;
+		int32		i;
+		char	   *ptrt;
+		WordEntryPos post;
 
+		post = 0;
+		int32		npos;
+		int32		k = 0;
+
+		/*
+		 * we don't have positions in index because we store a timestamp in
+		 * addInfo
+		 */
 		if (gcv->recheckPhrase)
-		{
-			/*
-			 * we don't have a positions because we store a timestamp in
-			 * addInfo
-			 */
-			*(gcv->need_recheck) = true;
-		}
-		else if (gcv->addInfo && gcv->addInfoIsNull[j] == false)
-		{
-			bytea	   *positions;
-			int32		i;
-			char	   *ptrt;
-			WordEntryPos post;
+			return ((val->weight) ? TS_MAYBE : TS_YES);
 
-			positions = DatumGetByteaP(gcv->addInfo[j]);
-			data->npos = count_pos(VARDATA_ANY(positions),
-								   VARSIZE_ANY_EXHDR(positions));
-			data->pos = palloc(sizeof(*data->pos) * data->npos);
+		positions = DatumGetByteaP(gcv->addInfo[j]);
+		ptrt = (char *) VARDATA_ANY(positions);
+		npos = count_pos(VARDATA_ANY(positions),
+						 VARSIZE_ANY_EXHDR(positions));
+
+		/* caller wants an array of positions (phrase search) */
+		if (data)
+		{
+			const int32 itemsize = sizeof(*data->pos);
+
+			data->pos = palloc(itemsize * npos);
 			data->allocated = true;
 
-			ptrt = (char *) VARDATA_ANY(positions);
-			post = 0;
-
-			for (i = 0; i < data->npos; i++)
+			/* Fill positions that has right weight to return to a caller */
+			for (i = 0; i < npos; i++)
 			{
 				ptrt = decompress_pos(ptrt, &post);
-				data->pos[i] = post;
+
+				/*
+				 * Weight mark is stored as 2 bits inside position mark in RUM
+				 * index. We compare it to a list of requested positions in
+				 * query operand (4 bits one for each weight mark).
+				 */
+				if ((val->weight == 0) || (val->weight >> WEP_GETWEIGHT(post)) & 1)
+				{
+					data->pos[k] = post;
+					k++;
+				}
+			}
+			data->npos = k;
+			data->pos = repalloc(data->pos, itemsize * k);
+			return (k ? TS_YES : TS_NO);
+		}
+
+		/*
+		 * Not phrase search. We only need to know if there's at least one
+		 * position with right weight then return TS_YES, otherwise return
+		 * TS_NO. For this search work without recheck we need that any
+		 * negation in recursion will give TS_MAYBE and initiate recheck as
+		 * "!word:A" can mean both: "word:BCВ" or "!word"
+		 */
+		else if (val->weight == 0)
+			/* Query without weigths */
+			return TS_YES;
+		else
+		{
+			char		KeyWeightsMask = 0;
+
+			/* Fill KeyWeightMask contains with weigths from all positions */
+			for (i = 0; i < npos; i++)
+			{
+				ptrt = decompress_pos(ptrt, &post);
+				KeyWeightsMask |= 1 << WEP_GETWEIGHT(post);
+			}
+			return ((KeyWeightsMask & val->weight) ? TS_YES : TS_NO);
+		}
+	}
+/* Should never come here */
+	return TS_MAYBE;
+}
+
+/*
+ * Compute output position list for a tsquery operator in phrase mode.
+ *
+ * Merge the position lists in Ldata and Rdata as specified by "emit",
+ * returning the result list into *data.  The input position lists must be
+ * sorted and unique, and the output will be as well.
+ *
+ * data: pointer to initially-all-zeroes output struct, or NULL
+ * Ldata, Rdata: input position lists
+ * emit: bitmask of TSPO_XXX flags
+ * Loffset: offset to be added to Ldata positions before comparing/outputting
+ * Roffset: offset to be added to Rdata positions before comparing/outputting
+ * max_npos: maximum possible required size of output position array
+ *
+ * Loffset and Roffset should not be negative, else we risk trying to output
+ * negative positions, which won't fit into WordEntryPos.
+ *
+ * The result is boolean (TS_YES or TS_NO), but for the caller's convenience
+ * we return it as TSTernaryValue.
+ *
+ * Returns TS_YES if any positions were emitted to *data; or if data is NULL,
+ * returns TS_YES if any positions would have been emitted.
+ */
+#define TSPO_L_ONLY		0x01	/* emit positions appearing only in L */
+#define TSPO_R_ONLY		0x02	/* emit positions appearing only in R */
+#define TSPO_BOTH		0x04	/* emit positions appearing in both L&R */
+
+static TSTernaryValue
+rum_phrase_output(ExecPhraseData *data,
+				  ExecPhraseData *Ldata,
+				  ExecPhraseData *Rdata,
+				  int emit,
+				  int Loffset,
+				  int Roffset,
+				  int max_npos)
+{
+	int			Lindex,
+				Rindex;
+
+	/* Loop until both inputs are exhausted */
+	Lindex = Rindex = 0;
+	while (Lindex < Ldata->npos || Rindex < Rdata->npos)
+	{
+		int			Lpos,
+					Rpos;
+		int			output_pos = 0;
+
+		/*
+		 * Fetch current values to compare.  WEP_GETPOS() is needed because
+		 * ExecPhraseData->data can point to a tsvector's WordEntryPosVector.
+		 */
+		if (Lindex < Ldata->npos)
+			Lpos = WEP_GETPOS(Ldata->pos[Lindex]) + Loffset;
+		else
+		{
+			/* L array exhausted, so we're done if R_ONLY isn't set */
+			if (!(emit & TSPO_R_ONLY))
+				break;
+			Lpos = INT_MAX;
+		}
+		if (Rindex < Rdata->npos)
+			Rpos = WEP_GETPOS(Rdata->pos[Rindex]) + Roffset;
+		else
+		{
+			/* R array exhausted, so we're done if L_ONLY isn't set */
+			if (!(emit & TSPO_L_ONLY))
+				break;
+			Rpos = INT_MAX;
+		}
+
+		/* Merge-join the two input lists */
+		if (Lpos < Rpos)
+		{
+			/* Lpos is not matched in Rdata, should we output it? */
+			if (emit & TSPO_L_ONLY)
+				output_pos = Lpos;
+			Lindex++;
+		}
+		else if (Lpos == Rpos)
+		{
+			/* Lpos and Rpos match ... should we output it? */
+			if (emit & TSPO_BOTH)
+				output_pos = Rpos;
+			Lindex++;
+			Rindex++;
+		}
+		else					/* Lpos > Rpos */
+		{
+			/* Rpos is not matched in Ldata, should we output it? */
+			if (emit & TSPO_R_ONLY)
+				output_pos = Rpos;
+			Rindex++;
+		}
+
+		if (output_pos > 0)
+		{
+			if (data)
+			{
+				/* Store position, first allocating output array if needed */
+				if (data->pos == NULL)
+				{
+					data->pos = (WordEntryPos *)
+						palloc(max_npos * sizeof(WordEntryPos));
+					data->allocated = true;
+				}
+				data->pos[data->npos++] = output_pos;
+			}
+			else
+			{
+				/*
+				 * Exact positions not needed, so return TS_YES as soon as we
+				 * know there is at least one.
+				 */
+				return TS_YES;
 			}
 		}
 	}
 
-	return true;
+	if (data && data->npos > 0)
+	{
+		/* Let's assert we didn't overrun the array */
+		Assert(data->npos <= max_npos);
+		return TS_YES;
+	}
+	return TS_NO;
+}
+
+/*
+ * Execute tsquery at or below an OP_PHRASE operator.
+ *
+ * This handles tsquery execution at recursion levels where we need to care
+ * about match locations.
+ *
+ * In addition to the same arguments used for TS_execute, the caller may pass
+ * a preinitialized-to-zeroes ExecPhraseData struct, to be filled with lexeme
+ * match position info on success.  data == NULL if no position data need be
+ * returned.  (In practice, outside callers pass NULL, and only the internal
+ * recursion cases pass a data pointer.)
+ * Note: the function assumes data != NULL for operators other than OP_PHRASE.
+ * This is OK because an outside call always starts from an OP_PHRASE node.
+ *
+ * The detailed semantics of the match data, given that the function returned
+ * TS_YES (successful match), are:
+ *
+ * npos > 0, negate = false:
+ *	 query is matched at specified position(s) (and only those positions)
+ * npos > 0, negate = true:
+ *	 query is matched at all positions *except* specified position(s)
+ * npos = 0, negate = true:
+ *	 query is matched at all positions
+ * npos = 0, negate = false:
+ *	 disallowed (this should result in TS_NO or TS_MAYBE, as appropriate)
+ *
+ * Successful matches also return a "width" value which is the match width in
+ * lexemes, less one.  Hence, "width" is zero for simple one-lexeme matches,
+ * and is the sum of the phrase operator distances for phrase matches.  Note
+ * that when width > 0, the listed positions represent the ends of matches not
+ * the starts.  (This unintuitive rule is needed to avoid possibly generating
+ * negative positions, which wouldn't fit into the WordEntryPos arrays.)
+ *
+ * If the TSExecuteCallback function reports that an operand is present
+ * but fails to provide position(s) for it, we will return TS_MAYBE when
+ * it is possible but not certain that the query is matched.
+ *
+ * When the function returns TS_NO or TS_MAYBE, it must return npos = 0,
+ * negate = false (which is the state initialized by the caller); but the
+ * "width" output in such cases is undefined.
+ */
+static TSTernaryValue
+rum_phrase_execute(QueryItem *curitem, void *arg, uint32 flags,
+				   TSExecuteCallbackTernary chkcond,
+				   ExecPhraseData *data)
+{
+	ExecPhraseData Ldata,
+				Rdata;
+	TSTernaryValue lmatch,
+				rmatch;
+	int			Loffset,
+				Roffset,
+				maxwidth;
+
+	/* since this function recurses, it could be driven to stack overflow */
+	check_stack_depth();
+
+	if (curitem->type == QI_VAL)
+		return (chkcond(arg, (QueryOperand *) curitem, data));
+
+	switch (curitem->qoperator.oper)
+	{
+		case OP_NOT:
+
+			/*
+			 * We need not touch data->width, since a NOT operation does not
+			 * change the match width.
+			 */
+			if (!(flags & TS_EXEC_CALC_NOT))
+			{
+				/* without CALC_NOT, report NOT as "match everywhere" */
+				Assert(data->npos == 0 && !data->negate);
+				data->negate = true;
+				return TS_YES;
+			}
+			switch (rum_phrase_execute(curitem + 1, arg, flags, chkcond, data))
+			{
+				case TS_NO:
+					/* change "match nowhere" to "match everywhere" */
+					Assert(data->npos == 0 && !data->negate);
+					data->negate = true;
+					return TS_YES;
+				case TS_YES:
+					if (data->npos > 0)
+					{
+						/* we have some positions, invert negate flag */
+						data->negate = !data->negate;
+						return TS_YES;
+					}
+					else if (data->negate)
+					{
+						/* change "match everywhere" to "match nowhere" */
+						data->negate = false;
+						return TS_NO;
+					}
+					/* Should not get here if result was TS_YES */
+					Assert(false);
+					break;
+				case TS_MAYBE:
+					/* match positions are, and remain, uncertain */
+					return TS_MAYBE;
+			}
+			break;
+
+		case OP_PHRASE:
+		case OP_AND:
+			memset(&Ldata, 0, sizeof(Ldata));
+			memset(&Rdata, 0, sizeof(Rdata));
+
+			lmatch = rum_phrase_execute(curitem + curitem->qoperator.left,
+										arg, flags, chkcond, &Ldata);
+			if (lmatch == TS_NO)
+				return TS_NO;
+
+			rmatch = rum_phrase_execute(curitem + 1,
+										arg, flags, chkcond, &Rdata);
+			if (rmatch == TS_NO)
+				return TS_NO;
+
+			/*
+			 * If either operand has no position information, then we can't
+			 * return reliable position data, only a MAYBE result.
+			 */
+			if (lmatch == TS_MAYBE || rmatch == TS_MAYBE)
+				return TS_MAYBE;
+
+			if (curitem->qoperator.oper == OP_PHRASE)
+			{
+				/*
+				 * Compute Loffset and Roffset suitable for phrase match, and
+				 * compute overall width of whole phrase match.
+				 */
+				Loffset = curitem->qoperator.distance + Rdata.width;
+				Roffset = 0;
+				if (data)
+					data->width = curitem->qoperator.distance +
+						Ldata.width + Rdata.width;
+			}
+			else
+			{
+				/*
+				 * For OP_AND, set output width and alignment like OP_OR (see
+				 * comment below)
+				 */
+				maxwidth = Max(Ldata.width, Rdata.width);
+				Loffset = maxwidth - Ldata.width;
+				Roffset = maxwidth - Rdata.width;
+				if (data)
+					data->width = maxwidth;
+			}
+
+			if (Ldata.negate && Rdata.negate)
+			{
+				/* !L & !R: treat as !(L | R) */
+				(void) rum_phrase_output(data, &Ldata, &Rdata,
+										 TSPO_BOTH | TSPO_L_ONLY | TSPO_R_ONLY,
+										 Loffset, Roffset,
+										 Ldata.npos + Rdata.npos);
+				if (data)
+					data->negate = true;
+				return TS_YES;
+			}
+			else if (Ldata.negate)
+			{
+				/* !L & R */
+				return rum_phrase_output(data, &Ldata, &Rdata,
+										 TSPO_R_ONLY,
+										 Loffset, Roffset,
+										 Rdata.npos);
+			}
+			else if (Rdata.negate)
+			{
+				/* L & !R */
+				return rum_phrase_output(data, &Ldata, &Rdata,
+										 TSPO_L_ONLY,
+										 Loffset, Roffset,
+										 Ldata.npos);
+			}
+			else
+			{
+				/* straight AND */
+				return rum_phrase_output(data, &Ldata, &Rdata,
+										 TSPO_BOTH,
+										 Loffset, Roffset,
+										 Min(Ldata.npos, Rdata.npos));
+			}
+
+		case OP_OR:
+			memset(&Ldata, 0, sizeof(Ldata));
+			memset(&Rdata, 0, sizeof(Rdata));
+
+			lmatch = rum_phrase_execute(curitem + curitem->qoperator.left,
+										arg, flags, chkcond, &Ldata);
+			rmatch = rum_phrase_execute(curitem + 1,
+										arg, flags, chkcond, &Rdata);
+
+			if (lmatch == TS_NO && rmatch == TS_NO)
+				return TS_NO;
+
+			/*
+			 * If either operand has no position information, then we can't
+			 * return reliable position data, only a MAYBE result.
+			 */
+			if (lmatch == TS_MAYBE || rmatch == TS_MAYBE)
+				return TS_MAYBE;
+
+			/*
+			 * Cope with undefined output width from failed submatch.  (This
+			 * takes less code than trying to ensure that all failure returns
+			 * et data->width to zero.)
+			 */
+			if (lmatch == TS_NO)
+				Ldata.width = 0;
+			if (rmatch == TS_NO)
+				Rdata.width = 0;
+
+			/*
+			 * For OP_AND and OP_OR, report the width of the wider of the two
+			 * inputs, and align the narrower input's positions to the right
+			 * end of that width.  This rule deals at least somewhat
+			 * reasonably with cases like "x <-> (y | z <-> q)".
+			 */
+			maxwidth = Max(Ldata.width, Rdata.width);
+			Loffset = maxwidth - Ldata.width;
+			Roffset = maxwidth - Rdata.width;
+			data->width = maxwidth;
+
+			if (Ldata.negate && Rdata.negate)
+			{
+				/* !L | !R: treat as !(L & R) */
+				(void) rum_phrase_output(data, &Ldata, &Rdata,
+										 TSPO_BOTH,
+										 Loffset, Roffset,
+										 Min(Ldata.npos, Rdata.npos));
+				data->negate = true;
+				return TS_YES;
+			}
+			else if (Ldata.negate)
+			{
+				/* !L | R: treat as !(L & !R) */
+				(void) rum_phrase_output(data, &Ldata, &Rdata,
+										 TSPO_L_ONLY,
+										 Loffset, Roffset,
+										 Ldata.npos);
+				data->negate = true;
+				return TS_YES;
+			}
+			else if (Rdata.negate)
+			{
+				/* L | !R: treat as !(!L & R) */
+				(void) rum_phrase_output(data, &Ldata, &Rdata,
+										 TSPO_R_ONLY,
+										 Loffset, Roffset,
+										 Rdata.npos);
+				data->negate = true;
+				return TS_YES;
+			}
+			else
+			{
+				/* straight OR */
+				return rum_phrase_output(data, &Ldata, &Rdata,
+										 TSPO_BOTH | TSPO_L_ONLY | TSPO_R_ONLY,
+										 Loffset, Roffset,
+										 Ldata.npos + Rdata.npos);
+			}
+
+		default:
+			elog(ERROR, "unrecognized operator: %d", curitem->qoperator.oper);
+	}
+
+	/* not reachable, but keep compiler quiet */
+	return TS_NO;
+}
+
+/*
+ * Evaluates tsquery boolean expression. It is similar to adt/tsvector_op.c
+ * TS_execute_recurse() but in most cases when ! operator is used it should set
+ * TS_MAYBE to recheck. The reason is that inside negation we can have one or several
+ * operands with weights (which we can not easily know) and negative of them is not
+ * precisely defined i.e. "!word:A" can mean "word:BCD" or "!word" (the same applies to
+ * logical combination of them). One easily  only case we can avoid recheck is when before negation there
+ * is QI_VAL which doesn't have weight.
+ *
+ * curitem: current tsquery item (initially, the first one)
+ * arg: opaque value to pass through to callback function
+ * flags: bitmask of flag bits shown in ts_utils.h
+ * chkcond: callback function to check whether a primitive value is present
+ */
+
+static TSTernaryValue
+rum_TS_execute(QueryItem *curitem, void *arg, uint32 flags,
+			   TSExecuteCallbackTernary chkcond)
+{
+	TSTernaryValue lmatch;
+
+	/* since this function recurses, it could be driven to stack overflow */
+	check_stack_depth();
+
+	if (curitem->type == QI_VAL)
+	{
+		if ((flags & TS_EXEC_IN_NEG) && curitem->qoperand.weight &&
+			curitem->qoperand.weight != 15)
+			return TS_MAYBE;
+		else
+			return chkcond(arg, (QueryOperand *) curitem, NULL);
+	}
+
+	switch (curitem->qoperator.oper)
+	{
+		case OP_NOT:
+			if (!(flags & TS_EXEC_CALC_NOT))
+				return TS_YES;
+			switch (rum_TS_execute(curitem + 1, arg, flags | TS_EXEC_IN_NEG, chkcond))
+			{
+				case TS_NO:
+					return TS_YES;
+				case TS_YES:
+					return TS_NO;
+				case TS_MAYBE:
+					return TS_MAYBE;
+			}
+			break;
+
+		case OP_AND:
+			lmatch = rum_TS_execute(curitem + curitem->qoperator.left, arg,
+									flags, chkcond);
+			if (lmatch == TS_NO)
+				return TS_NO;
+			switch (rum_TS_execute(curitem + 1, arg, flags, chkcond))
+			{
+				case TS_NO:
+					return TS_NO;
+				case TS_YES:
+					return lmatch;
+				case TS_MAYBE:
+					return TS_MAYBE;
+			}
+			break;
+
+		case OP_OR:
+			lmatch = rum_TS_execute(curitem + curitem->qoperator.left, arg,
+									flags, chkcond);
+			if (lmatch == TS_YES)
+				return TS_YES;
+			switch (rum_TS_execute(curitem + 1, arg, flags, chkcond))
+			{
+				case TS_NO:
+					return lmatch;
+				case TS_YES:
+					return TS_YES;
+				case TS_MAYBE:
+					return TS_MAYBE;
+			}
+			break;
+
+		case OP_PHRASE:
+
+			/*
+			 * If we get a MAYBE result, and the caller doesn't want that,
+			 * convert it to NO.  It would be more consistent, perhaps, to
+			 * return the result of TS_phrase_execute() verbatim and then
+			 * convert MAYBE results at the top of the recursion.  But
+			 * converting at the topmost phrase operator gives results that
+			 * are bug-compatible with the old implementation, so do it like
+			 * this for now.
+			 */
+			switch (rum_phrase_execute(curitem, arg, flags, chkcond, NULL))
+			{
+				case TS_NO:
+					return TS_NO;
+				case TS_YES:
+					return TS_YES;
+				case TS_MAYBE:
+					return (flags & TS_EXEC_PHRASE_NO_POS) ? TS_MAYBE : TS_NO;
+			}
+			break;
+
+		default:
+			elog(ERROR, "unrecognized operator: %d", curitem->qoperator.oper);
+	}
+
+	/* not reachable, but keep compiler quiet */
+	return TS_NO;
 }
 
 Datum
@@ -274,23 +846,23 @@ rum_tsquery_consistent(PG_FUNCTION_ARGS)
 	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
-	bool		res = false;
+
+	TSTernaryValue res = TS_NO;
 
 	/*
-	 * The query requires recheck only if it involves weights
+	 * The query doesn't require recheck by default
 	 */
 	*recheck = false;
 
 	if (query->size > 0)
 	{
-		QueryItem  *item;
 		RumChkVal	gcv;
 
 		/*
 		 * check-parameter array has one entry for each value (operand) in the
 		 * query.
 		 */
-		gcv.first_item = item = GETQUERY(query);
+		gcv.first_item = GETQUERY(query);
 		gcv.check = check;
 		gcv.map_item_operand = (int *) (extra_data[0]);
 		gcv.need_recheck = recheck;
@@ -298,14 +870,15 @@ rum_tsquery_consistent(PG_FUNCTION_ARGS)
 		gcv.addInfoIsNull = addInfoIsNull;
 		gcv.recheckPhrase = false;
 
-		res = TS_execute(GETQUERY(query), &gcv,
-						 TS_EXEC_CALC_NOT,
-						 checkcondition_rum);
+		res = rum_TS_execute(GETQUERY(query), &gcv,
+							 TS_EXEC_CALC_NOT,
+							 checkcondition_rum);
+		if (res == TS_MAYBE)
+			*recheck = true;
 	}
-
 	PG_RETURN_BOOL(res);
-}
 
+}
 Datum
 rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 {
@@ -319,7 +892,7 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
-	bool		res = false;
+	TSTernaryValue res = TS_NO;
 
 	/*
 	 * The query requires recheck only if it involves weights
@@ -328,14 +901,13 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 
 	if (query->size > 0)
 	{
-		QueryItem  *item;
 		RumChkVal	gcv;
 
 		/*
 		 * check-parameter array has one entry for each value (operand) in the
 		 * query.
 		 */
-		gcv.first_item = item = GETQUERY(query);
+		gcv.first_item = GETQUERY(query);
 		gcv.check = check;
 		gcv.map_item_operand = (int *) (extra_data[0]);
 		gcv.need_recheck = recheck;
@@ -343,11 +915,12 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 		gcv.addInfoIsNull = addInfoIsNull;
 		gcv.recheckPhrase = true;
 
-		res = TS_execute(GETQUERY(query), &gcv,
-						 TS_EXEC_CALC_NOT | TS_EXEC_PHRASE_NO_POS,
-						 checkcondition_rum);
+		res = rum_TS_execute(GETQUERY(query), &gcv,
+							 TS_EXEC_CALC_NOT | TS_EXEC_PHRASE_NO_POS,
+							 checkcondition_rum);
+		if (res == TS_MAYBE)
+			*recheck = true;
 	}
-
 	PG_RETURN_BOOL(res);
 }
 
