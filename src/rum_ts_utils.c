@@ -34,15 +34,14 @@
 #define TS_EXEC_PHRASE_NO_POS TS_EXEC_PHRASE_AS_AND
 #endif
 
-#ifndef TSTernaryValue
 typedef enum
 {
 	TS_NO,						/* definitely no match */
 	TS_YES,						/* definitely does match */
 	TS_MAYBE					/* can't verify match for lack of pos data */
-} TSTernaryValue;
-typedef TSTernaryValue (*TSExecuteCallbackTernary) (void *arg, QueryOperand *val, ExecPhraseData *data);
-#endif
+} RumTernaryValue;
+typedef RumTernaryValue (*RumExecuteCallbackTernary) (void *arg, QueryOperand *val, ExecPhraseData *data);
+
 
 PG_FUNCTION_INFO_V1(rum_extract_tsvector);
 PG_FUNCTION_INFO_V1(rum_extract_tsvector_hash);
@@ -70,19 +69,19 @@ static Datum build_tsvector_hash_entry(TSVector vector, WordEntry *we);
 static Datum build_tsquery_entry(TSQuery query, QueryOperand *operand);
 static Datum build_tsquery_hash_entry(TSQuery query, QueryOperand *operand);
 
-static TSTernaryValue
+static RumTernaryValue
 rum_phrase_output(ExecPhraseData *data, ExecPhraseData *Ldata, ExecPhraseData *Rdata,
 				  int emit,
 				  int Loffset,
 				  int Roffset,
 				  int max_npos);
-static TSTernaryValue
+static RumTernaryValue
 rum_phrase_execute(QueryItem *curitem, void *arg, uint32 flags,
-				   TSExecuteCallbackTernary chkcond,
+				   RumExecuteCallbackTernary chkcond,
 				   ExecPhraseData *data);
-static TSTernaryValue
+static RumTernaryValue
 rum_TS_execute(QueryItem *curitem, void *arg, uint32 flags,
-			   TSExecuteCallbackTernary chkcond);
+			   RumExecuteCallbackTernary chkcond);
 
 typedef Datum (*TSVectorEntryBuilder)(TSVector vector, WordEntry *we);
 typedef Datum (*TSQueryEntryBuilder)(TSQuery query, QueryOperand *operand);
@@ -229,7 +228,7 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 }
 
 
-static TSTernaryValue
+static RumTernaryValue
 checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 {
 	RumChkVal  *gcv = (RumChkVal *) checkval;
@@ -302,13 +301,13 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 		 * "!word:A" can mean both: "word:BCВ" or "!word"
 		 */
 		else if (val->weight == 0)
-			/* Query without weigths */
+			/* Query without weights */
 			return TS_YES;
 		else
 		{
 			char		KeyWeightsMask = 0;
 
-			/* Fill KeyWeightMask contains with weigths from all positions */
+			/* Fill KeyWeightMask contains with weights from all positions */
 			for (i = 0; i < npos; i++)
 			{
 				ptrt = decompress_pos(ptrt, &post);
@@ -339,7 +338,7 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
  * negative positions, which won't fit into WordEntryPos.
  *
  * The result is boolean (TS_YES or TS_NO), but for the caller's convenience
- * we return it as TSTernaryValue.
+ * we return it as RumTernaryValue.
  *
  * Returns TS_YES if any positions were emitted to *data; or if data is NULL,
  * returns TS_YES if any positions would have been emitted.
@@ -348,7 +347,7 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 #define TSPO_R_ONLY		0x02	/* emit positions appearing only in R */
 #define TSPO_BOTH		0x04	/* emit positions appearing in both L&R */
 
-static TSTernaryValue
+static RumTernaryValue
 rum_phrase_output(ExecPhraseData *data,
 				  ExecPhraseData *Ldata,
 				  ExecPhraseData *Rdata,
@@ -481,7 +480,7 @@ rum_phrase_output(ExecPhraseData *data,
  * the starts.  (This unintuitive rule is needed to avoid possibly generating
  * negative positions, which wouldn't fit into the WordEntryPos arrays.)
  *
- * If the TSExecuteCallback function reports that an operand is present
+ * If the RumExecuteCallback function reports that an operand is present
  * but fails to provide position(s) for it, we will return TS_MAYBE when
  * it is possible but not certain that the query is matched.
  *
@@ -489,14 +488,14 @@ rum_phrase_output(ExecPhraseData *data,
  * negate = false (which is the state initialized by the caller); but the
  * "width" output in such cases is undefined.
  */
-static TSTernaryValue
+static RumTernaryValue
 rum_phrase_execute(QueryItem *curitem, void *arg, uint32 flags,
-				   TSExecuteCallbackTernary chkcond,
+				   RumExecuteCallbackTernary chkcond,
 				   ExecPhraseData *data)
 {
 	ExecPhraseData Ldata,
 				Rdata;
-	TSTernaryValue lmatch,
+	RumTernaryValue lmatch,
 				rmatch;
 	int			Loffset,
 				Roffset,
@@ -737,12 +736,11 @@ rum_phrase_execute(QueryItem *curitem, void *arg, uint32 flags,
  * chkcond: callback function to check whether a primitive value is present
  */
 
-static TSTernaryValue
+static RumTernaryValue
 rum_TS_execute(QueryItem *curitem, void *arg, uint32 flags,
-			   TSExecuteCallbackTernary chkcond)
+			   RumExecuteCallbackTernary chkcond)
 {
-	TSTernaryValue lmatch;
-
+	RumTernaryValue lmatch;
 	/* since this function recurses, it could be driven to stack overflow */
 	check_stack_depth();
 
@@ -847,7 +845,7 @@ rum_tsquery_consistent(PG_FUNCTION_ARGS)
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
 
-	TSTernaryValue res = TS_NO;
+	RumTernaryValue res = TS_NO;
 
 	/*
 	 * The query doesn't require recheck by default
@@ -892,7 +890,7 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
-	TSTernaryValue res = TS_NO;
+	RumTernaryValue res = TS_NO;
 
 	/*
 	 * The query requires recheck only if it involves weights
