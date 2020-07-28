@@ -171,7 +171,11 @@ static WordEntryPosVector POSNULL = {
 #define RANK_NORM_RDIVRPLUS1	0x20
 #define DEF_NORM_METHOD			RANK_NO_NORM
 
-#define TS_EXEC_IN_NEG          0x04
+/*
+ * Should not conflict with defines
+ * TS_EXEC_EMPTY/TS_EXEC_CALC_NOT/TS_EXEC_PHRASE_NO_POS
+ */
+#define TS_EXEC_IN_NEG			0x04
 
 #define QR_GET_OPERAND(q, v)	\
 	(&((q)->operandData[ ((QueryItem*)(v)) - GETQUERY((q)->query) ]))
@@ -197,10 +201,8 @@ Datum
 rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 {
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
-
 	TSQuery		query = PG_GETARG_TSQUERY(2);
-
-	Pointer    *extra_data = (Pointer *) PG_GETARG_POINTER(4);
+	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
 	bool		recheck;
 	bool		res = false;
 
@@ -247,7 +249,6 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 		int32		i;
 		char	   *ptrt;
 		WordEntryPos post;
-
 		post = 0;
 		int32		npos;
 		int32		k = 0;
@@ -267,9 +268,7 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 		/* caller wants an array of positions (phrase search) */
 		if (data)
 		{
-			const int32 itemsize = sizeof(*data->pos);
-
-			data->pos = palloc(itemsize * npos);
+			data->pos = palloc(sizeof(*data->pos) * npos);
 			data->allocated = true;
 
 			/* Fill positions that has right weight to return to a caller */
@@ -289,7 +288,7 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 				}
 			}
 			data->npos = k;
-			data->pos = repalloc(data->pos, itemsize * k);
+			data->pos = repalloc(data->pos, sizeof(*data->pos) * k);
 			return (k ? TS_YES : TS_NO);
 		}
 
@@ -835,12 +834,10 @@ Datum
 rum_tsquery_consistent(PG_FUNCTION_ARGS)
 {
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
-
 	/* StrategyNumber strategy = PG_GETARG_UINT16(1); */
 	TSQuery		query = PG_GETARG_TSQUERY(2);
-
 	/* int32	nkeys = PG_GETARG_INT32(3); */
-	Pointer    *extra_data = (Pointer *) PG_GETARG_POINTER(4);
+	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
 	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
@@ -881,12 +878,10 @@ Datum
 rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 {
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
-
 	/* StrategyNumber strategy = PG_GETARG_UINT16(1); */
 	TSQuery		query = PG_GETARG_TSQUERY(2);
-
 	/* int32	nkeys = PG_GETARG_INT32(3); */
-	Pointer    *extra_data = (Pointer *) PG_GETARG_POINTER(4);
+	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
 	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
 	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
 	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
