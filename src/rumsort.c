@@ -1,6 +1,6 @@
 /*-------------------------------------------------------------------------
  *
- * rumsort.h
+ * rumsort.c
  *	  Generalized tuple sorting routines.
  *
  * This module handles sorting of RumSortItem or RumScanItem structures.
