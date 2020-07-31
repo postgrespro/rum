@@ -991,6 +991,7 @@ count_pos(char *ptr, int len)
 		if (!(ptr[i] & HIGHBIT))
 			count++;
 	}
+	Assert(!(ptr[i-1] & HIGHBIT));
 	return count;
 }
 
@@ -2208,6 +2209,7 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 				count2 = count_pos(in2, VARSIZE_ANY_EXHDR(addInfo2)),
 				countRes = 0;
 	int			i1 = 0, i2 = 0;
+	int 		n_equals = 0;
 	Size		size;
 	WordEntryPos pos1 = 0,
 				pos2 = 0,
@@ -2220,51 +2222,61 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 	in1 = decompress_pos(in1, &pos1);
 	in2 = decompress_pos(in2, &pos2);
 
-	while(i1 < count1 && i2 < count2)
+	for(;;)
 	{
 		if (WEP_GETPOS(pos1) > WEP_GETPOS(pos2))
 		{
 			pos[countRes++] = pos2;
-			if (i2 < count2)
-				in2 = decompress_pos(in2, &pos2);
 			i2++;
+			if (i2 >= count2)
+				break;
+			in2 = decompress_pos(in2, &pos2);
 		}
 		else if (WEP_GETPOS(pos1) < WEP_GETPOS(pos2))
 		{
 			pos[countRes++] = pos1;
-			if (i1 < count1)
-				in1 = decompress_pos(in1, &pos1);
 			i1++;
+			if (i1 >= count1)
+				break;
+			in1 = decompress_pos(in1, &pos1);
 		}
 		else
 		{
 			pos[countRes++] = pos1;
+			n_equals++;
+			i1++;
+			i2++;
 			if (i1 < count1)
 				in1 = decompress_pos(in1, &pos1);
 			if (i2 < count2)
 				in2 = decompress_pos(in2, &pos2);
-			i1++;
-			i2++;
+			if (i2 >= count2 || i1 >= count1)
+				break;
 		}
 	}
 
-	while(i1 < count1)
-	{
-		pos[countRes++] = pos1;
-		if (i1 < count1)
+	if (i1 < count1)
+		for(;;)
+		{
+			pos[countRes++] = pos1;
+			i1++;
+			if (i1 >= count1)
+				break;
 			in1 = decompress_pos(in1, &pos1);
-		i1++;
-	}
-
-	while(i2 < count2)
+		}
+	else if (i2 < count2)
 	{
-		pos[countRes++] = pos2;
-		if (i2 < count2)
+		for(;;)
+		{
+			pos[countRes++] = pos2;
+			i2++;
+			if (i2 >= count2)
+				break;
 			in2 = decompress_pos(in2, &pos2);
-		i2++;
+		}
 	}
 
-	Assert(countRes <= (count1 + count2));
+	Assert(countRes == count1 + count2 - n_equals);
 
 	/*
 	 * In some cases compressed positions may take more memory than
