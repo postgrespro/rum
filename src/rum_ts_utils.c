@@ -972,6 +972,7 @@ decompress_pos(char *ptr, WordEntryPos *pos)
 		else
 		{
 			delta |= (v & LOWERMASK) << i;
+			Assert(delta <= 0x3fff);
 			*pos += delta;
 			WEP_SETWEIGHT(*pos, v >> 5);
 			return ptr;
@@ -991,7 +992,7 @@ count_pos(char *ptr, int len)
 		if (!(ptr[i] & HIGHBIT))
 			count++;
 	}
-	Assert(!(ptr[i-1] & HIGHBIT));
+	Assert((ptr[i-1] & HIGHBIT) == 0);
 	return count;
 }
 
@@ -2209,7 +2210,6 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 				count2 = count_pos(in2, VARSIZE_ANY_EXHDR(addInfo2)),
 				countRes = 0;
 	int			i1 = 0, i2 = 0;
-	int 		n_equals = 0;
 	Size		size;
 	WordEntryPos pos1 = 0,
 				pos2 = 0,
@@ -2243,7 +2243,6 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 		else
 		{
 			pos[countRes++] = pos1;
-			n_equals++;
 			i1++;
 			i2++;
 			if (i1 < count1)
@@ -2276,7 +2275,7 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 		}
 	}
 
-	Assert(countRes == count1 + count2 - n_equals);
+	Assert(countRes <= count1 + count2);
 
 	/*
 	 * In some cases compressed positions may take more memory than
