@@ -248,8 +248,7 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 		bytea	   *positions;
 		int32		i;
 		char	   *ptrt;
-		WordEntryPos post;
-		post = 0;
+		WordEntryPos post = 0;
 		int32		npos;
 		int32		k = 0;
 
