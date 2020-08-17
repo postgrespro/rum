@@ -112,6 +112,7 @@ static IndexTuple
 getRightMostTuple(Page page)
 {
 	OffsetNumber maxoff = PageGetMaxOffsetNumber(page);
+	Assert(maxoff!=InvalidOffsetNumber);
 
 	return (IndexTuple) PageGetItem(page, PageGetItemId(page, maxoff));
 }

@@ -469,12 +469,12 @@ lookupScanDirection(RumState *state, AttrNumber attno, StrategyNumber strategy)
 	int			i;
 	RumConfig	*rumConfig = state->rumConfig + attno - 1;
 
-	for(i = 0; rumConfig->strategyInfo[i].strategy != InvalidStrategy &&
-			   i < MAX_STRATEGIES; i++)
+	for(i = 0; i < MAX_STRATEGIES; i++)
 	{
+		if (rumConfig->strategyInfo[i].strategy != InvalidStrategy)
+			break;
 		if (rumConfig->strategyInfo[i].strategy == strategy)
 			return rumConfig->strategyInfo[i].direction;
-
 	}
 
 	return NoMovementScanDirection;

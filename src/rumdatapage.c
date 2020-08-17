@@ -20,7 +20,7 @@ static BlockNumber dataGetRightMostPage(RumBtree btree, Page page);
 
 /* Does datatype allow packing into the 1-byte-header varlena format? */
 #define TYPE_IS_PACKABLE(typlen, typstorage) \
-	((typlen) == -1 && (typstorage) != 'p')
+	((typlen) == -1 && (typstorage) != TYPSTORAGE_PLAIN)
 
 /*
  * Increment data_length by the space needed by the datum, including any
@@ -99,7 +99,7 @@ rumDatumWrite(Pointer ptr, Datum datum, bool typbyval, char typalign,
 				elog(ERROR, "unsupported byval length: %d", (int) (typlen));
 		}
 
-		data_length = typlen;
+		data_length = (Size)typlen;
 	}
 	else if (typlen == -1)
 	{
@@ -149,7 +149,7 @@ rumDatumWrite(Pointer ptr, Datum datum, bool typbyval, char typalign,
 		/* fixed-length pass-by-reference */
 		ptr = (char *) att_align_nominal(ptr, typalign);
 		Assert(typlen > 0);
-		data_length = typlen;
+		data_length = (Size)typlen;
 		memmove(ptr, DatumGetPointer(datum), data_length);
 	}
 
@@ -736,7 +736,7 @@ RumDataPageAddItem(Page page, void *data, OffsetNumber offset)
 		if (offset <= maxoff)
 			memmove(ptr + sizeof(PostingItem),
 					ptr,
-					(maxoff - offset + 1) * sizeof(PostingItem));
+				    ((uint16_t)(maxoff - offset + 1)) * sizeof(PostingItem));
 	}
 	memcpy(ptr, data, sizeof(PostingItem));
 	RumPageGetOpaque(page)->maxoff++;
@@ -763,7 +763,7 @@ RumPageDeletePostingItem(Page page, OffsetNumber offset)
 		char	   *dstptr = RumDataPageGetItem(page, offset),
 				   *sourceptr = RumDataPageGetItem(page, offset + 1);
 
-		memmove(dstptr, sourceptr, sizeof(PostingItem) * (maxoff - offset));
+		memmove(dstptr, sourceptr, sizeof(PostingItem) * (uint16_t)(maxoff - offset));
 	}
 
 	RumPageGetOpaque(page)->maxoff--;
@@ -1229,7 +1229,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	RumItem	   *bound;
 	Page		newlPage = PageGetTempPageCopy(BufferGetPage(lbuf));
 	RumItem		oldbound = *RumDataPageGetRightBound(newlPage);
-	int			sizeofitem = sizeof(PostingItem);
+	unsigned int	sizeofitem = sizeof(PostingItem);
 	OffsetNumber maxoff = RumPageGetOpaque(newlPage)->maxoff;
 	Size		pageSize = PageGetPageSize(newlPage);
 	Size		freeSpace;
@@ -1246,7 +1246,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	Assert(!RumPageIsLeaf(newlPage));
 	ptr = vector + (off - 1) * sizeofitem;
 	if (maxoff + 1 - off != 0)
-		memmove(ptr + sizeofitem, ptr, (maxoff - off + 1) * sizeofitem);
+		memmove(ptr + sizeofitem, ptr, (uint16_t)(maxoff - off + 1) * sizeofitem);
 	memcpy(ptr, &(btree->pitem), sizeofitem);
 
 	maxoff++;
@@ -1273,7 +1273,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	ptr = RumDataPageGetItem(rPage, FirstOffsetNumber);
 	memcpy(ptr, vector + separator * sizeofitem,
-		   (maxoff - separator) * sizeofitem);
+		   (uint16_t)(maxoff - separator) * sizeofitem);
 	RumPageGetOpaque(rPage)->maxoff = maxoff - separator;
 	/* Adjust pd_lower */
 	((PageHeader) rPage)->pd_lower = (ptr +
@@ -1501,6 +1501,7 @@ rumInsertItemPointers(RumState * rumstate,
 					  RumItem * items, uint32 nitem,
 					  GinStatsData *buildStats)
 {
+	Assert(gdi->stack);
 	BlockNumber rootBlkno = gdi->stack->blkno;
 
 	gdi->btree.items = items;
