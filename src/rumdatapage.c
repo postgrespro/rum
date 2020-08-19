@@ -20,7 +20,7 @@ static BlockNumber dataGetRightMostPage(RumBtree btree, Page page);
 
 /* Does datatype allow packing into the 1-byte-header varlena format? */
 #define TYPE_IS_PACKABLE(typlen, typstorage) \
-	((typlen) == -1 && (typstorage) != TYPSTORAGE_PLAIN)
+	((typlen) == -1 && (typstorage) != 'p')
 
 /*
  * Increment data_length by the space needed by the datum, including any
