@@ -1501,9 +1501,10 @@ rumInsertItemPointers(RumState * rumstate,
 					  RumItem * items, uint32 nitem,
 					  GinStatsData *buildStats)
 {
-	Assert(gdi->stack);
-	BlockNumber rootBlkno = gdi->stack->blkno;
+	BlockNumber rootBlkno;
 
+	Assert(gdi->stack);
+	rootBlkno = gdi->stack->blkno;
 	gdi->btree.items = items;
 	gdi->btree.nitem = nitem;
 	gdi->btree.curitem = 0;
