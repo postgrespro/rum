@@ -112,6 +112,7 @@ rum_btree_extract_query(FunctionCallInfo fcinfo,
 		case BTGreaterEqualStrategyNumber:
 		case BTGreaterStrategyNumber:
 			*ptr_partialmatch = true;
+			/*FALLTHROUGH*/
 		case BTEqualStrategyNumber:
 		case RUM_DISTANCE:
 		case RUM_LEFT_DISTANCE:

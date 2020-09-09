@@ -62,7 +62,7 @@ PG_FUNCTION_INFO_V1(rum_ts_join_pos);
 
 PG_FUNCTION_INFO_V1(tsquery_to_distance_query);
 
-static int	count_pos(char *ptr, int len);
+static unsigned int	count_pos(char *ptr, int len);
 static char *decompress_pos(char *ptr, WordEntryPos *pos);
 static Datum build_tsvector_entry(TSVector vector, WordEntry *we);
 static Datum build_tsvector_hash_entry(TSVector vector, WordEntry *we);
@@ -919,7 +919,7 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 #define SIXTHBIT 0x20
 #define LOWERMASK 0x1F
 
-static int
+static unsigned int
 compress_pos(char *target, WordEntryPos *pos, int npos)
 {
 	int			i;
@@ -980,7 +980,7 @@ decompress_pos(char *ptr, WordEntryPos *pos)
 	}
 }
 
-static int
+static unsigned int
 count_pos(char *ptr, int len)
 {
 	int			count = 0,
