@@ -34,6 +34,11 @@
 #define TS_EXEC_PHRASE_NO_POS TS_EXEC_PHRASE_AS_AND
 #endif
 
+/* TS_EXEC_CALC_NOT was removed, but TS_EXEC_SKIP_NOT preserves old behavior */
+#if PG_VERSION_NUM >= 130000
+#define TS_EXEC_CALC_NOT TS_EXEC_SKIP_NOT
+#endif
+
 typedef enum
 {
 	TS_NO,						/* definitely no match */
