@@ -208,14 +208,13 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 
 	if (query->size > 0)
 	{
-		QueryItem  *item;
 		RumChkVal	gcv;
 
 		/*
 		 * check-parameter array has one entry for each value (operand) in the
 		 * query.
 		 */
-		gcv.first_item = item = GETQUERY(query);
+		gcv.first_item = GETQUERY(query);
 		gcv.check = check;
 		gcv.map_item_operand = (int *) (extra_data[0]);
 		gcv.need_recheck = &recheck;
