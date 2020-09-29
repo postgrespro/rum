@@ -54,7 +54,7 @@
 
 /* GUC variables */
 #ifdef TRACE_SORT
-bool	trace_sort = false;
+extern bool	trace_sort;
 #endif
 
 typedef struct
