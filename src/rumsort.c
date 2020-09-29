@@ -40,7 +40,11 @@
 #endif
 
 #if PG_VERSION_NUM >= 110000
+#if PG_VERSION_NUM >= 130000
+#define LogicalTapeSetCreate(X) LogicalTapeSetCreate(X, false, NULL, NULL, 1)
+#else
 #define LogicalTapeSetCreate(X) LogicalTapeSetCreate(X, NULL, NULL, 1)
+#endif
 #define LogicalTapeFreeze(X, Y) LogicalTapeFreeze(X, Y, NULL)
 #endif
 

@@ -108,6 +108,7 @@ make_query_item_wrap(QueryItem *item, QueryItemWrap *parent, bool not)
 			}
 		case OP_PHRASE:
 			elog(ERROR, "Indexing of phrase tsqueries isn't supported yet");
+			break;
 		default:
 			elog(ERROR, "Invalid tsquery operator");
 	}
