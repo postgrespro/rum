@@ -52,9 +52,13 @@
  * Below are copied definitions from src/backend/utils/sort/tuplesort.c.
  */
 
-/* GUC variables */
+/* GUC variables shouldn't be declared explicitely.
+  Rather corresponigng include file should be include because it
+  contains neccessary Windows export/import magic. And part of this
+  magic should be done during postgres.exe compilation
+*/
 #ifdef TRACE_SORT
-extern bool	trace_sort;
+#include <utils/guc.h>
 #endif
 
 typedef struct
