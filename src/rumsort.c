@@ -58,7 +58,7 @@
  * backend so it is declared local for this case.
  */
 #ifdef TRACE_SORT
-#if PG_VERSION_NUM >= 130000 && defined (PGPRO_VERSION)
+#if ( !defined (_MSC_VER) || (PG_VERSION_NUM >= 130000 && defined (PGPRO_VERSION)) )
 #include "utils/guc.h"
 #else
 bool	trace_sort = false;
