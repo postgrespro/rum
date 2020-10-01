@@ -21,7 +21,6 @@
 
 #include "commands/tablespace.h"
 #include "executor/executor.h"
-#include "utils/guc.h"
 #include "utils/logtape.h"
 #include "utils/pg_rusage.h"
 
@@ -52,13 +51,18 @@
  * Below are copied definitions from src/backend/utils/sort/tuplesort.c.
  */
 
-/* GUC variables shouldn't be declared explicitely.
-  Rather corresponigng include file should be include because it
-  contains neccessary Windows export/import magic. And part of this
-  magic should be done during postgres.exe compilation
-*/
+/* For PGPRO since v.13 trace_sort is imported from backend by including its
+ * declaration in guc.h (guc.h contains added Windows export/import magic to be done
+ * during postgres.exe compilation).
+ * For older or non-PGPRO versions on Windows platform trace_sort is not exported by
+ * backend so it is declared local for this case.
+ */
 #ifdef TRACE_SORT
-#include <utils/guc.h>
+#if PG_VERSION_NUM >= 130000 && defined (PGPRO_VERSION)
+#include "utils/guc.h"
+#else
+bool	trace_sort = false;
+#endif
 #endif
 
 typedef struct
