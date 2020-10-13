@@ -103,7 +103,7 @@ typedef struct RumMetaPageData
 	int64		nEntries;
 }	RumMetaPageData;
 
-#define RUM_CURRENT_VERSION		(0xC0DE0003)
+#define RUM_CURRENT_VERSION		(0xC0DE0002)
 
 #define RumPageGetMeta(p) \
 	((RumMetaPageData *) PageGetContents(p))
