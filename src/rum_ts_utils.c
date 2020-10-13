@@ -216,7 +216,7 @@ pre_checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 	j = gcv->map_item_operand[((QueryItem *) val) - gcv->first_item];
 	/* return presence of current entry in indexed value */
 	#if PG_VERSION_NUM >= 130000
-	return ( *(gcv->need_recheck) ? TS_MAYBE : gcv->check[j] );
+	return ( *(gcv->need_recheck) ? TS_MAYBE : (gcv->check[j] ? TS_YES : TS_NO) );
 	#else
 	return gcv->check[j];
 	#endif
@@ -228,7 +228,7 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
 	TSQuery		query = PG_GETARG_TSQUERY(2);
 	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
-	bool		recheck;
+	bool		recheck = false;
 	bool		res = false;
 
 	if (query->size > 0)
