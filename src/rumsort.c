@@ -21,7 +21,6 @@
 
 #include "commands/tablespace.h"
 #include "executor/executor.h"
-#include "utils/guc.h"
 #include "utils/logtape.h"
 #include "utils/pg_rusage.h"
 
@@ -40,7 +39,11 @@
 #endif
 
 #if PG_VERSION_NUM >= 110000
+#if PG_VERSION_NUM >= 130000
+#define LogicalTapeSetCreate(X) LogicalTapeSetCreate(X, false, NULL, NULL, 1)
+#else
 #define LogicalTapeSetCreate(X) LogicalTapeSetCreate(X, NULL, NULL, 1)
+#endif
 #define LogicalTapeFreeze(X, Y) LogicalTapeFreeze(X, Y, NULL)
 #endif
 
@@ -48,9 +51,18 @@
  * Below are copied definitions from src/backend/utils/sort/tuplesort.c.
  */
 
-/* GUC variables */
+/* For PGPRO since v.13 trace_sort is imported from backend by including its
+ * declaration in guc.h (guc.h contains added Windows export/import magic to be done
+ * during postgres.exe compilation).
+ * For older or non-PGPRO versions on Windows platform trace_sort is not exported by
+ * backend so it is declared local for this case.
+ */
 #ifdef TRACE_SORT
-bool		trace_sort = false;
+#if ( !defined (_MSC_VER) || (PG_VERSION_NUM >= 130000 && defined (PGPRO_VERSION)) )
+#include "utils/guc.h"
+#else
+bool	trace_sort = false;
+#endif
 #endif
 
 typedef struct

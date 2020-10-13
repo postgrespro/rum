@@ -703,9 +703,12 @@ rumNewScanKey(IndexScanDesc scan)
 				repalloc(so->entries, so->allocentries * sizeof(RumScanEntry));
 		}
 
-		memcpy(so->entries + so->totalentries,
-			   key->scanEntry, sizeof(*key->scanEntry) * key->nentries);
-		so->totalentries += key->nentries;
+		if ( key->scanEntry != NULL )
+		{
+			memcpy(so->entries + so->totalentries,
+				   key->scanEntry, sizeof(*key->scanEntry) * key->nentries);
+			so->totalentries += key->nentries;
+		}
 	}
 
 	/*

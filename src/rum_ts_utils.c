@@ -34,14 +34,32 @@
 #define TS_EXEC_PHRASE_NO_POS TS_EXEC_PHRASE_AS_AND
 #endif
 
+#if PG_VERSION_NUM >= 130000
+/* Since v13 TS_execute flag naming and defaults have reverted:
+ * - before v13 - 					- since v13 -
+ * TS_EXEC_CALC_NOT (0x01)          TS_EXEC_SKIP_NOT (0x01)
+ */
+#define TS_EXEC_CALC_NOT (0x01) /*  Defined here for use with rum_TS_execute for
+								 *	compatibility with version < 13 where this
+								 *	flag was defined globally.
+								 *	XXX Since v13 current global flag
+								 *	TS_EXEC_SKIP_NOT has reverted meaning for
+								 *	TS_execute but TS_EXEC_CALC_NOT should still
+								 *	be passed to rum_TS_execute in unchanged (previous)
+								 *	meaning but should not be passed into TS_execute:
+								 *	(TS_execute will do 'calc not' by default, and
+								 *	if you need skip it, use new TS_EXEC_SKIP_NOT)
+								 */
+typedef TSTernaryValue RumTernaryValue;
+#else
 typedef enum
 {
 	TS_NO,						/* definitely no match */
 	TS_YES,						/* definitely does match */
 	TS_MAYBE					/* can't verify match for lack of pos data */
 } RumTernaryValue;
+#endif
 typedef RumTernaryValue (*RumExecuteCallbackTernary) (void *arg, QueryOperand *val, ExecPhraseData *data);
-
 
 PG_FUNCTION_INFO_V1(rum_extract_tsvector);
 PG_FUNCTION_INFO_V1(rum_extract_tsvector_hash);
@@ -180,7 +198,11 @@ static WordEntryPosVector POSNULL = {
 #define QR_GET_OPERAND(q, v)	\
 	(&((q)->operandData[ ((QueryItem*)(v)) - GETQUERY((q)->query) ]))
 
+#if PG_VERSION_NUM >= 130000
+static TSTernaryValue
+#else
 static bool
+#endif
 pre_checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 {
 	RumChkVal  *gcv = (RumChkVal *) checkval;
@@ -192,9 +214,12 @@ pre_checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 
 	/* convert item's number to corresponding entry's (operand's) number */
 	j = gcv->map_item_operand[((QueryItem *) val) - gcv->first_item];
-
 	/* return presence of current entry in indexed value */
+	#if PG_VERSION_NUM >= 130000
+	return ( *(gcv->need_recheck) ? TS_MAYBE : (gcv->check[j] ? TS_YES : TS_NO) );
+	#else
 	return gcv->check[j];
+	#endif
 }
 
 Datum
@@ -203,7 +228,7 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 	bool	   *check = (bool *) PG_GETARG_POINTER(0);
 	TSQuery		query = PG_GETARG_TSQUERY(2);
 	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
-	bool		recheck;
+	bool		recheck = false;
 	bool		res = false;
 
 	if (query->size > 0)
@@ -219,10 +244,17 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 		gcv.map_item_operand = (int *) (extra_data[0]);
 		gcv.need_recheck = &recheck;
 
+#if PG_VERSION_NUM >= 130000
+		res = TS_execute(GETQUERY(query),
+						 &gcv,
+						 TS_EXEC_PHRASE_NO_POS | TS_EXEC_SKIP_NOT,
+						 pre_checkcondition_rum);
+#else
 		res = TS_execute(GETQUERY(query),
 						 &gcv,
 						 TS_EXEC_PHRASE_NO_POS,
 						 pre_checkcondition_rum);
+#endif
 	}
 
 	PG_RETURN_BOOL(res);
@@ -1466,9 +1498,13 @@ restart:
 			}
 		}
 
-
+#if PG_VERSION_NUM >= 130000
+		if (TS_execute(GETQUERY(qr->query), (void *) qr, TS_EXEC_SKIP_NOT,
+					   (TSExecuteCallback) checkcondition_QueryOperand))
+#else
 		if (TS_execute(GETQUERY(qr->query), (void *) qr, TS_EXEC_EMPTY,
 					   checkcondition_QueryOperand))
+#endif
 		{
 			if (ptr->pos > ext->q)
 			{
@@ -1508,8 +1544,13 @@ restart:
 				WEP_SETWEIGHT(qro->pos, ptr->wclass);
 			}
 		}
+#if PG_VERSION_NUM >= 130000
+		if (TS_execute(GETQUERY(qr->query), (void *) qr, TS_EXEC_EMPTY,
+					   (TSExecuteCallback) checkcondition_QueryOperand))
+#else
 		if (TS_execute(GETQUERY(qr->query), (void *) qr, TS_EXEC_CALC_NOT,
 					   checkcondition_QueryOperand))
+#endif
 		{
 			if (ptr->pos < ext->p)
 			{
