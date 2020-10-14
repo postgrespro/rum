@@ -1432,7 +1432,16 @@ compareDocR(const void *va, const void *vb)
 	return (a->pos > b->pos) ? 1 : -1;
 }
 
-static bool
+/*
+ * Be carefull: clang 11+ is very sensitive to casting function
+ * with different return value.
+ */
+static
+#if PG_VERSION_NUM >= 130000
+TSTernaryValue
+#else
+bool
+#endif
 checkcondition_QueryOperand(void *checkval, QueryOperand *val,
 							ExecPhraseData *data)
 {
@@ -1453,7 +1462,11 @@ checkcondition_QueryOperand(void *checkval, QueryOperand *val,
 		data->allocated = false;
 	}
 
-	return qro->operandexist;
+	return qro->operandexist
+#if PG_VERSION_NUM >= 130000
+		? TS_YES : TS_NO
+#endif
+	;
 }
 
 static bool
@@ -1498,13 +1511,13 @@ restart:
 			}
 		}
 
+		if (TS_execute(GETQUERY(qr->query), (void *) qr,
 #if PG_VERSION_NUM >= 130000
-		if (TS_execute(GETQUERY(qr->query), (void *) qr, TS_EXEC_SKIP_NOT,
-					   (TSExecuteCallback) checkcondition_QueryOperand))
+					   TS_EXEC_SKIP_NOT,
 #else
-		if (TS_execute(GETQUERY(qr->query), (void *) qr, TS_EXEC_EMPTY,
-					   checkcondition_QueryOperand))
+					   TS_EXEC_EMPTY,
 #endif
+					   checkcondition_QueryOperand))
 		{
 			if (ptr->pos > ext->q)
 			{
@@ -1544,13 +1557,13 @@ restart:
 				WEP_SETWEIGHT(qro->pos, ptr->wclass);
 			}
 		}
+		if (TS_execute(GETQUERY(qr->query), (void *) qr,
 #if PG_VERSION_NUM >= 130000
-		if (TS_execute(GETQUERY(qr->query), (void *) qr, TS_EXEC_EMPTY,
-					   (TSExecuteCallback) checkcondition_QueryOperand))
+					   TS_EXEC_EMPTY,
 #else
-		if (TS_execute(GETQUERY(qr->query), (void *) qr, TS_EXEC_CALC_NOT,
-					   checkcondition_QueryOperand))
+					   TS_EXEC_CALC_NOT,
 #endif
+					   checkcondition_QueryOperand))
 		{
 			if (ptr->pos < ext->p)
 			{
