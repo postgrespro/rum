@@ -244,19 +244,15 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 		gcv.map_item_operand = (int *) (extra_data[0]);
 		gcv.need_recheck = &recheck;
 
+		res = TS_execute(GETQUERY(query),
+						 &gcv,
+						 TS_EXEC_PHRASE_NO_POS
 #if PG_VERSION_NUM >= 130000
-		res = TS_execute(GETQUERY(query),
-						 &gcv,
-						 TS_EXEC_PHRASE_NO_POS | TS_EXEC_SKIP_NOT,
-						 pre_checkcondition_rum);
-#else
-		res = TS_execute(GETQUERY(query),
-						 &gcv,
-						 TS_EXEC_PHRASE_NO_POS,
-						 pre_checkcondition_rum);
+						 | TS_EXEC_SKIP_NOT
 #endif
+						 ,
+						 pre_checkcondition_rum);
 	}
-
 	PG_RETURN_BOOL(res);
 }
 
