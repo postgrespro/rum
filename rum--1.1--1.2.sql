@@ -10,7 +10,7 @@ AS 'MODULE_PATHNAME'
 LANGUAGE C IMMUTABLE STRICT;
 
 
-CREATE OR REPLACE FUNCTION rum_anyarray_similar(anyarray,anyarray)
+CREATE FUNCTION rum_anyarray_similar(anyarray,anyarray)
 RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT STABLE;
@@ -25,7 +25,7 @@ CREATE OPERATOR % (
 );
 
 
-CREATE OR REPLACE FUNCTION rum_anyarray_distance(anyarray,anyarray)
+CREATE FUNCTION rum_anyarray_distance(anyarray,anyarray)
 RETURNS float8
 AS 'MODULE_PATHNAME'
 LANGUAGE C STRICT STABLE;
