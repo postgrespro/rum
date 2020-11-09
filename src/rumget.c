@@ -687,7 +687,7 @@ restartScanEntry:
 		else if (RumGetNPosting(itup) > 0)
 		{
 			entry->nlist = RumGetNPosting(itup);
-			entry->predictNumberResult = (uint32_t)entry->nlist;
+			entry->predictNumberResult = (uint32)entry->nlist;
 			entry->list = (RumItem *) palloc(sizeof(RumItem) * entry->nlist);
 
 			rumReadTuple(rumstate, entry->attnum, itup, entry->list, true);
@@ -1104,7 +1104,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 	else if (RumGetNPosting(itup) > 0)
 	{
 		entry->nlist = RumGetNPosting(itup);
-		entry->predictNumberResult = (uint32_t)entry->nlist;
+		entry->predictNumberResult = (uint32)entry->nlist;
 		entry->list = (RumItem *) palloc(sizeof(RumItem) * entry->nlist);
 
 		rumReadTuple(rumstate, entry->attnum, itup, entry->list, true);
