@@ -130,7 +130,6 @@ SELECT id FROM test_int8_o WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
 
 RESET enable_indexscan;
 RESET enable_indexonlyscan;
-RESET enable_bitmapscan;
 SET enable_seqscan = off;
 EXPLAIN (costs off)
 SELECT id, id <=> 400 FROM test_int8_o WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
@@ -413,7 +412,6 @@ SELECT id FROM test_int8_h_o WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id
 
 RESET enable_indexscan;
 RESET enable_indexonlyscan;
-RESET enable_bitmapscan;
 SET enable_seqscan = off;
 EXPLAIN (costs off)
 SELECT id, id <=> 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id <=> 400 LIMIT 5;
