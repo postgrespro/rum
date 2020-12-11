@@ -853,7 +853,14 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 		ItemPointerData iptr = {{0, 0}, 0};
 		RumItem		copyItem;
 		bool		copyItemEmpty = true;
-		char		pageCopy[BLCKSZ];
+		/*
+		 * Must have pageCopy MAXALIGNed to use PG macros to access data in
+		 * it. Should not rely on compiler alignment preferences to avoid
+		 * pageCopy overflow related to PG in-memory page items alignment
+		 * inside rumDataPageLeafRead() or elsewhere.
+		 */
+		char		pageCopyStorage[BLCKSZ + MAXIMUM_ALIGNOF];
+		char	   *pageCopy = (char *) MAXALIGN(pageCopyStorage);
 		int			maxoff = RumPageGetOpaque(page)->maxoff;
 		int			freespace,
 					insertCount = 0;
@@ -1055,7 +1062,14 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	RumItem		item;
 	int			totalCount = 0;
 	int			maxItemIndex = btree->curitem;
-	static char lpageCopy[BLCKSZ];
+	/*
+	 * Must have lpageCopy MAXALIGNed to use PG macros to access data in
+	 * it. Should not rely on compiler alignment preferences to avoid
+	 * lpageCopy overflow related to PG in-memory page items alignment
+	 * inside rumDataPageLeafRead() etc.
+	 */
+	static char lpageCopyStorage[BLCKSZ + MAXIMUM_ALIGNOF];
+	char 	   *lpageCopy = (char *) MAXALIGN(lpageCopyStorage);
 
 	memset(&item, 0, sizeof(item));
 	dataPrepareData(btree, newlPage, off);
@@ -1233,8 +1247,14 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	OffsetNumber maxoff = RumPageGetOpaque(newlPage)->maxoff;
 	Size		pageSize = PageGetPageSize(newlPage);
 	Size		freeSpace;
-
-	static char vector[2 * BLCKSZ];
+	/*
+	 * Must have vector MAXALIGNed to use PG macros to access data in
+	 * it. Should not rely on compiler alignment preferences to avoid
+	 * vector overflow related to PG in-memory page items alignment
+	 * inside rumDataPageLeafRead() etc.
+	 */
+	static char vectorStorage[2 * BLCKSZ + MAXIMUM_ALIGNOF];
+	char 	   *vector = (char *) MAXALIGN(vectorStorage);
 
 	RumInitPage(rPage, RumPageGetOpaque(newlPage)->flags, pageSize);
 	freeSpace = RumDataPageGetFreeSpace(rPage);
