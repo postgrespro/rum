@@ -16,7 +16,7 @@ on the `GIN` access methods code.
 
 - Slow ranking. It is need position information about lexems to ranking. `GIN`
 index doesn't store positions of lexems. So after index scan we need additional
-heap scan to retreive lexems positions.
+heap scan to retrieve lexems positions.
 - Slow phrase search with `GIN` index. This problem relates with previous
 problem. It is need position information to perform phrase search.
 - Slow ordering by timestamp. `GIN` index can't store some related information
@@ -239,7 +239,7 @@ SELECT * FROM query
 
 For type: `anyarray`
 
-This operator class stores `anyarrray` elements with length of the array.
+This operator class stores `anyarray` elements with length of the array.
 Supports operators `&&`, `@>`, `<@`, `=`, `%` operators. Supports ordering by `<=>` operator.
 For example we have the table:
 
@@ -278,7 +278,7 @@ SELECT * FROM test_array WHERE i && '{1}' ORDER BY i <=> '{1}' ASC;
 
 For type: `anyarray`
 
-This operator class stores `anyarrray` elements with any supported by module
+This operator class stores `anyarray` elements with any supported by module
 field.
 
 ## Todo
