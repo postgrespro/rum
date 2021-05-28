@@ -600,6 +600,14 @@ rum_phrase_execute(QueryItem *curitem, void *arg, uint32 flags,
 
 			if (curitem->qoperator.oper == OP_PHRASE)
 			{
+				/* In case of index where position is not available
+				 * (e.g. addon_ops) output TS_MAYBE even in case both
+				 * lmatch and rmatch are TS_YES. Otherwise we can lose
+				 * results of phrase queries.
+				 */
+				if (flags & TS_EXEC_PHRASE_NO_POS)
+					return TS_MAYBE;
+
 				/*
 				 * Compute Loffset and Roffset suitable for phrase match, and
 				 * compute overall width of whole phrase match.
@@ -829,13 +837,10 @@ rum_TS_execute(QueryItem *curitem, void *arg, uint32 flags,
 		case OP_PHRASE:
 
 			/*
-			 * If we get a MAYBE result, and the caller doesn't want that,
-			 * convert it to NO.  It would be more consistent, perhaps, to
-			 * return the result of TS_phrase_execute() verbatim and then
-			 * convert MAYBE results at the top of the recursion.  But
-			 * converting at the topmost phrase operator gives results that
-			 * are bug-compatible with the old implementation, so do it like
-			 * this for now.
+			 * Checking for TS_EXEC_PHRASE_NO_POS has been moved inside
+			 * rum_phrase_execute, otherwise we can lose results of phrase
+			 * operator when position information is not available in index
+			 * (e.g. index built with addon_ops)
 			 */
 			switch (rum_phrase_execute(curitem, arg, flags, chkcond, NULL))
 			{
@@ -844,7 +849,7 @@ rum_TS_execute(QueryItem *curitem, void *arg, uint32 flags,
 				case TS_YES:
 					return TS_YES;
 				case TS_MAYBE:
-					return (flags & TS_EXEC_PHRASE_NO_POS) ? TS_MAYBE : TS_NO;
+					return TS_MAYBE;
 			}
 			break;
 
