@@ -381,6 +381,24 @@ SELECT (a <=> to_tsquery('pg_catalog.english', 'b:*'))::numeric(10,4) AS distanc
   16.4493 | the few that escaped destruction in 1693. It is a beautiful, highly      | '1693':7 'beauti':11 'destruct':5 'escap':4 'high':12
 (20 rows)
 
+-- Test correct work of phrase operator when position information is not in index.
+create table test_rum_addon as table test_rum;
+alter table test_rum_addon add column id serial;
+create index on test_rum_addon using rum (a rum_tsvector_addon_ops, id) with (attach = 'id', to='a');
+select * from test_rum_addon where a @@  to_tsquery('pg_catalog.english', 'half <-> way');
+                                  t                                  |                            a                            | id 
+---------------------------------------------------------------------+---------------------------------------------------------+----
+ itself. Put on your "specs" and look at the castle, half way up the | 'castl':10 'half':11 'look':7 'put':2 'spec':5 'way':12 |  9
+(1 row)
+
+explain (costs off) select * from test_rum_addon where a @@  to_tsquery('pg_catalog.english', 'half <-> way');
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Index Scan using test_rum_addon_a_id_idx on test_rum_addon
+   Index Cond: (a @@ '''half'' <-> ''way'''::tsquery)
+(2 rows)
+
+--
 select  ('bjarn:6237 stroustrup:6238'::tsvector <=> 'bjarn <-> stroustrup'::tsquery)::numeric(10,5) AS distance;
  distance 
 ----------
