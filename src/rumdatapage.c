@@ -736,7 +736,7 @@ RumDataPageAddItem(Page page, void *data, OffsetNumber offset)
 		if (offset <= maxoff)
 			memmove(ptr + sizeof(PostingItem),
 					ptr,
-				    ((uint16_t)(maxoff - offset + 1)) * sizeof(PostingItem));
+				    ((uint16)(maxoff - offset + 1)) * sizeof(PostingItem));
 	}
 	memcpy(ptr, data, sizeof(PostingItem));
 	RumPageGetOpaque(page)->maxoff++;
@@ -763,7 +763,7 @@ RumPageDeletePostingItem(Page page, OffsetNumber offset)
 		char	   *dstptr = RumDataPageGetItem(page, offset),
 				   *sourceptr = RumDataPageGetItem(page, offset + 1);
 
-		memmove(dstptr, sourceptr, sizeof(PostingItem) * (uint16_t)(maxoff - offset));
+		memmove(dstptr, sourceptr, sizeof(PostingItem) * (uint16)(maxoff - offset));
 	}
 
 	RumPageGetOpaque(page)->maxoff--;
@@ -853,7 +853,14 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 		ItemPointerData iptr = {{0, 0}, 0};
 		RumItem		copyItem;
 		bool		copyItemEmpty = true;
-		char		pageCopy[BLCKSZ];
+		/*
+		 * Must have pageCopy MAXALIGNed to use PG macros to access data in
+		 * it. Should not rely on compiler alignment preferences to avoid
+		 * pageCopy overflow related to PG in-memory page items alignment
+		 * inside rumDataPageLeafRead() or elsewhere.
+		 */
+		char		pageCopyStorage[BLCKSZ + MAXIMUM_ALIGNOF];
+		char	   *pageCopy = (char *) MAXALIGN(pageCopyStorage);
 		int			maxoff = RumPageGetOpaque(page)->maxoff;
 		int			freespace,
 					insertCount = 0;
@@ -1055,7 +1062,14 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	RumItem		item;
 	int			totalCount = 0;
 	int			maxItemIndex = btree->curitem;
-	static char lpageCopy[BLCKSZ];
+	/*
+	 * Must have lpageCopy MAXALIGNed to use PG macros to access data in
+	 * it. Should not rely on compiler alignment preferences to avoid
+	 * lpageCopy overflow related to PG in-memory page items alignment
+	 * inside rumDataPageLeafRead() etc.
+	 */
+	static char lpageCopyStorage[BLCKSZ + MAXIMUM_ALIGNOF];
+	char 	   *lpageCopy = (char *) MAXALIGN(lpageCopyStorage);
 
 	memset(&item, 0, sizeof(item));
 	dataPrepareData(btree, newlPage, off);
@@ -1233,8 +1247,14 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	OffsetNumber maxoff = RumPageGetOpaque(newlPage)->maxoff;
 	Size		pageSize = PageGetPageSize(newlPage);
 	Size		freeSpace;
-
-	static char vector[2 * BLCKSZ];
+	/*
+	 * Must have vector MAXALIGNed to use PG macros to access data in
+	 * it. Should not rely on compiler alignment preferences to avoid
+	 * vector overflow related to PG in-memory page items alignment
+	 * inside rumDataPageLeafRead() etc.
+	 */
+	static char vectorStorage[2 * BLCKSZ + MAXIMUM_ALIGNOF];
+	char 	   *vector = (char *) MAXALIGN(vectorStorage);
 
 	RumInitPage(rPage, RumPageGetOpaque(newlPage)->flags, pageSize);
 	freeSpace = RumDataPageGetFreeSpace(rPage);
@@ -1246,7 +1266,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	Assert(!RumPageIsLeaf(newlPage));
 	ptr = vector + (off - 1) * sizeofitem;
 	if (maxoff + 1 - off != 0)
-		memmove(ptr + sizeofitem, ptr, (uint16_t)(maxoff - off + 1) * sizeofitem);
+		memmove(ptr + sizeofitem, ptr, (uint16)(maxoff - off + 1) * sizeofitem);
 	memcpy(ptr, &(btree->pitem), sizeofitem);
 
 	maxoff++;
@@ -1273,7 +1293,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	ptr = RumDataPageGetItem(rPage, FirstOffsetNumber);
 	memcpy(ptr, vector + separator * sizeofitem,
-		   (uint16_t)(maxoff - separator) * sizeofitem);
+		   (uint16)(maxoff - separator) * sizeofitem);
 	RumPageGetOpaque(rPage)->maxoff = maxoff - separator;
 	/* Adjust pd_lower */
 	((PageHeader) rPage)->pd_lower = (ptr +

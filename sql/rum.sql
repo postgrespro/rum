@@ -141,5 +141,14 @@ SELECT (a <=> to_tsquery('pg_catalog.english', 'b:*'))::numeric(10,4) AS distanc
 	WHERE a @@ to_tsquery('pg_catalog.english', 'b:*')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'b:*');
 
+-- Test correct work of phrase operator when position information is not in index.
+create table test_rum_addon as table test_rum;
+alter table test_rum_addon add column id serial;
+create index on test_rum_addon using rum (a rum_tsvector_addon_ops, id) with (attach = 'id', to='a');
+
+select * from test_rum_addon where a @@  to_tsquery('pg_catalog.english', 'half <-> way');
+explain (costs off) select * from test_rum_addon where a @@  to_tsquery('pg_catalog.english', 'half <-> way');
+--
+
 select  ('bjarn:6237 stroustrup:6238'::tsvector <=> 'bjarn <-> stroustrup'::tsquery)::numeric(10,5) AS distance;
 SELECT  ('stroustrup:5508B,6233B,6238B bjarn:6235B,6237B' <=> 'bjarn <-> stroustrup'::tsquery)::numeric(10,5) AS distance;

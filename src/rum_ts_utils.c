@@ -244,19 +244,15 @@ rum_tsquery_pre_consistent(PG_FUNCTION_ARGS)
 		gcv.map_item_operand = (int *) (extra_data[0]);
 		gcv.need_recheck = &recheck;
 
+		res = TS_execute(GETQUERY(query),
+						 &gcv,
+						 TS_EXEC_PHRASE_NO_POS
 #if PG_VERSION_NUM >= 130000
-		res = TS_execute(GETQUERY(query),
-						 &gcv,
-						 TS_EXEC_PHRASE_NO_POS | TS_EXEC_SKIP_NOT,
-						 pre_checkcondition_rum);
-#else
-		res = TS_execute(GETQUERY(query),
-						 &gcv,
-						 TS_EXEC_PHRASE_NO_POS,
-						 pre_checkcondition_rum);
+						 | TS_EXEC_SKIP_NOT
 #endif
+						 ,
+						 pre_checkcondition_rum);
 	}
-
 	PG_RETURN_BOOL(res);
 }
 
@@ -604,6 +600,14 @@ rum_phrase_execute(QueryItem *curitem, void *arg, uint32 flags,
 
 			if (curitem->qoperator.oper == OP_PHRASE)
 			{
+				/* In case of index where position is not available
+				 * (e.g. addon_ops) output TS_MAYBE even in case both
+				 * lmatch and rmatch are TS_YES. Otherwise we can lose
+				 * results of phrase queries.
+				 */
+				if (flags & TS_EXEC_PHRASE_NO_POS)
+					return TS_MAYBE;
+
 				/*
 				 * Compute Loffset and Roffset suitable for phrase match, and
 				 * compute overall width of whole phrase match.
@@ -840,6 +844,11 @@ rum_TS_execute(QueryItem *curitem, void *arg, uint32 flags,
 			 * converting at the topmost phrase operator gives results that
 			 * are bug-compatible with the old implementation, so do it like
 			 * this for now.
+			 *
+			 * Checking for TS_EXEC_PHRASE_NO_POS has been moved inside
+			 * rum_phrase_execute, otherwise we can lose results of phrase
+			 * operator when position information is not available in index
+			 * (e.g. index built with addon_ops)
 			 */
 			switch (rum_phrase_execute(curitem, arg, flags, chkcond, NULL))
 			{

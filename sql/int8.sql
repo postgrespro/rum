@@ -40,7 +40,6 @@ SELECT id FROM test_int8_o WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id;
 
 RESET enable_indexscan;
 RESET enable_indexonlyscan;
-RESET enable_bitmapscan;
 SET enable_seqscan = off;
 
 EXPLAIN (costs off)
@@ -65,8 +64,6 @@ CREATE TABLE test_int8_a AS SELECT id::int8, t FROM tsts;
 CREATE INDEX test_int8_a_idx ON test_int8_a USING rum
 	(t rum_tsvector_addon_ops, id)
 	WITH (attach = 'id', to = 't', order_by_attach='t');
-
-SET enable_bitmapscan=OFF;
 
 EXPLAIN (costs off)
 SELECT count(*) FROM test_int8_a WHERE id < 400::int8;
@@ -107,7 +104,6 @@ SELECT id FROM test_int8_h_o WHERE  t @@ 'wr&qh' AND id >= 400::int8 ORDER BY id
 
 RESET enable_indexscan;
 RESET enable_indexonlyscan;
-RESET enable_bitmapscan;
 SET enable_seqscan = off;
 
 EXPLAIN (costs off)
@@ -119,6 +115,7 @@ SELECT id, id <=| 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id <=| 400 
 EXPLAIN (costs off)
 SELECT id, id |=> 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
 SELECT id, id |=> 400 FROM test_int8_h_o WHERE t @@ 'wr&qh' ORDER BY id |=> 400 LIMIT 5;
+
 
 EXPLAIN (costs off)
 SELECT id FROM test_int8_h_o WHERE  t @@ 'wr&qh' AND id <= 400::int8 ORDER BY id;
@@ -132,8 +129,6 @@ CREATE TABLE test_int8_h_a AS SELECT id::int8, t FROM tsts;
 CREATE INDEX test_int8_h_a_idx ON test_int8_h_a USING rum
 	(t rum_tsvector_hash_addon_ops, id)
 	WITH (attach = 'id', to = 't', order_by_attach='t');
-
-SET enable_bitmapscan=OFF;
 
 EXPLAIN (costs off)
 SELECT count(*) FROM test_int8_h_a WHERE id < 400::int8;

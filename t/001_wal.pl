@@ -23,12 +23,12 @@ sub test_index_replay
 	if ($server_version < 100000)
 	{
 		$caughtup_query =
-			"SELECT pg_current_xlog_location() <= write_location FROM pg_stat_replication WHERE application_name = '$applname';";
+			"SELECT pg_current_xlog_location() <= replay_location FROM pg_stat_replication WHERE application_name = '$applname';";
 	}
 	else
 	{
 		$caughtup_query =
-			"SELECT pg_current_wal_lsn() <= write_lsn FROM pg_stat_replication WHERE application_name = '$applname';";
+			"SELECT pg_current_wal_lsn() <= replay_lsn FROM pg_stat_replication WHERE application_name = '$applname';";
 	}
 	$node_master->poll_query_until('postgres', $caughtup_query)
 	  or die "Timed out while waiting for standby 1 to catch up";

@@ -428,8 +428,14 @@ entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	Page		page;
 	Page		newlPage = PageGetTempPageCopy(lPage);
 	Size		pageSize = PageGetPageSize(newlPage);
-
-	static char tupstore[2 * BLCKSZ];
+	/*
+	 * Must have tupstore MAXALIGNed to use PG macros to access data in
+	 * it. Should not rely on compiler alignment preferences to avoid
+	 * tupstore overflow related to PG in-memory page items alignment
+	 * inside rumDataPageLeafRead() or elsewhere.
+	 */
+	static char tupstoreStorage[2 * BLCKSZ + MAXIMUM_ALIGNOF];
+	char 	   *tupstore = (char *) MAXALIGN(tupstoreStorage);
 
 	entryPreparePage(btree, newlPage, off);
 
