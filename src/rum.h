@@ -449,6 +449,9 @@ extern void rumbuildempty(Relation index);
 extern bool ruminsert(Relation index, Datum *values, bool *isnull,
 		  ItemPointer ht_ctid, Relation heapRel,
 		  IndexUniqueCheck checkUnique
+#if PG_VERSION_NUM >= 140000
+		  , bool indexUnchanged
+#endif
 #if PG_VERSION_NUM >= 100000
 		  , struct IndexInfo *indexInfo
 #endif
