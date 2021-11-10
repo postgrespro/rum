@@ -25,7 +25,7 @@
 /* RumTuplesortstate is an opaque type whose details are not known outside
  * rumsort.c.
  */
-typedef struct RumTuplesortstate RumTuplesortstate;
+typedef struct Tuplesortstate RumTuplesortstate;
 struct RumScanItem;
 
 typedef struct
