@@ -38,7 +38,6 @@ typedef struct
 #define RumSortItemSize(nKeys) (offsetof(RumSortItem,data)+(nKeys)*sizeof(float8))
 
 extern MemoryContext rum_tuplesort_get_memorycontext(RumTuplesortstate *state);
-
 extern RumTuplesortstate *rum_tuplesort_begin_rum(int workMem,
 						int nKeys, bool randomAccess, bool compareItemPointer);
 extern RumTuplesortstate	*rum_tuplesort_begin_rumitem(int workMem,
@@ -55,7 +54,5 @@ extern struct RumScanItem *rum_tuplesort_getrumitem(RumTuplesortstate *state, bo
 					 bool *should_free);
 
 extern void rum_tuplesort_end(RumTuplesortstate *state);
-
-extern int	rum_tuplesort_merge_order(long allowedMem);
 
 #endif   /* RUMSORT_H */
