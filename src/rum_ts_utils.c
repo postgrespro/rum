@@ -2271,7 +2271,8 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 				count2 = count_pos(in2, VARSIZE_ANY_EXHDR(addInfo2)),
 				countRes = 0;
 	int			i1 = 0, i2 = 0;
-	Size		size;
+	Size		size,
+				size_compressed;
 	WordEntryPos pos1 = 0,
 				pos2 = 0,
 			   *pos;
@@ -2343,10 +2344,11 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 	 * uncompressed positions. So allocate memory with a margin.
 	 */
 	size = VARHDRSZ + 2 * sizeof(WordEntryPos) * countRes;
-	result = palloc(size);
+	result = palloc0(size);
 
-	size = compress_pos(result->vl_dat, pos, countRes) + VARHDRSZ;
-	SET_VARSIZE(result, size);
+	size_compressed = compress_pos(result->vl_dat, pos, countRes) + VARHDRSZ;
+	Assert(size >= size_compressed);
+	SET_VARSIZE(result, size_compressed);
 
 	PG_RETURN_BYTEA_P(result);
 }
