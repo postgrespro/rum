@@ -464,11 +464,12 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 			char	*ptr = RumGetPosting(itup);
 			RumScanItem item;
 
+			MemSet(&item, 0, sizeof(item));
 			ItemPointerSetMin(&item.item.iptr);
 			for (i = 0; i < RumGetNPosting(itup); i++)
 			{
 				ptr = rumDataPageLeafRead(ptr, scanEntry->attnum, &item.item,
-										  false, rumstate);
+										  true, rumstate);
 				SCAN_ITEM_PUT_KEY(scanEntry, item, idatum, icategory);
 				rum_tuplesort_putrumitem(scanEntry->matchSortstate, &item);
 			}
