@@ -347,55 +347,7 @@ rum_tuplesort_begin_rumitem(int workMem, FmgrInfo *cmp)
 void
 rum_tuplesort_end(RumTuplesortstate * state)
 {
-	/* context swap probably not needed, but let's be safe */
-	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
-
-#ifdef TRACE_SORT
-	long		spaceUsed;
-
-	if (state->tapeset)
-		spaceUsed = LogicalTapeSetBlocks(state->tapeset);
-	else
-		spaceUsed = (state->allowedMem - state->availMem + 1023) / 1024;
-#endif
-
-	/*
-	 * Delete temporary "tape" files, if any.
-	 *
-	 * Note: want to include this in reported total cost of sort, hence need
-	 * for two #ifdef TRACE_SORT sections.
-	 */
-	if (state->tapeset)
-		LogicalTapeSetClose(state->tapeset);
-
-#ifdef TRACE_SORT
-	if (trace_sort)
-	{
-		if (state->tapeset)
-			elog(LOG, "external sort ended, %ld disk blocks used: %s",
-				 spaceUsed, pg_rusage_show(&state->ru_start));
-		else
-			elog(LOG, "internal sort ended, %ld KB used: %s",
-				 spaceUsed, pg_rusage_show(&state->ru_start));
-	}
-#endif
-
-	/* Free any execution state created for CLUSTER case */
-	if (state->estate != NULL)
-	{
-		ExprContext *econtext = GetPerTupleExprContext(state->estate);
-
-		ExecDropSingleTupleTableSlot(econtext->ecxt_scantuple);
-		FreeExecutorState(state->estate);
-	}
-
-	MemoryContextSwitchTo(oldcontext);
-
-	/*
-	 * Free the per-sort memory context, thereby releasing all working memory,
-	 * including the Tuplesortstate struct itself.
-	 */
-	MemoryContextDelete(state->sortcontext);
+	tuplesort_free(state);
 }
 
 /*
