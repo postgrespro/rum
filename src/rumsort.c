@@ -354,7 +354,11 @@ rum_tuplesort_begin_rumitem(int workMem, FmgrInfo *cmp)
 void
 rum_tuplesort_end(RumTuplesortstate * state)
 {
+#if PG_VERSION_NUM >= 130000
 	tuplesort_free(state);
+#else
+	tuplesort_end(state);
+#endif
 }
 
 /*
