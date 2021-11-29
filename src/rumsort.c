@@ -65,7 +65,6 @@ static int	comparetup_rumitem(const SortTuple *a, const SortTuple *b,
 static void copytup_rum(RumTuplesortstate * state, SortTuple *stup, void *tup);
 static void copytup_rumitem(RumTuplesortstate * state, SortTuple *stup, void *tup);
 static void *rum_tuplesort_getrum_internal(RumTuplesortstate * state, bool forward, bool *should_free);
-static void rum_tuplesort_putrum_internal(RumTuplesortstate * state, void *item);
 
 static int
 compare_rum_itempointer(ItemPointerData p1, ItemPointerData p2)
@@ -370,33 +369,16 @@ rum_tuplesort_get_memorycontext(RumTuplesortstate * state)
 	return state->sortcontext;
 }
 
-static void
-rum_tuplesort_putrum_internal(RumTuplesortstate * state, void *item)
+void
+rum_tuplesort_putrum(RumTuplesortstate *state, RumSortItem *item)
 {
-	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
-	SortTuple	stup;
-
-	/*
-	 * Copy the given tuple into memory we control, and decrease availMem.
-	 * Then call the common code.
-	 */
-	COPYTUP(state, &stup, item);
-
-	puttuple_common(state, &stup);
-
-	MemoryContextSwitchTo(oldcontext);
+	tuplesort_puttupleslot(state, (TupleTableSlot *) item);
 }
 
 void
-rum_tuplesort_putrum(RumTuplesortstate * state, RumSortItem * item)
+rum_tuplesort_putrumitem(RumTuplesortstate *state, RumScanItem *item)
 {
-	rum_tuplesort_putrum_internal(state, item);
-}
-
-void
-rum_tuplesort_putrumitem(RumTuplesortstate * state, RumScanItem * item)
-{
-	rum_tuplesort_putrum_internal(state, item);
+	tuplesort_puttupleslot(state, (TupleTableSlot *) item);
 }
 
 void
