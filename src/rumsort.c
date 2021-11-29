@@ -202,7 +202,8 @@ copytup_rumitem(RumTuplesortstate * state, SortTuple *stup, void *tup)
 #define LogicalTapeReadExact_compat(state, LT_ARG, args...) LogicalTapeReadExact(state->tapeset, LT_ARG, ##args)
 #endif
 
-static size_t rum_item_size(RumTuplesortstate * state)
+static Size
+rum_item_size(RumTuplesortstate * state)
 {
 	if (state->copytup == copytup_rum)
 		return RumSortItemSize(state->nKeys);
@@ -226,9 +227,6 @@ writetup_rum_internal(RumTuplesortstate * state, LT_TYPE LT_ARG, SortTuple *stup
 	if (state->randomAccess)	/* need trailing length word? */
 		LogicalTapeWrite(TAPE(state, LT_ARG),
 						 (void *) &writtenlen, sizeof(writtenlen));
-
-	FREEMEM(state, GetMemoryChunkSpace(item));
-	pfree(item);
 }
 
 static void
@@ -251,7 +249,7 @@ readtup_rum_internal(RumTuplesortstate * state, SortTuple *stup,
 	size_t		size = rum_item_size(state);
 	void	   *item = palloc(size);
 
-	Assert(tuplen == RumSortItemSize(state->nKeys));
+	Assert(tuplen == size);
 
 	USEMEM(state, GetMemoryChunkSpace(item));
 	LogicalTapeReadExact_compat(state, LT_ARG, item, size);

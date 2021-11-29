@@ -252,6 +252,7 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 			RumScanItem	item;
 			Pointer		ptr;
 
+			MemSet(&item, 0, sizeof(item));
 			ItemPointerSetMin(&item.item.iptr);
 
 			ptr = RumDataPageGetData(page);
