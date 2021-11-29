@@ -1170,7 +1170,7 @@ rum_extract_tsvector_internal(TSVector	vector,
 				 * uncompressed positions. So allocate memory with a margin.
 				 */
 				posDataSize = VARHDRSZ + 2 * posVec->npos * sizeof(WordEntryPos);
-				posData = (bytea *) palloc0(posDataSize);
+				posData = (bytea *) palloc(posDataSize);
 
 				posDataSize = compress_pos(posData->vl_dat, posVec->pos, posVec->npos) + VARHDRSZ;
 				SET_VARSIZE(posData, posDataSize);
