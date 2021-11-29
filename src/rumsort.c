@@ -203,13 +203,21 @@ copytup_rumitem(RumTuplesortstate * state, SortTuple *stup, void *tup)
 #define LogicalTapeReadExact_compat(state, LT_ARG, args...) LogicalTapeReadExact(state->tapeset, LT_ARG, ##args)
 #endif
 
-#define ITEMSIZE(is_scanitem) is_scanitem ? sizeof(RumScanItem) : RumSortItemSize(state->nKeys);
+static size_t rum_item_size(RumTuplesortstate * state)
+{
+	if (state->copytup == copytup_rum)
+		return RumSortItemSize(state->nKeys);
+	else if (state->copytup == copytup_rumitem)
+		return sizeof(RumScanItem);
+	else
+		elog (FATAL, "Unknown RUM state");
+}
 
 static void
-writetup_rum_internal(RumTuplesortstate * state, LT_TYPE LT_ARG, SortTuple *stup, bool is_item)
+writetup_rum_internal(RumTuplesortstate * state, LT_TYPE LT_ARG, SortTuple *stup)
 {
 	void *item = stup->tuple;
-	size_t		size = ITEMSIZE(is_item);
+	size_t		size = rum_item_size(state);
 	unsigned int writtenlen = size + sizeof(unsigned int);
 
 	LogicalTapeWrite(TAPE(state, LT_ARG),
@@ -227,13 +235,13 @@ writetup_rum_internal(RumTuplesortstate * state, LT_TYPE LT_ARG, SortTuple *stup
 static void
 writetup_rum(RumTuplesortstate * state, LT_TYPE LT_ARG, SortTuple *stup)
 {
-	writetup_rum_internal(state, LT_ARG, stup, false);
+	writetup_rum_internal(state, LT_ARG, stup);
 }
 
 static void
 writetup_rumitem(RumTuplesortstate * state, LT_TYPE LT_ARG, SortTuple *stup)
 {
-	writetup_rum_internal(state, LT_ARG, stup, true);
+	writetup_rum_internal(state, LT_ARG, stup);
 }
 
 static void
@@ -241,7 +249,7 @@ readtup_rum_internal(RumTuplesortstate * state, SortTuple *stup,
 					 LT_TYPE LT_ARG, unsigned int len, bool is_item)
 {
 	unsigned int tuplen = len - sizeof(unsigned int);
-	size_t		size = ITEMSIZE(is_item);
+	size_t		size = rum_item_size(state);
 	void	   *item = palloc(size);
 
 	Assert(tuplen == RumSortItemSize(state->nKeys));
