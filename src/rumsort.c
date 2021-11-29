@@ -386,30 +386,22 @@ rum_tuplesort_performsort(RumTuplesortstate * state)
 }
 
 /*
- * Internal routine to fetch the next tuple in either forward or back
- * direction into *stup.  Returns false if no more tuples.
+ * Internal routine to fetch the next index tuple in either forward or back direction.
+ * Returns NULL if no more tuples. Returned tuple belongs to tuplesort memory context. Caller may not rely on tuple remaining valid after any further manipulation of tuplesort.
  * If *should_free is set, the caller must pfree stup.tuple when done with it.
  *
- * NOTE: in PG 10 and newer tuplesort_gettuple_common allocates tuple in tuplesort
- * context and it should not be freed by caller.
+ * NOTE: in PG 10 and newer tuple is always allocated tuple in tuplesort context and
+ * should not be freed by caller.
  */
 static void *
 rum_tuplesort_getrum_internal(RumTuplesortstate * state, bool forward, bool *should_free)
 {
-	MemoryContext oldcontext = MemoryContextSwitchTo(state->sortcontext);
-	SortTuple	stup;
-	bool		res;
-
 #if PG_VERSION_NUM >= 100000
-	res = tuplesort_gettuple_common(state, forward, &stup);
 	*should_free = false;
+	return (RumSortItem *)tuplesort_getindextuple(state, forward);
 #else
-	res = tuplesort_gettuple_common(state, forward, &stup, should_free);
+	return (RumSortItem *)tuplesort_getindextuple(state, forward, should_free);
 #endif
-
-	MemoryContextSwitchTo(oldcontext);
-
-	return res ? stup.tuple : NULL;
 }
 
 RumSortItem *
