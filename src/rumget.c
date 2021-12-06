@@ -22,7 +22,9 @@
 #if PG_VERSION_NUM >= 120000
 #include "utils/float.h"
 #endif
-
+#if PG_VERSION_NUM >= 150000
+#include "common/pg_prng.h"
+#endif
 #include "rum.h"
 
 /* GUC parameter */
@@ -1131,7 +1133,12 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 	return true;
 }
 
+#if PG_VERSION_NUM < 150000
 #define rum_rand() (((double) random()) / ((double) MAX_RANDOM_VALUE))
+#else
+#define rum_rand() pg_prng_double(&pg_global_prng_state)
+#endif
+
 #define dropItem(e) ( rum_rand() > ((double)RumFuzzySearchLimit)/((double)((e)->predictNumberResult)) )
 
 /*
