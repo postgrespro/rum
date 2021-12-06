@@ -192,9 +192,9 @@ copytup_rumitem(RumTuplesortstate * state, SortTuple *stup, void *tup)
 
 #if PG_VERSION_NUM >= 150000
 #define LT_TYPE LogicalTape *
-#define LT_ARG unused
-#define TAPE(state, LT_ARG) state->result_tape
-#define LogicalTapeReadExact_compat(state, LT_ARG, args...) LogicalTapeReadExact(state->result_tape, ##args)
+#define LT_ARG tape
+#define TAPE(state, LT_ARG) LT_ARG
+#define LogicalTapeReadExact_compat(state, LT_ARG, args...) LogicalTapeReadExact(LT_ARG, ##args)
 #else
 #define LT_TYPE int
 #define LT_ARG tapenum
