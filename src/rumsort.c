@@ -194,12 +194,10 @@ copytup_rumitem(RumTuplesortstate * state, SortTuple *stup, void *tup)
 #define LT_TYPE LogicalTape *
 #define LT_ARG tape
 #define TAPE(state, LT_ARG) LT_ARG
-#define LogicalTapeReadExact_compat(state, LT_ARG, args...) LogicalTapeReadExact(LT_ARG, ##args)
 #else
 #define LT_TYPE int
 #define LT_ARG tapenum
 #define TAPE(state, LT_ARG) state->tapeset, LT_ARG
-#define LogicalTapeReadExact_compat(state, LT_ARG, args...) LogicalTapeReadExact(state->tapeset, LT_ARG, ##args)
 #endif
 
 static Size
@@ -252,8 +250,11 @@ readtup_rum_internal(RumTuplesortstate * state, SortTuple *stup,
 	Assert(tuplen == size);
 
 	USEMEM(state, GetMemoryChunkSpace(item));
-	LogicalTapeReadExact_compat(state, LT_ARG, item, size);
-
+#if PG_VERSION_NUM >= 150000
+	LogicalTapeReadExact(LT_ARG, item, size);
+#else
+	LogicalTapeReadExact(state->tapeset, LT_ARG, item, size);
+#endif
 	stup->tuple = item;
 	stup->isnull1 = is_item;
 
@@ -261,7 +262,11 @@ readtup_rum_internal(RumTuplesortstate * state, SortTuple *stup,
 		stup->datum1 = Float8GetDatum(state->nKeys > 0 ? ((RumSortItem *) item)->data[0] : 0);
 
 	if (state->randomAccess)	/* need trailing length word? */
-		LogicalTapeReadExact_compat(state, LT_ARG, &tuplen, sizeof(tuplen));
+#if PG_VERSION_NUM >= 150000
+		LogicalTapeReadExact(LT_ARG, &tuplen, sizeof(tuplen));
+#else
+		LogicalTapeReadExact(state->tapeset, LT_ARG, &tuplen, sizeof(tuplen));
+#endif
 }
 
 static void
