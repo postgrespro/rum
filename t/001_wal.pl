@@ -1,8 +1,8 @@
 # Test generic xlog record work for rum index replication.
 use strict;
 use warnings;
-use PostgresNode;
-use TestLib;
+use PostgreSQL::Test::Cluster;
+use PostgreSQL::Test::Utils;
 use Test::More tests => 31;
 
 my $node_master;
@@ -50,7 +50,7 @@ SELECT * FROM tst WHERE t \@@ to_tsquery('simple', 'lvnex');
 }
 
 # Initialize master node
-$node_master = get_new_node('master');
+$node_master = PostgreSQL::Test::Cluster->new('master');
 $node_master->init(allows_streaming => 1);
 $node_master->start;
 my $backup_name = 'my_backup';
@@ -59,7 +59,7 @@ my $backup_name = 'my_backup';
 $node_master->backup($backup_name);
 
 # Create streaming standby linking to master
-$node_standby = get_new_node('standby');
+$node_standby = PostgreSQL::Test::Cluster->new('standby');
 $node_standby->init_from_backup($node_master, $backup_name,
 	has_streaming => 1);
 $node_standby->start;
