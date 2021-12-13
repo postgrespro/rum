@@ -1,9 +1,30 @@
 # Test generic xlog record work for rum index replication.
 use strict;
 use warnings;
-use PostgreSQL::Test::Cluster;
-use PostgreSQL::Test::Utils;
 use Test::More tests => 31;
+
+my $pg_15_modules;
+
+BEGIN
+{
+	$pg_15_modules = eval
+	{
+		require PostgreSQL::Test::Cluster;
+		require PostgreSQL::Test::Utils;
+		return 1;
+	};
+
+	unless (defined $pg_15_modules)
+	{
+		$pg_15_modules = 0;
+
+		require PostgresNode;
+		require TestLib;
+	}
+}
+
+note('PostgreSQL 15 modules are used: ' . ($pg_15_modules ? 'yes' : 'no'));
+
 
 my $node_master;
 my $node_standby;
@@ -50,7 +71,23 @@ SELECT * FROM tst WHERE t \@@ to_tsquery('simple', 'lvnex');
 }
 
 # Initialize master node
-$node_master = PostgreSQL::Test::Cluster->new('master');
+
+# Create node.
+# Older versions of PostgreSQL modules use get_new_node function.
+# Newer use standard perl object constructor syntax.
+# Also applies for node_standby (below).
+eval
+{
+	if ($pg_15_modules)
+	{
+		$node_master = PostgreSQL::Test::Cluster->new("master");
+	}
+	else
+	{
+		$node_master = PostgresNode::get_new_node("master");
+	}
+};
+
 $node_master->init(allows_streaming => 1);
 $node_master->start;
 my $backup_name = 'my_backup';
@@ -59,7 +96,18 @@ my $backup_name = 'my_backup';
 $node_master->backup($backup_name);
 
 # Create streaming standby linking to master
-$node_standby = PostgreSQL::Test::Cluster->new('standby');
+eval
+{
+	if ($pg_15_modules)
+	{
+		$node_standby = PostgreSQL::Test::Cluster->new("standby");
+	}
+	else
+	{
+		$node_standby = PostgresNode::get_new_node("standby");
+	}
+};
+
 $node_standby->init_from_backup($node_master, $backup_name,
 	has_streaming => 1);
 $node_standby->start;
