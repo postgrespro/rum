@@ -21,7 +21,13 @@ notifications:
         on_failure: always
 
 env:
-    - PG_VERSION=11 LEVEL=hardcore
+    - PG_VERSION=14
+    - PG_VERSION=14 LEVEL=hardcore
+    - PG_VERSION=13
+    - PG_VERSION=13 LEVEL=hardcore
+    - PG_VERSION=12
+    - PG_VERSION=12 LEVEL=hardcore
     - PG_VERSION=11
+    - PG_VERSION=11 LEVEL=hardcore
     - PG_VERSION=10
-    - PG_VERSION=9.6
+    - PG_VERSION=10 LEVEL=hardcore
