@@ -2,7 +2,7 @@
 """
 	Test RUM index with big base 'pglist'
 
-	Copyright (c) 2015-2016, Postgres Professional
+	Copyright (c) 2015-2021, Postgres Professional
 """
 import unittest
 import os
