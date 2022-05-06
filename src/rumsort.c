@@ -222,7 +222,11 @@ writetup_rum_internal(RumTuplesortstate * state, LT_TYPE LT_ARG, SortTuple *stup
 					 (void *) &writtenlen, sizeof(writtenlen));
 	LogicalTapeWrite(TAPE(state, LT_ARG),
 					 (void *) item, size);
-	if (state->randomAccess)	/* need trailing length word? */
+#if PG_VERSION_NUM >= 150000
+	if (state->sortopt & TUPLESORT_RANDOMACCESS)	/* need trailing length word? */
+#else
+	if (state->randomAccess)        /* need trailing length word? */
+#endif
 		LogicalTapeWrite(TAPE(state, LT_ARG),
 						 (void *) &writtenlen, sizeof(writtenlen));
 }
@@ -260,11 +264,11 @@ readtup_rum_internal(RumTuplesortstate * state, SortTuple *stup,
 
 	if (!is_item)
 		stup->datum1 = Float8GetDatum(state->nKeys > 0 ? ((RumSortItem *) item)->data[0] : 0);
-
-	if (state->randomAccess)	/* need trailing length word? */
 #if PG_VERSION_NUM >= 150000
+	if (state->sortopt & TUPLESORT_RANDOMACCESS)	/* need trailing length word? */
 		LogicalTapeReadExact(LT_ARG, &tuplen, sizeof(tuplen));
 #else
+	if (state->randomAccess)
 		LogicalTapeReadExact(state->tapeset, LT_ARG, &tuplen, sizeof(tuplen));
 #endif
 }
@@ -291,7 +295,14 @@ RumTuplesortstate *
 rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess,
 						bool compareItemPointer)
 {
+#if PG_VERSION_NUM >= 150000
+	RumTuplesortstate *state = tuplesort_begin_common(workMem,
+													  randomAccess ?
+													  TUPLESORT_RANDOMACCESS :
+													  TUPLESORT_NONE);
+#else
 	RumTuplesortstate *state = tuplesort_begin_common(workMem, randomAccess);
+#endif
 	MemoryContext oldcontext;
 
 	oldcontext = MemoryContextSwitchTo(state->sortcontext);
