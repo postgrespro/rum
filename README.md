@@ -297,3 +297,7 @@ Oleg Bartunov <o.bartunov@postgrespro.ru> Postgres Professional Ltd., Russia
 Teodor Sigaev <teodor@postgrespro.ru> Postgres Professional Ltd., Russia
 
 Arthur Zakirov <a.zakirov@postgrespro.ru> Postgres Professional Ltd., Russia
+
+Pavel Borisov <p.borisov@postgrespro.com> Postgres Professional Ltd., Russia
+
+Maxim Orlov <m.orlov@postgrespro.ru> Postgres Professional Ltd., Russia
