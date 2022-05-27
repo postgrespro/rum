@@ -18,10 +18,11 @@
 
 #if PG_VERSION_NUM >= 110000
 #define TRACE_POSTGRESQL_SORT_START(arg1, arg2, arg3, arg4, arg5, arg6) \
+			do {} while(0)
 #else
 #define TRACE_POSTGRESQL_SORT_START(arg1, arg2, arg3, arg4, arg5) \
-#endif
 			do {} while(0)
+#endif
 
 
 #define TRACE_POSTGRESQL_SORT_DONE(arg1, arg2) \
