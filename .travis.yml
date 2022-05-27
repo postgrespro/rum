@@ -1,4 +1,6 @@
-sudo: required
+os: linux
+
+dist: bionic
 
 language: c
 
@@ -21,6 +23,8 @@ notifications:
         on_failure: always
 
 env:
+    - PG_VERSION=15beta1
+    - PG_VERSION=15beta1 LEVEL=hardcore
     - PG_VERSION=14
     - PG_VERSION=14 LEVEL=hardcore
     - PG_VERSION=13
