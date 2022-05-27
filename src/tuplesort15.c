@@ -2946,6 +2946,7 @@ selectnewtape(Tuplesortstate *state)
 		 * We have reached the max number of tapes.  Append to an existing
 		 * tape.
 		 */
+		Assert(state->nOutputTapes != 0);
 		state->destTape = state->outputTapes[state->nOutputRuns % state->nOutputTapes];
 		state->nOutputRuns++;
 	}
