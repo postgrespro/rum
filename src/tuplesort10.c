@@ -143,6 +143,8 @@
 #include "utils/sortsupport.h"
 #include "utils/tuplesort.h"
 
+/* Should be the last include */
+#include "disable_core_macro.h"
 
 /* sort-type codes for sort__start probes */
 #define HEAP_SORT		0
