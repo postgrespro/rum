@@ -16,9 +16,17 @@
 #undef TRACE_POSTGRESQL_SORT_START
 #undef TRACE_POSTGRESQL_SORT_DONE
 
+#if PG_VERSION_NUM >= 110000
 #define TRACE_POSTGRESQL_SORT_START(arg1, arg2, arg3, arg4, arg5, arg6) \
+#else
+#define TRACE_POSTGRESQL_SORT_START(arg1, arg2, arg3, arg4, arg5) \
+#endif
 			do {} while(0)
+
+
 #define TRACE_POSTGRESQL_SORT_DONE(arg1, arg2) \
 			do {} while(0)
+
+
 
 #endif /* __DISABLE_CORE_MACRO_H__ */
