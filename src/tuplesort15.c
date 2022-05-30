@@ -2930,6 +2930,7 @@ selectnewtape(Tuplesortstate *state)
 	 * run, until maxTapes is reached.  After that, we assign new runs to the
 	 * existing tapes in a round robin fashion.
 	 */
+	Assert(state->maxTapes >= 1);
 	if (state->nOutputTapes < state->maxTapes)
 	{
 		/* Create a new tape to hold the next run */
