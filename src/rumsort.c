@@ -208,7 +208,10 @@ rum_item_size(RumTuplesortstate * state)
 	else if (state->copytup == copytup_rumitem)
 		return sizeof(RumScanItem);
 	else
+	{
 		elog (FATAL, "Unknown RUM state");
+		return 0;
+	}
 }
 
 static void
