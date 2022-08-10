@@ -471,7 +471,7 @@ struct Tuplesortstate
 
 	/* These are specific to the index_btree subcase: */
 	bool		enforceUnique;	/* complain if we find duplicate tuples */
-	bool		uniqueNullsNotDistinct;	/* unique constraint null treatment */
+	bool		uniqueNullsNotDistinct; /* unique constraint null treatment */
 
 	/* These are specific to the index_hash subcase: */
 	uint32		high_mask;		/* masks for sortable part of hash code */
@@ -708,8 +708,8 @@ qsort_tuple_unsigned_compare(SortTuple *a, SortTuple *b, Tuplesortstate *state)
 		return compare;
 
 	/*
-	 * No need to waste effort calling the tiebreak function when there are
-	 * no other keys to sort on.
+	 * No need to waste effort calling the tiebreak function when there are no
+	 * other keys to sort on.
 	 */
 	if (state->onlyKey != NULL)
 		return 0;
@@ -717,6 +717,7 @@ qsort_tuple_unsigned_compare(SortTuple *a, SortTuple *b, Tuplesortstate *state)
 	return state->comparetup(a, b, state);
 }
 
+#if SIZEOF_DATUM >= 8
 /* Used if first key's comparator is ssup_datum_signed_compare */
 static pg_attribute_always_inline int
 qsort_tuple_signed_compare(SortTuple *a, SortTuple *b, Tuplesortstate *state)
@@ -731,14 +732,15 @@ qsort_tuple_signed_compare(SortTuple *a, SortTuple *b, Tuplesortstate *state)
 		return compare;
 
 	/*
-	 * No need to waste effort calling the tiebreak function when there are
-	 * no other keys to sort on.
+	 * No need to waste effort calling the tiebreak function when there are no
+	 * other keys to sort on.
 	 */
 	if (state->onlyKey != NULL)
 		return 0;
 
 	return state->comparetup(a, b, state);
 }
+#endif
 
 /* Used if first key's comparator is ssup_datum_int32_compare */
 static pg_attribute_always_inline int
@@ -747,15 +749,15 @@ qsort_tuple_int32_compare(SortTuple *a, SortTuple *b, Tuplesortstate *state)
 	int			compare;
 
 	compare = ApplyInt32SortComparator(a->datum1, a->isnull1,
-										b->datum1, b->isnull1,
-										&state->sortKeys[0]);
+									   b->datum1, b->isnull1,
+									   &state->sortKeys[0]);
 
 	if (compare != 0)
 		return compare;
 
 	/*
-	 * No need to waste effort calling the tiebreak function when there are
-	 * no other keys to sort on.
+	 * No need to waste effort calling the tiebreak function when there are no
+	 * other keys to sort on.
 	 */
 	if (state->onlyKey != NULL)
 		return 0;
@@ -781,6 +783,7 @@ qsort_tuple_int32_compare(SortTuple *a, SortTuple *b, Tuplesortstate *state)
 #define ST_DEFINE
 #include "lib/sort_template.h"
 
+#if SIZEOF_DATUM >= 8
 #define ST_SORT qsort_tuple_signed
 #define ST_ELEMENT_TYPE SortTuple
 #define ST_COMPARE(a, b, state) qsort_tuple_signed_compare(a, b, state)
@@ -789,6 +792,7 @@ qsort_tuple_int32_compare(SortTuple *a, SortTuple *b, Tuplesortstate *state)
 #define ST_SCOPE static
 #define ST_DEFINE
 #include "lib/sort_template.h"
+#endif
 
 #define ST_SORT qsort_tuple_int32
 #define ST_ELEMENT_TYPE SortTuple
@@ -3662,23 +3666,22 @@ tuplesort_sort_memtuples(Tuplesortstate *state)
 		{
 			if (state->sortKeys[0].comparator == ssup_datum_unsigned_cmp)
 			{
-				elog(DEBUG1, "qsort_tuple_unsigned");
 				qsort_tuple_unsigned(state->memtuples,
 									 state->memtupcount,
 									 state);
 				return;
 			}
+#if SIZEOF_DATUM >= 8
 			else if (state->sortKeys[0].comparator == ssup_datum_signed_cmp)
 			{
-				elog(DEBUG1, "qsort_tuple_signed");
 				qsort_tuple_signed(state->memtuples,
 								   state->memtupcount,
 								   state);
 				return;
 			}
+#endif
 			else if (state->sortKeys[0].comparator == ssup_datum_int32_cmp)
 			{
-				elog(DEBUG1, "qsort_tuple_int32");
 				qsort_tuple_int32(state->memtuples,
 								  state->memtupcount,
 								  state);
@@ -3689,13 +3692,11 @@ tuplesort_sort_memtuples(Tuplesortstate *state)
 		/* Can we use the single-key sort function? */
 		if (state->onlyKey != NULL)
 		{
-			elog(DEBUG1, "qsort_ssup");
 			qsort_ssup(state->memtuples, state->memtupcount,
 					   state->onlyKey);
 		}
 		else
 		{
-			elog(DEBUG1, "qsort_tuple");
 			qsort_tuple(state->memtuples,
 						state->memtupcount,
 						state->comparetup,
@@ -4907,16 +4908,12 @@ ssup_datum_unsigned_cmp(Datum x, Datum y, SortSupport ssup)
 		return 0;
 }
 
+#if SIZEOF_DATUM >= 8
 int
 ssup_datum_signed_cmp(Datum x, Datum y, SortSupport ssup)
 {
-#if SIZEOF_DATUM == 8
-	int64		xx = (int64) x;
-	int64		yy = (int64) y;
-#else
-	int32		xx = (int32) x;
-	int32		yy = (int32) y;
-#endif
+	int64		xx = DatumGetInt64(x);
+	int64		yy = DatumGetInt64(y);
 
 	if (xx < yy)
 		return -1;
@@ -4925,12 +4922,13 @@ ssup_datum_signed_cmp(Datum x, Datum y, SortSupport ssup)
 	else
 		return 0;
 }
+#endif
 
 int
 ssup_datum_int32_cmp(Datum x, Datum y, SortSupport ssup)
 {
-	int32		xx = (int32) x;
-	int32		yy = (int32) y;
+	int32		xx = DatumGetInt32(x);
+	int32		yy = DatumGetInt32(y);
 
 	if (xx < yy)
 		return -1;

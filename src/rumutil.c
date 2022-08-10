@@ -129,9 +129,6 @@ rumhandler(PG_FUNCTION_ARGS)
 #if PG_VERSION_NUM >= 100000
 	amroutine->amcanparallel = false;
 #endif
-#if PG_VERSION_NUM >= 150000
-	amroutine->amhotblocking = true;
-#endif
 	amroutine->amkeytype = InvalidOid;
 
 	amroutine->ambuild = rumbuild;
