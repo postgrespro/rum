@@ -28,8 +28,10 @@
 #include "rum.h"				/* RumItem */
 
 #if PG_VERSION_NUM >= 160000
-#include "tuplesort16.c"
-#undef TRACE_SORT
+/*
+ * After allocating a public interface for Tuplesortstate, no need to include
+ * source code from pg-core.
+ */
 #elif PG_VERSION_NUM >= 150000
 #include "tuplesort15.c"
 #elif PG_VERSION_NUM >= 140000
@@ -47,6 +49,26 @@
 #endif
 
 /*
+ * In case of using custom compare function we should store function pointer in
+ * sort stare in order to use it later.
+ */
+
+#if PG_VERSION_NUM >= 160000
+/*
+ * After allocating a public interface for Tuplesortstate we may use
+ * TuplesortPublic->arg filed to store pointer to the compare function.
+ */
+
+/* GUC variables */
+#ifdef TRACE_SORT
+extern PGDLLIMPORT bool trace_sort;
+#endif
+
+/* All memory management should be inside Tuplesortstate module. */
+#define USEMEM(state,amt)	do {} while(0)
+
+#else /* PG_VERSION_NUM >= 160000 */
+/*
  * We need extra field in a state structure but we should not modify struct
  * RumTuplesortstate which is inherited from Tuplesortstate core function.
  */
@@ -55,6 +77,7 @@ typedef struct RumTuplesortstateExt
 	RumTuplesortstate ts;
 	FmgrInfo   *cmp;
 }			RumTuplesortstateExt;
+#endif /* PG_VERSION_NUM < 160000 */
 
 static int	comparetup_rum(const SortTuple *a, const SortTuple *b,
 						   RumTuplesortstate *state, bool compareItemPointer);
@@ -70,12 +93,18 @@ static void copytup_rumitem(RumTuplesortstate *state, SortTuple *stup,
 static void *rum_tuplesort_getrum_internal(RumTuplesortstate *state,
 										   bool forward, bool *should_free);
 
+/*
+ * Tuplesortstate handling should be done through this macro.
+ */
 #if PG_VERSION_NUM >= 160000
 #	define TSS_GET(state)	TuplesortstateGetPublic((state))
 #else
 #	define TSS_GET(state)	(state)
 #endif
 
+/*
+ * Logical tape handling should be done through this macro.
+ */
 #if PG_VERSION_NUM >= 150000
 #define LT_TYPE LogicalTape *
 #define LT_ARG tape
@@ -84,6 +113,25 @@ static void *rum_tuplesort_getrum_internal(RumTuplesortstate *state,
 #define LT_TYPE int
 #define LT_ARG tapenum
 #define TAPE(state, LT_ARG) state->tapeset, LT_ARG
+#endif
+
+/*
+ * Just for convenience and uniformity.
+ */
+#if PG_VERSION_NUM >= 110000
+#define tuplesort_begin_common(x,y) tuplesort_begin_common((x), NULL, (y))
+#endif
+
+/*
+ * Trace log wrapper.
+ */
+#ifdef TRACE_SORT
+#	define LOG_SORT(...)	\
+		if (trace_sort)		\
+			ereport(LOG, errmsg_internal(__VA_ARGS__))
+#else
+#	define LOG_SORT(...)	\
+		{}
 #endif
 
 static inline int
@@ -156,19 +204,29 @@ comparetup_rum_false(const SortTuple *a, const SortTuple *b,
 	return comparetup_rum(a, b, state, false);
 }
 
+static inline FmgrInfo *
+comparetup_rumitem_custom_fun(RumTuplesortstate *state)
+{
+#if PG_VERSION_NUM >= 160000
+	return (FmgrInfo *) TSS_GET(state)->arg;
+#else
+	return ((RumTuplesortstateExt *) state)->cmp;
+#endif
+}
+
 static int
 comparetup_rumitem(const SortTuple *a, const SortTuple *b,
 				   RumTuplesortstate *state)
 {
-	RumItem    *i1,
-			   *i2;
-	FmgrInfo   *cmp;
+	RumItem		*i1,
+				*i2;
+	FmgrInfo	*cmp;
 
 	/* Extract RumItem from RumScanItem */
 	i1 = (RumItem *) a->tuple;
 	i2 = (RumItem *) b->tuple;
 
-	cmp = ((RumTuplesortstateExt *) state)->cmp;
+	cmp = comparetup_rumitem_custom_fun(state);
 	if (cmp != NULL)
 	{
 		if (i1->addInfoIsNull || i2->addInfoIsNull)
@@ -242,17 +300,21 @@ writetup_rum_internal(RumTuplesortstate *state, LT_TYPE LT_ARG,
 	void *item = stup->tuple;
 	size_t		size = rum_item_size(state);
 	unsigned int writtenlen = size + sizeof(unsigned int);
+	bool randomAccess;
 
 	LogicalTapeWrite(TAPE(state, LT_ARG),
 					 (void *) &writtenlen, sizeof(writtenlen));
 	LogicalTapeWrite(TAPE(state, LT_ARG),
 					 (void *) item, size);
-#if PG_VERSION_NUM >= 150000
-	if (TSS_GET(state)->sortopt & TUPLESORT_RANDOMACCESS)	/* need trailing
-															 * length word? */
-#else
-	if (TSS_GET(state)->randomAccess)	/* need trailing length word? */
-#endif
+
+	randomAccess =
+#		if PG_VERSION_NUM >= 150000
+			(TSS_GET(state)->sortopt & TUPLESORT_RANDOMACCESS) != 0;
+#		else
+			TSS_GET(state)->randomAccess;
+#		endif
+
+	if (randomAccess)
 		LogicalTapeWrite(TAPE(TSS_GET(state), LT_ARG), (void *) &writtenlen,
 						 sizeof(writtenlen));
 }
@@ -280,6 +342,7 @@ readtup_rum_internal(RumTuplesortstate *state, SortTuple *stup,
 	Assert(tuplen == size);
 
 	USEMEM(state, GetMemoryChunkSpace(item));
+
 #if PG_VERSION_NUM >= 150000
 	LogicalTapeReadExact(LT_ARG, item, size);
 #else
@@ -316,10 +379,6 @@ readtup_rumitem(RumTuplesortstate *state, SortTuple *stup, LT_TYPE LT_ARG,
 	readtup_rum_internal(state, stup, LT_ARG, len, true);
 }
 
-#if PG_VERSION_NUM >= 110000
-#define tuplesort_begin_common(x,y) tuplesort_begin_common((x), NULL, (y))
-#endif
-
 RumTuplesortstate *
 rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess,
 						bool compareItemPointer)
@@ -336,12 +395,8 @@ rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess,
 
 	oldcontext = MemoryContextSwitchTo(TSS_GET(state)->sortcontext);
 
-#ifdef TRACE_SORT
-	if (trace_sort)
-		elog(LOG,
-			 "begin rum sort: nKeys = %d, workMem = %d, randomAccess = %c",
+	LOG_SORT("begin rum sort: nKeys = %d, workMem = %d, randomAccess = %c",
 			 nKeys, workMem, randomAccess ? 't' : 'f');
-#endif
 
 	TSS_GET(state)->nKeys = nKeys;
 	TSS_GET(state)->comparetup = compareItemPointer ? comparetup_rum_true :
@@ -357,6 +412,23 @@ rum_tuplesort_begin_rum(int workMem, int nKeys, bool randomAccess,
 RumTuplesortstate *
 rum_tuplesort_begin_rumitem(int workMem, FmgrInfo *cmp)
 {
+#if PG_VERSION_NUM >= 160000
+	RumTuplesortstate *state = tuplesort_begin_common(workMem, false);
+	MemoryContext oldcontext;
+
+	oldcontext = MemoryContextSwitchTo(TSS_GET(state)->sortcontext);
+
+	LOG_SORT("begin rumitem sort: workMem = %d", workMem);
+
+	TSS_GET(state)->comparetup = comparetup_rumitem;
+	TSS_GET(state)->writetup = writetup_rumitem;
+	TSS_GET(state)->readtup = readtup_rumitem;
+	TSS_GET(state)->arg = cmp;
+
+	MemoryContextSwitchTo(oldcontext);
+
+	return state;
+#else
 	RumTuplesortstate *state = tuplesort_begin_common(workMem, false);
 	RumTuplesortstateExt *rs;
 	MemoryContext oldcontext;
@@ -366,11 +438,7 @@ rum_tuplesort_begin_rumitem(int workMem, FmgrInfo *cmp)
 	/* Allocate extended state in the same context as state */
 	rs = palloc(sizeof(*rs));
 
-#ifdef TRACE_SORT
-	if (trace_sort)
-		elog(LOG,
-			 "begin rumitem sort: workMem = %d", workMem);
-#endif
+	LOG_SORT("begin rumitem sort: workMem = %d", workMem);
 
 	rs->cmp = cmp;
 	TSS_GET(state)->comparetup = comparetup_rumitem;
@@ -383,6 +451,7 @@ rum_tuplesort_begin_rumitem(int workMem, FmgrInfo *cmp)
 	MemoryContextSwitchTo(oldcontext);
 
 	return (RumTuplesortstate *) rs;
+#endif
 }
 
 /*
@@ -397,7 +466,7 @@ rum_tuplesort_begin_rumitem(int workMem, FmgrInfo *cmp)
 void
 rum_tuplesort_end(RumTuplesortstate *state)
 {
-#if PG_VERSION_NUM >= 130000
+#if PG_VERSION_NUM < 160000 && PG_VERSION_NUM >= 130000
 	tuplesort_free(state);
 #else
 	tuplesort_end(state);
