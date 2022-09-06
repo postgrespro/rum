@@ -27,7 +27,10 @@
 
 #include "rum.h"				/* RumItem */
 
-#if PG_VERSION_NUM >= 150000
+#if PG_VERSION_NUM >= 160000
+#include "tuplesort16.c"
+#undef TRACE_SORT
+#elif PG_VERSION_NUM >= 150000
 #include "tuplesort15.c"
 #elif PG_VERSION_NUM >= 140000
 #include "tuplesort14.c"
@@ -53,7 +56,6 @@ typedef struct RumTuplesortstateExt
 	FmgrInfo   *cmp;
 }			RumTuplesortstateExt;
 
-static int	compare_rum_itempointer(ItemPointerData p1, ItemPointerData p2);
 static int	comparetup_rum(const SortTuple *a, const SortTuple *b,
 						   RumTuplesortstate *state, bool compareItemPointer);
 static int	comparetup_rum_true(const SortTuple *a, const SortTuple *b,
@@ -69,11 +71,19 @@ static void *rum_tuplesort_getrum_internal(RumTuplesortstate *state,
 										   bool forward, bool *should_free);
 
 #if PG_VERSION_NUM >= 160000
-#	define TSS_GET(state) \
-		TuplesortstateGetPublic((state))
+#	define TSS_GET(state)	TuplesortstateGetPublic((state))
 #else
-#	define TSS_GET(state) \
-		(state)
+#	define TSS_GET(state)	(state)
+#endif
+
+#if PG_VERSION_NUM >= 150000
+#define LT_TYPE LogicalTape *
+#define LT_ARG tape
+#define TAPE(state, LT_ARG) LT_ARG
+#else
+#define LT_TYPE int
+#define LT_ARG tapenum
+#define TAPE(state, LT_ARG) state->tapeset, LT_ARG
 #endif
 
 static inline int
@@ -152,12 +162,14 @@ comparetup_rumitem(const SortTuple *a, const SortTuple *b,
 {
 	RumItem    *i1,
 			   *i2;
+	FmgrInfo   *cmp;
 
 	/* Extract RumItem from RumScanItem */
 	i1 = (RumItem *) a->tuple;
 	i2 = (RumItem *) b->tuple;
 
-	if (((RumTuplesortstateExt *) state)->cmp)
+	cmp = ((RumTuplesortstateExt *) state)->cmp;
+	if (cmp != NULL)
 	{
 		if (i1->addInfoIsNull || i2->addInfoIsNull)
 		{
@@ -169,7 +181,7 @@ comparetup_rumitem(const SortTuple *a, const SortTuple *b,
 		{
 			int			r;
 
-			r = DatumGetInt32(FunctionCall2(((RumTuplesortstateExt *) state)->cmp,
+			r = DatumGetInt32(FunctionCall2(cmp,
 											i1->addInfo,
 											i2->addInfo));
 
@@ -193,7 +205,7 @@ copytup_rum(RumTuplesortstate *state, SortTuple *stup, void *tup)
 	stup->datum1 = Float8GetDatum(nKeys > 0 ? item->data[0] : 0);
 	stup->isnull1 = false;
 	stup->tuple = tup;
-	//USEMEM(state, GetMemoryChunkSpace(tup));
+	USEMEM(state, GetMemoryChunkSpace(tup));
 }
 
 static void
@@ -202,18 +214,8 @@ copytup_rumitem(RumTuplesortstate *state, SortTuple *stup, void *tup)
 	stup->isnull1 = true;
 	stup->tuple = palloc(sizeof(RumScanItem));
 	memcpy(stup->tuple, tup, sizeof(RumScanItem));
-	//USEMEM(state, GetMemoryChunkSpace(stup->tuple));
+	USEMEM(state, GetMemoryChunkSpace(stup->tuple));
 }
-
-#if PG_VERSION_NUM >= 150000
-#define LT_TYPE LogicalTape *
-#define LT_ARG tape
-#define TAPE(state, LT_ARG) LT_ARG
-#else
-#define LT_TYPE int
-#define LT_ARG tapenum
-#define TAPE(state, LT_ARG) state->tapeset, LT_ARG
-#endif
 
 static void readtup_rum(RumTuplesortstate *state, SortTuple *stup,
 						LT_TYPE LT_ARG, unsigned int len);
@@ -228,9 +230,9 @@ rum_item_size(RumTuplesortstate *state)
 		return RumSortItemSize(TSS_GET(state)->nKeys);
 	else if (TSS_GET(state)->readtup == readtup_rumitem)
 		return sizeof(RumScanItem);
-	else
-		elog (FATAL, "Unknown RUM state");
-	return 0;	/* Silence compiler */
+
+	elog (FATAL, "Unknown RUM state");
+	return 0;	/* keep compiler quiet */
 }
 
 static void
@@ -277,7 +279,7 @@ readtup_rum_internal(RumTuplesortstate *state, SortTuple *stup,
 
 	Assert(tuplen == size);
 
-	//USEMEM(state, GetMemoryChunkSpace(item));
+	USEMEM(state, GetMemoryChunkSpace(item));
 #if PG_VERSION_NUM >= 150000
 	LogicalTapeReadExact(LT_ARG, item, size);
 #else
@@ -420,7 +422,12 @@ rum_tuplesort_putrum(RumTuplesortstate *state, RumSortItem *item)
 
 	oldcontext = MemoryContextSwitchTo(rum_tuplesort_get_memorycontext(state));
 	copytup_rum(state, &stup, item);
+
+#if PG_VERSION_NUM >= 160000
+	tuplesort_puttuple_common(state, &stup, false);
+#else
 	puttuple_common(state, &stup);
+#endif
 
 	MemoryContextSwitchTo(oldcontext);
 }
@@ -433,7 +440,12 @@ rum_tuplesort_putrumitem(RumTuplesortstate *state, RumScanItem *item)
 
 	oldcontext = MemoryContextSwitchTo(rum_tuplesort_get_memorycontext(state));
 	copytup_rumitem(state, &stup, item);
+
+#if PG_VERSION_NUM >= 160000
+	tuplesort_puttuple_common(state, &stup, false);
+#else
 	puttuple_common(state, &stup);
+#endif
 
 	MemoryContextSwitchTo(oldcontext);
 }
