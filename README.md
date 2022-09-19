@@ -8,38 +8,38 @@
 
 ## Introduction
 
-The **rum** module provides access method to work with `RUM` index. It is based
-on the `GIN` access methods code.
+The **rum** module provides an access method to work with a `RUM` index. It is based
+on the `GIN` access method's code.
 
-`GIN` index allows to perform fast full text search using `tsvector` and
-`tsquery` types. But full text search with GIN index has several problems:
+A `GIN` index allows performing fast full-text search using `tsvector` and
+`tsquery` types. But full-text search with a GIN index has several problems:
 
-- Slow ranking. It is need position information about lexems to ranking. `GIN`
-index doesn't store positions of lexems. So after index scan we need additional
-heap scan to retrieve lexems positions.
-- Slow phrase search with `GIN` index. This problem relates with previous
-problem. It is need position information to perform phrase search.
-- Slow ordering by timestamp. `GIN` index can't store some related information
-in index with lexemes. So it is necessary to perform additional heap scan.
+- Slow ranking. It needs positional information about lexemes to do ranking. A `GIN`
+index doesn't store positions of lexemes. So after index scanning, we need an
+additional heap scan to retrieve lexeme positions.
+- Slow phrase search with a `GIN` index. This problem relates to the previous
+problem. It needs positional information to perform phrase search.
+- Slow ordering by timestamp. A `GIN` index can't store some related information
+in the index with lexemes. So it is necessary to perform an additional heap scan.
 
-`RUM` solves this problems by storing additional information in posting tree.
+`RUM` solves these problems by storing additional information in a posting tree.
 For example, positional information of lexemes or timestamps. You can get an
-idea of `RUM` by the following picture:
+idea of `RUM` with the following diagram:
 
 ![How RUM stores additional information](img/gin_rum.png)
 
-Drawback of `RUM` is that it has slower build and insert time than `GIN`.
-It is because we need to store additional information besides keys and because
-`RUM` uses generic WAL records.
+A drawback of `RUM` is that it has slower build and insert times than `GIN`.
+This is because we need to store additional information besides keys and because
+`RUM` uses generic Write-Ahead Log (WAL) records.
 
 ## License
 
-This module available under the [license](LICENSE) similar to
+This module is available under the [license](LICENSE) similar to
 [PostgreSQL](http://www.postgresql.org/about/licence/).
 
 ## Installation
 
-Before build and install **rum** you should ensure following:
+Before building and installing **rum**, you should ensure following are installed:
 
 * PostgreSQL version is 9.6+.
 
@@ -62,7 +62,7 @@ Typical installation procedure may look like this:
 
 ## Common operators and functions
 
-**rum** module provides next operators.
+The **rum** module provides next operators.
 
 |       Operator       | Returns |                 Description
 | -------------------- | ------- | ----------------------------------------------
@@ -71,19 +71,19 @@ Typical installation procedure may look like this:
 | timestamp &lt;=&#124; timestamp | float8 | Returns distance only for left timestamps.
 | timestamp &#124;=&gt; timestamp | float8 | Returns distance only for right timestamps.
 
-Last three operations also works for types timestamptz, int2, int4, int8, float4, float8,
+The last three operations also work for types timestamptz, int2, int4, int8, float4, float8,
 money and oid.
 
 ## Operator classes
 
-**rum** provides next operator classes.
+**rum** provides the following operator classes.
 
 ### rum_tsvector_ops
 
 For type: `tsvector`
 
-This operator class stores `tsvector` lexemes with positional information. Supports
-ordering by `<=>` operator and prefix search. There is the example.
+This operator class stores `tsvector` lexemes with positional information. It supports
+ordering by the `<=>` operator and prefix search. See the example below.
 
 Let us assume we have the table:
 
@@ -140,8 +140,8 @@ SELECT t, a <=> to_tsquery('english', 'place | situation') AS rank
 
 For type: `tsvector`
 
-This operator class stores hash of `tsvector` lexemes with positional information.
-Supports ordering by `<=>` operator. But **doesn't** support prefix search.
+This operator class stores a hash of `tsvector` lexemes with positional information.
+It supports ordering by the `<=>` operator. It **doesn't** support prefix search.
 
 ### rum_TYPE_ops
 
@@ -153,17 +153,18 @@ Supported operations: `<`, `<=`, `=`, `>=`, `>` for all types and
 `<=>`, `<=|` and `|=>` for int2, int4, int8, float4, float8, money, oid,
 timestamp and timestamptz types.
 
-Supports ordering by `<=>`, `<=|` and `|=>` operators. Can be used with
+This operator supports ordering by the `<=>`, `<=|` and `|=>` operators. It can be used with
 `rum_tsvector_addon_ops`, `rum_tsvector_hash_addon_ops' and `rum_anyarray_addon_ops` operator classes.
 
 ### rum_tsvector_addon_ops
 
 For type: `tsvector`
 
-This operator class stores `tsvector` lexems with any supported by module
-field. There is the example.
+This operator class stores `tsvector` lexemes with any supported by module
+field. See the example below.
 
 Let us assume we have the table:
+
 ```sql
 CREATE TABLE tsts (id int, t tsvector, d timestamp);
 
@@ -202,16 +203,16 @@ SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY 
 
 For type: `tsvector`
 
-This operator class stores hash of `tsvector` lexems with any supported by module
+This operator class stores a hash of `tsvector` lexemes with any supported by module
 field.
 
-**Doesn't** support prefix search.
+It **doesn't** support prefix search.
 
 ### rum_tsquery_ops
 
 For type: `tsquery`
 
-Stores branches of query tree in additional information. For example we have the table:
+It stores branches of query tree in additional information. For example, we have the table:
 ```sql
 CREATE TABLE query (q tsquery, tag text);
 
@@ -240,8 +241,8 @@ SELECT * FROM query
 For type: `anyarray`
 
 This operator class stores `anyarray` elements with length of the array.
-Supports operators `&&`, `@>`, `<@`, `=`, `%` operators. Supports ordering by `<=>` operator.
-For example we have the table:
+It supports operators `&&`, `@>`, `<@`, `=`, `%` operators. It also supports ordering by `<=>` operator.
+For example, we have the table:
 
 ```sql
 CREATE TABLE test_array (i int2[]);
