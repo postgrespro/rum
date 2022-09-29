@@ -172,7 +172,7 @@ typedef struct
 	DocRepresentation *end;
 } Extention;
 
-static float weights[] = {1.0/0.1f, 1.0/0.2f, 1.0/0.4f, 1.0/1.0f};
+static float weights[] = {1.0f/0.1f, 1.0f/0.2f, 1.0f/0.4f, 1.0f/1.0f};
 
 /* A dummy WordEntryPos array to use when haspos is false */
 static WordEntryPosVector POSNULL = {
