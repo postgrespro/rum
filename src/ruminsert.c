@@ -530,11 +530,11 @@ rumHeapTupleBulkInsert(RumBuildState * buildstate, OffsetNumber attnum,
 			/* Check existance of additional information attribute in index */
 			if (!attr)
 			{
-				Form_pg_attribute attr = RumTupleDescAttr(
+				Form_pg_attribute current_attr = RumTupleDescAttr(
 					buildstate->rumstate.origTupdesc, attnum - 1);
 
 				elog(ERROR, "additional information attribute \"%s\" is not found in index",
-					 NameStr(attr->attname));
+					 NameStr(current_attr->attname));
 			}
 
 			addInfo[i] = datumCopy(addInfo[i], attr->attbyval, attr->attlen);

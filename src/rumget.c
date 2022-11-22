@@ -632,7 +632,6 @@ restartScanEntry:
 		{
 			BlockNumber rootPostingTree = RumGetPostingTree(itup);
 			RumPostingTreeScan *gdi;
-			Page		page;
 			OffsetNumber maxoff,
 						i;
 			Pointer		ptr;
@@ -1051,7 +1050,6 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 	{
 		BlockNumber rootPostingTree = RumGetPostingTree(itup);
 		RumPostingTreeScan *gdi;
-		Page		page;
 		OffsetNumber maxoff,
 					i;
 		Pointer		ptr;
