@@ -64,6 +64,7 @@ if [ "$LEVEL" = "hardcore" ]; then
 	# perform static analyzis
 	scan-build --status-bugs \
 	-disable-checker core.UndefinedBinaryOperatorResult \
+	-disable-checker core.DivideZero \
 	-disable-checker deadcode.DeadStores \
 	make USE_PGXS=1 || status=$?
 
