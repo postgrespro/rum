@@ -32,6 +32,8 @@ REGRESS = security rum rum_validate rum_hash ruminv timestamp orderby orderby_ha
     macaddr inet cidr text varchar char bytea bit varbit \
 	numeric rum_weight
 
+TAP_TESTS = 1
+
 ifdef USE_PGXS
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
