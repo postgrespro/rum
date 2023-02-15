@@ -51,10 +51,27 @@ else
 REGRESS += array
 endif
 
+# For 9.6-11 we have to make specific target with tap tests
+SPECIFIC_TAP =
+
+ifeq ($(MAJORVERSION), 9.6)
+SPECIFIC_TAP = yes
+endif
+
+ifeq ($(MAJORVERSION), 10)
+SPECIFIC_TAP = yes
+endif
+
+ifeq ($(MAJORVERSION), 11)
+SPECIFIC_TAP = yes
+endif
+
+ifdef SPECIFIC_TAP
 wal-check: temp-install
 	$(prove_check)
 
 check: wal-check
+endif
 
 all: $(SQL_built)
 
