@@ -1060,7 +1060,6 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	RumItem		maxLeftItem,
 				curItem;
 	RumItem		item;
-	int			totalCount = 0;
 	int			maxItemIndex = btree->curitem;
 	/*
 	 * Must have lpageCopy MAXALIGNed to use PG macros to access data in
@@ -1100,7 +1099,6 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 							   &item, &prevIptr, btree->rumstate, totalsize);
 
 			maxItemIndex++;
-			totalCount++;
 			maxItemSize = Max(maxItemSize, totalsize - prevTotalsize);
 		}
 
@@ -1112,7 +1110,6 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 		totalsize = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
 							   &item, &prevIptr, btree->rumstate, totalsize);
 
-		totalCount++;
 		maxItemSize = Max(maxItemSize, totalsize - prevTotalsize);
 	}
 
@@ -1134,7 +1131,6 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 				 2 * RumDataPageSize - 2 * maxItemSize - 2 * MAXIMUM_ALIGNOF)
 			{
 				maxItemIndex++;
-				totalCount++;
 				maxItemSize = Max(maxItemSize, newTotalsize - totalsize);
 				totalsize = newTotalsize;
 
@@ -1148,8 +1144,6 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 			totalsize = rumCheckPlaceToDataPageLeaf(btree->entryAttnum,
 							   &item, &prevIptr, btree->rumstate, totalsize);
 			maxItemIndex++;
-
-			totalCount++;
 		}
 	}
 
