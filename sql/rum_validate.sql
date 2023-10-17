@@ -58,4 +58,10 @@ SET enable_indexscan=on;
 SELECT a
 	FROM test_rum
 	WHERE a @@ to_tsquery('pg_catalog.english', 'bar')
-	ORDER BY a <=> (to_tsquery('pg_catalog.english', 'bar'),0)
+	ORDER BY a <=> (to_tsquery('pg_catalog.english', 'bar'),0);
+
+-- PGPRO-9026: column and attached column cannot be the same
+CREATE TABLE test_array (i int2[]);
+CREATE INDEX idx_array ON test_array USING rum (i rum_anyarray_addon_ops) WITH (attach = 'i', to = 'i');
+SELECT * FROM test_array WHERE i && '{1}';
+DROP TABLE test_array;

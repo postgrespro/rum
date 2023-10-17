@@ -211,6 +211,9 @@ initRumState(RumState * state, Relation index)
 
 			if (!AttributeNumberIsValid(state->attrnAddToColumn))
 				elog(ERROR, "attribute \"%s\" is not found in index", colname);
+
+			if (state->attrnAddToColumn == state->attrnAttachColumn)
+				elog(ERROR, "column \"%s\" and attached column cannot be the same", colname);
 		}
 
 		if (!(AttributeNumberIsValid(state->attrnAttachColumn) &&
