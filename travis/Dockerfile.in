@@ -4,10 +4,10 @@ FROM postgres:${PG_VERSION}-alpine
 RUN apk add --no-cache \
 	linux-headers \
 	openssl curl \
-	perl perl-ipc-run \
+	perl perl-ipc-run perl-dev perl-app-cpanminus perl-dbi \
 	make musl-dev gcc bison flex coreutils \
 	zlib-dev libedit-dev \
-	clang clang-analyzer;
+	pkgconf icu-dev clang clang15 clang-analyzer;
 
 # Environment
 ENV LANG=C.UTF-8 PGDATA=/pg/data

@@ -30,7 +30,7 @@ REGRESS = security rum rum_validate rum_hash ruminv timestamp orderby orderby_ha
 	int2 int4 int8 float4 float8 money oid \
     time timetz date interval \
     macaddr inet cidr text varchar char bytea bit varbit \
-	numeric rum_weight
+	numeric rum_weight expr
 
 TAP_TESTS = 1
 

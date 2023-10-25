@@ -284,7 +284,14 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 		 * addInfo
 		 */
 		if (gcv->recheckPhrase)
-			return ((val->weight) ? TS_MAYBE : TS_YES);
+		{
+			/*
+			 * We cannot return TS_YES here (if "val->weight > 0"), because
+			 * data->npos = 0 and we have incorrect porocessing of this result
+			 * at the upper levels. So return TS_MAYBE.
+			 */
+			return TS_MAYBE;
+		}
 
 		positions = DatumGetByteaP(gcv->addInfo[j]);
 		ptrt = (char *) VARDATA_ANY(positions);
