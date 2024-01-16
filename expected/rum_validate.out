@@ -8,8 +8,6 @@ WHERE amname = 'rum'
 ORDER BY opcname;
               opcname              | amvalidate 
 -----------------------------------+------------
- rum_anyarray_addon_ops            | t
- rum_anyarray_ops                  | t
  rum_bit_ops                       | t
  rum_bytea_ops                     | t
  rum_char_ops                      | t
@@ -42,7 +40,7 @@ ORDER BY opcname;
  rum_tsvector_timestamptz_ops      | t
  rum_varbit_ops                    | t
  rum_varchar_ops                   | t
-(34 rows)
+(32 rows)
 
 --
 -- Test access method and 'rumidx' index properties

@@ -48,7 +48,8 @@ endif
 ifeq ($(MAJORVERSION), 9.6)
 # arrays are not supported on 9.6
 else
-REGRESS += array
+# arrays are excluded in RUM 1.4 
+#REGRESS += array
 endif
 
 # For 9.6-11 we have to make specific target with tap tests

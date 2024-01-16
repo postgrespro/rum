@@ -282,6 +282,32 @@ For type: `anyarray`
 This operator class stores `anyarray` elements with any supported by module
 field.
 
+## Upgrading
+
+Install the latest version and run in every database you want to upgrade:
+
+```SQL
+ALTER EXTENSION rum UPDATE;
+```
+You need to close this database server connection to apply changes.
+
+You can check the version in the current database with psql command:
+
+```
+\dx
+```
+
+## Version Notes
+
+### 1.4
+
+The support of anyarray RUM indexes removed from RUM extension and move to 
+[anyarray extension](https://github.com/postgrespro/anyarray).
+
+## Extensibility
+
+The recommendations for the creation of the new operator classes for RUM index are provided in [the manual](docs/README.md).
+
 ## Todo
 
 - Allow multiple additional information (lexemes positions + timestamp).
