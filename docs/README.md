@@ -24,6 +24,9 @@ All it takes to get a RUM access method working is to implement a few user-defin
 ```
         int rum_compare(Datum a, Datum b)
 ```
+Compares two keys (not indexed items!) and returns an integer less than zero, zero, or greater than zero, indicating whether the first key is less than, equal to, or greater than the second. Null keys are never passed to this function.
+
+Alternatively, if the operator class does not provide a compare method, RUM will look up the default btree operator class for the index key data type, and use its comparison function. It is recommended to specify the comparison function in a RUM operator class that is meant for just one data type, as looking up the btree operator class costs a few cycles. However, polymorphic RUM operator classes (such as array_ops) typically cannot specify a single comparison function.
 
 ### Function 2 rum_extract_value
 ```        
@@ -59,9 +62,6 @@ On success, `*recheck` should be set to true if the heap tuple needs to be reche
 ```         
         int32 rum_compare_prefix(Datum a, Datum b,StrategyNumber n,void *addInfo) 
 ```
-Compares two keys (not indexed items!) and returns an integer less than zero, zero, or greater than zero, indicating whether the first key is less than, equal to, or greater than the second. Null keys are never passed to this function.
-
-Alternatively, if the operator class does not provide a compare method, RUM will look up the default btree operator class for the index key data type, and use its comparison function. It is recommended to specify the comparison function in a RUM operator class that is meant for just one data type, as looking up the btree operator class costs a few cycles. However, polymorphic RUM operator classes (such as array_ops) typically cannot specify a single comparison function.
 
 ### Function 6 rum_config (used names: RUM_CONFIG_PROC configFn)
 ```        
@@ -114,11 +114,11 @@ If operator class defines rum_pre_consistent function, it is called before rum_c
 
 ### Function 8 rum_ordering_distance (used names: RUM_ORDERING_PROC orderingFn)
 ```
-        double rum_ordering_distance(bool check[], ?StrategyNumber n, ?Datum query, int32 nkeys, ?Pointer extra_data[], 
-         ?bool *recheck, ?Datum queryKeys[], ?bool nullFlags[], Datum **addInfo, bool **nullFlagsAddInfo)
+        double rum_ordering_distance(bool check[], StrategyNumber n, Datum query, int32 nkeys, Pointer extra_data[], 
+         bool *recheck, Datum queryKeys[], bool queryCategories[], Datum **addInfo, bool **nullFlagsAddInfo)
         double rum_ordering_distance(Datum curKey, Datum query, StrategyNumber n) 
 ```
-Operator class defines rum_ordering_distance function, if it can provide distance based on index data. If distance calculations can be done using key and query value, 3 parameters function should be defined. If distance calculation can be done using addInfo data (f.e, if addInfo sores value of array size needed for distance calculation), 10 parameters function should be defined.
+Operator class defines rum_ordering_distance function, if it can provide distance based on index data. If distance calculations can be done using key and query value, 3 parameters function should be defined. If distance calculation can be done using addInfo data (f.e, if addInfo stores value of array size needed for distance calculation), 10 parameters function should be defined.
 
 
 ### Function 9 rum_outer_distance (used names: RUM_OUTER_ORDERING_PROC outerOrderingFn)

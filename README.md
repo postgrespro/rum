@@ -301,7 +301,7 @@ You can check the version in the current database with psql command:
 
 ### 1.4
 
-The support of anyarray RUM indexes removed from RUM extension and move to 
+The support of anyarray RUM indexes removed from RUM extension and moved to 
 [anyarray extension](https://github.com/postgrespro/anyarray).
 
 ## Extensibility
