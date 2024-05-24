@@ -1,6 +1,6 @@
 os: linux
 
-dist: bionic
+dist: jammy
 
 language: c
 
