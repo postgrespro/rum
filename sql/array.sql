@@ -1,5 +1,3 @@
--- 64 bit output in *.out, 32 bit output in *_1.out
-
 set enable_seqscan=off;
 set enable_sort=off;
 
@@ -218,4 +216,4 @@ SELECT i,
 	END distance
 	FROM
 		(SELECT *, (i <=> '{51}') AS distance
-		FROM test_array_order WHERE i @> '{23,20}' ORDER BY i <=> '{51}') t ORDER BY i;
+		FROM test_array_order WHERE i @> '{23,20}' ORDER BY i <=> '{51}');
