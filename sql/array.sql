@@ -216,4 +216,4 @@ SELECT i,
 	END distance
 	FROM
 		(SELECT *, (i <=> '{51}') AS distance
-		FROM test_array_order WHERE i @> '{23,20}' ORDER BY i <=> '{51}');
+		FROM test_array_order WHERE i @> '{23,20}' ORDER BY i <=> '{51}') t;
