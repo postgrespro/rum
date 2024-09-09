@@ -493,6 +493,7 @@ rum_tuplesort_putrum(RumTuplesortstate *state, RumSortItem *item)
 	Size tuplen;
 	TuplesortPublic *base = TuplesortstateGetPublic((TuplesortPublic *)state);
 #endif
+
 	oldcontext = MemoryContextSwitchTo(rum_tuplesort_get_memorycontext(state));
 	copytup_rum(state, &stup, item);
 
@@ -522,6 +523,7 @@ rum_tuplesort_putrumitem(RumTuplesortstate *state, RumScanItem *item)
 	Size tuplen;
 	TuplesortPublic *base = TuplesortstateGetPublic((TuplesortPublic *)state);
 #endif
+
 	oldcontext = MemoryContextSwitchTo(rum_tuplesort_get_memorycontext(state));
 	copytup_rumitem(state, &stup, item);
 
