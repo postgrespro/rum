@@ -1,3 +1,5 @@
+-- 64 bit output in *.out, 32 bit output in *_1.out
+
 set enable_seqscan=off;
 set enable_sort=off;
 /*
