@@ -488,11 +488,23 @@ rum_tuplesort_putrum(RumTuplesortstate *state, RumSortItem *item)
 {
 	MemoryContext oldcontext;
 	SortTuple stup;
+#if PG_VERSION_NUM >= 170000
+	MinimalTuple tuple = (MinimalTuple)item;
+	Size tuplen;
+	TuplesortPublic *base = TuplesortstateGetPublic((TuplesortPublic *)state);
+#endif
 
 	oldcontext = MemoryContextSwitchTo(rum_tuplesort_get_memorycontext(state));
 	copytup_rum(state, &stup, item);
 
-#if PG_VERSION_NUM >= 160000
+#if PG_VERSION_NUM >= 170000
+	/* GetMemoryChunkSpace is not supported for bump contexts */
+	if (TupleSortUseBumpTupleCxt(base->sortopt))
+		tuplen = MAXALIGN(tuple->t_len);
+	else
+		tuplen = GetMemoryChunkSpace(tuple);
+	tuplesort_puttuple_common(state, &stup, false, tuplen);
+#elif PG_VERSION_NUM >= 160000
 	tuplesort_puttuple_common(state, &stup, false);
 #else
 	puttuple_common(state, &stup);
@@ -506,11 +518,23 @@ rum_tuplesort_putrumitem(RumTuplesortstate *state, RumScanItem *item)
 {
 	MemoryContext oldcontext;
 	SortTuple stup;
+#if PG_VERSION_NUM >= 170000
+	MinimalTuple tuple = (MinimalTuple)item;
+	Size tuplen;
+	TuplesortPublic *base = TuplesortstateGetPublic((TuplesortPublic *)state);
+#endif
 
 	oldcontext = MemoryContextSwitchTo(rum_tuplesort_get_memorycontext(state));
 	copytup_rumitem(state, &stup, item);
 
-#if PG_VERSION_NUM >= 160000
+#if PG_VERSION_NUM >= 170000
+	/* GetMemoryChunkSpace is not supported for bump contexts */
+	if (TupleSortUseBumpTupleCxt(base->sortopt))
+		tuplen = MAXALIGN(tuple->t_len);
+	else
+		tuplen = GetMemoryChunkSpace(tuple);
+	tuplesort_puttuple_common(state, &stup, false, tuplen);
+#elif PG_VERSION_NUM >= 160000
 	tuplesort_puttuple_common(state, &stup, false);
 #else
 	puttuple_common(state, &stup);
