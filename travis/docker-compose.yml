@@ -1,2 +1,3 @@
-tests:
+services:
+  tests:
     build: .
