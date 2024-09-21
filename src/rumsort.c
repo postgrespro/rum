@@ -492,11 +492,14 @@ rum_tuplesort_putrum(RumTuplesortstate *state, RumSortItem *item)
 	oldcontext = MemoryContextSwitchTo(rum_tuplesort_get_memorycontext(state));
 	copytup_rum(state, &stup, item);
 
-#if PG_VERSION_NUM >= 160000
+#if PG_VERSION_NUM >= 170000
+	tuplesort_puttuple_common(state, &stup, false, GetMemoryChunkSpace(&stup));
+#elif PG_VERSION_NUM == 160000
 	tuplesort_puttuple_common(state, &stup, false);
 #else
 	puttuple_common(state, &stup);
 #endif
+
 
 	MemoryContextSwitchTo(oldcontext);
 }
@@ -510,7 +513,9 @@ rum_tuplesort_putrumitem(RumTuplesortstate *state, RumScanItem *item)
 	oldcontext = MemoryContextSwitchTo(rum_tuplesort_get_memorycontext(state));
 	copytup_rumitem(state, &stup, item);
 
-#if PG_VERSION_NUM >= 160000
+#if PG_VERSION_NUM >= 170000
+	tuplesort_puttuple_common(state, &stup, false, GetMemoryChunkSpace(&stup));
+#elif PG_VERSION_NUM == 160000
 	tuplesort_puttuple_common(state, &stup, false);
 #else
 	puttuple_common(state, &stup);
