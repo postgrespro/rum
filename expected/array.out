@@ -1,3 +1,19 @@
+/*
+ * ---------------------------------------------
+ *  NOTE: This test behaves differenly on PgPro
+ * ---------------------------------------------
+ *
+ * --------------------
+ *  array.sql and array_1.sql
+ * --------------------
+ * Test output for 64-bit and 32-bit systems respectively.
+ *
+ * --------------------
+ *  array_2.sql and array_3.sql
+ * --------------------
+ * Since 6ed83d5fa55c in PostgreSQL 17, the order of rows
+ * in the output has been changed.
+ */
 set enable_seqscan=off;
 set enable_sort=off;
 /*
