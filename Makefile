@@ -34,6 +34,8 @@ REGRESS = security rum rum_validate rum_hash ruminv timestamp orderby orderby_ha
 
 TAP_TESTS = 1
 
+ISOLATION = predicate-rum predicate-rum-2
+
 ifdef USE_PGXS
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
@@ -56,7 +58,7 @@ ifeq ($(MAJORVERSION), $(filter 9.6% 10% 11%, $(MAJORVERSION)))
 wal-check: temp-install
 	$(prove_check)
 
-check: wal-check
+check: wal-check 
 endif
 
 all: $(SQL_built)
@@ -68,27 +70,3 @@ rum--$(EXTVERSION).sql: $(DATA_first) $(DATA_updates)
 # rule for updates, e.g. rum--1.0--1.1.sql
 rum--%.sql: gen_rum_sql--%.pl
 	perl $< > $@
-
-install: installincludes
-
-installincludes:
-	$(INSTALL) -d '$(DESTDIR)$(includedir_server)/'
-	$(INSTALL_DATA) $(addprefix $(srcdir)/, $(RELATIVE_INCLUDES)) '$(DESTDIR)$(includedir_server)/'
-
-uninstall: uninstallincludes
-
-uninstallincludes:
-	rm -f $(addprefix '$(DESTDIR)$(includedir_server)/', $(INCLUDES))
-
-ISOLATIONCHECKS= predicate-rum predicate-rum-2
-
-submake-isolation:
-	$(MAKE) -C $(top_builddir)/src/test/isolation all
-
-submake-rum:
-	$(MAKE) -C $(top_builddir)/contrib/rum
-
-isolationcheck: | submake-isolation submake-rum temp-install
-	$(pg_isolation_regress_check) \
-	    --temp-config $(top_srcdir)/contrib/rum/logical.conf \
-		$(ISOLATIONCHECKS)

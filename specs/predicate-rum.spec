@@ -28,6 +28,9 @@ setup
  END;
  $$;
 
+ DELETE FROM rum_tbl WHERE tsv @@ 'hx';
+ DELETE FROM rum_tbl WHERE tsv @@ 'qh';
+
  CREATE INDEX rum_tbl_idx ON rum_tbl USING rum (tsv rum_tsvector_ops);
 }
 
