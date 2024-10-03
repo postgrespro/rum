@@ -30,9 +30,20 @@ REGRESS = security rum rum_validate rum_hash ruminv timestamp orderby orderby_ha
 
 TAP_TESTS = 1
 
+ISOLATION = predicate-rum predicate-rum-2
+ISOLATION_OPTS = --load-extension=rum
 EXTRA_CLEAN = pglist_tmp
 
 ifdef USE_PGXS
+
+# We cannot run isolation test for versions 12,13 in PGXS case
+# because 'pg_isolation_regress' is not copied to install
+# directory, see src/test/isolation/Makefile
+ifeq ($(MAJORVERSION),$(filter 12% 13%,$(MAJORVERSION)))
+undefine ISOLATION
+undefine ISOLATION_OPTS
+endif
+
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
@@ -60,6 +71,11 @@ wal-check: temp-install
 check: wal-check
 endif
 
+#
+# Make conditional targets to save backward compatibility with PG11, PG10 and PG9.6.
+#
+ifeq ($(MAJORVERSION), $(filter 9.6% 10% 11%, $(MAJORVERSION)))
+
 install: installincludes
 
 installincludes:
@@ -83,3 +99,4 @@ isolationcheck: | submake-isolation submake-rum temp-install
 	$(pg_isolation_regress_check) \
 		--temp-config $(top_srcdir)/contrib/rum/logical.conf \
 		$(ISOLATIONCHECKS)
+endif
