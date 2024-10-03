@@ -56,7 +56,10 @@ ifeq ($(MAJORVERSION), $(filter 9.6% 10% 11%, $(MAJORVERSION)))
 wal-check: temp-install
 	$(prove_check)
 
-check: wal-check
+check: wal-check isolationcheck
+else
+check: isolationcheck
+	$(prove_check)
 endif
 
 all: $(SQL_built)
@@ -79,6 +82,9 @@ uninstall: uninstallincludes
 
 uninstallincludes:
 	rm -f $(addprefix '$(DESTDIR)$(includedir_server)/', $(INCLUDES))
+
+installcheck: isolationcheck
+	$(prove_installcheck)
 
 ISOLATIONCHECKS= predicate-rum predicate-rum-2
 
