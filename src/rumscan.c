@@ -214,7 +214,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 				}
 
 				if (scanKey == NULL)
-					elog(ERROR, "cannot order without attribute %d in WHERE clause",
+					elog(ERROR, "cannot order without attribute %d in ORDER BY clause",
 						 key->attnum);
 				else if (scanKey->nentries > 1)
 					elog(ERROR, "scan key should contain only one value");
