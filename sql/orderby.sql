@@ -1,6 +1,15 @@
+
+-- Test "ORDER BY" error message 
+
 CREATE TABLE tsts (id int, t tsvector, d timestamp);
 
 \copy tsts from 'data/tsts.data'
+
+CREATE INDEX tsts_idx ON tsts USING rum (t rum_tsvector_addon_ops, d);
+
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+
+DROP INDEX tsts_idx;
 
 CREATE INDEX tsts_idx ON tsts USING rum (t rum_tsvector_addon_ops, d)
 	WITH (attach = 'd', to = 't');
