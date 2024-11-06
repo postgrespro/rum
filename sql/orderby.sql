@@ -95,6 +95,13 @@ SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER 
 SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d ASC LIMIT 3;
 SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER BY d DESC LIMIT 3;
 
+-- Test "ORDER BY" error message
+DROP INDEX tsts_idx;
+
+CREATE INDEX tsts_idx ON tsts USING rum (t rum_tsvector_addon_ops, d);
+
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+
 -- Test multicolumn index
 
 RESET enable_indexscan;
