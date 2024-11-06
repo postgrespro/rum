@@ -34,6 +34,8 @@ REGRESS = security rum rum_validate rum_hash ruminv timestamp orderby orderby_ha
 
 TAP_TESTS = 1
 
+EXTRA_CLEAN = pglist_tmp
+
 ifdef USE_PGXS
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
