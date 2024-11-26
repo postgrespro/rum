@@ -211,20 +211,19 @@ DROP INDEX idx_array;
 /*
  * Check ordering using distance operator
  *
- * The idea of the test:
- * We want to check that index scan provides as correct ordering by distance
+ * We want to check that index scan provides us correct ordering by distance
  * operator. File 'data/rum_array.data' contains two arrays that statisfy
  * i @> '{23,20}' and have finite distance i <=> '{51}', and a bunch of arrays
- * that statisfy i @> '{23,20}' and have infinite distance i <=> '{51}'. When
- * ordering by distance the order of this bunch of arrays with infinite
+ * that statisfy i @> '{23,20}' and have infinite distance i <=> '{51}'.
+ *
+ * When ordering by distance the order of this bunch of arrays with infinite
  * distance is not determined and may depend of PostgreSQL version and system.
- * Adding another sort expression to ORDER BY may cause another plan that
- * doesn't use ordering provided by index.
- * That's why we use the query you see below. We substitute 'Infinity' distance
- * value with -1 because 'Infinity' are printed differently in output in
- * different PostgreSQL versions. We substitute arrays that have infinite
- * distance with {-1} because their order is undefined and we wnat to determine
- * the test output.
+ * We don't add another sort expression to ORDER BY because that might cause
+ * the planner to avoid using the index. Instead, we replace arrays that have
+ * infinite distance with {-1} to unambiguously determine the test output.
+ *
+ * 'Infinity' is printed differently in the output in different PostgreSQL
+ * versions, so we replace it with -1.
  */
 
 CREATE TABLE test_array_order (
@@ -234,7 +233,10 @@ CREATE TABLE test_array_order (
 
 CREATE INDEX idx_array_order ON test_array_order USING rum (i rum_anyarray_ops);
 
-/* Check that plan of the query uses ordering provided by index scan */
+/*
+ * Check that plan of the query uses ordering provided by index scan
+ */
+
 EXPLAIN (COSTS OFF)
 SELECT
 	CASE WHEN distance = 'Infinity' THEN '{-1}'
