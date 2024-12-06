@@ -7,12 +7,6 @@
  *  array.sql and array_1.sql
  * --------------------
  * Test output for 64-bit and 32-bit systems respectively.
- *
- * --------------------
- *  array_2.sql and array_3.sql
- * --------------------
- * Since 6ed83d5fa55c in PostgreSQL 17, the order of rows
- * in the output has been changed.
  */
 set enable_seqscan=off;
 set enable_sort=off;
@@ -859,41 +853,71 @@ EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i % '{}';
 DROP INDEX idx_array;
 /*
  * Check ordering using distance operator
+ *
+ * We want to check that index scan provides us correct ordering by distance
+ * operator. File 'data/rum_array.data' contains two arrays that statisfy
+ * i @> '{23,20}' and have finite distance i <=> '{51}', and a bunch of arrays
+ * that statisfy i @> '{23,20}' and have infinite distance i <=> '{51}'.
+ *
+ * When ordering by distance the order of this bunch of arrays with infinite
+ * distance is not determined and may depend of PostgreSQL version and system.
+ * We don't add another sort expression to ORDER BY because that might cause
+ * the planner to avoid using the index. Instead, we replace arrays that have
+ * infinite distance with {-1} to unambiguously determine the test output.
+ *
+ * 'Infinity' is printed differently in the output in different PostgreSQL
+ * versions, so we replace it with -1.
  */
 CREATE TABLE test_array_order (
     i int2[]
 );
 \copy test_array_order(i) from 'data/rum_array.data';
 CREATE INDEX idx_array_order ON test_array_order USING rum (i rum_anyarray_ops);
+/*
+ * Check that plan of the query uses ordering provided by index scan
+ */
 EXPLAIN (COSTS OFF)
-SELECT *, i <=> '{51}' from test_array_order WHERE i @> '{23,20}' order by i <=> '{51}';
-                      QUERY PLAN                      
-------------------------------------------------------
- Index Scan using idx_array_order on test_array_order
-   Index Cond: (i @> '{23,20}'::smallint[])
-   Order By: (i <=> '{51}'::smallint[])
-(3 rows)
-
-SELECT i,
+SELECT
+	CASE WHEN distance = 'Infinity' THEN '{-1}'
+		ELSE i
+	END i,
 	CASE WHEN distance = 'Infinity' THEN -1
 		ELSE distance::numeric(18,14)
 	END distance
 	FROM
 		(SELECT *, (i <=> '{51}') AS distance
-		FROM test_array_order WHERE i @> '{23,20}' ORDER BY i <=> '{51}') t;
+		FROM test_array_order WHERE i @> '{23,20}' ORDER BY distance) t;
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Subquery Scan on t
+   ->  Index Scan using idx_array_order on test_array_order
+         Index Cond: (i @> '{23,20}'::smallint[])
+         Order By: (i <=> '{51}'::smallint[])
+(4 rows)
+
+SELECT
+	CASE WHEN distance = 'Infinity' THEN '{-1}'
+		ELSE i
+	END i,
+	CASE WHEN distance = 'Infinity' THEN -1
+		ELSE distance::numeric(18,14)
+	END distance
+	FROM
+		(SELECT *, (i <=> '{51}') AS distance
+		FROM test_array_order WHERE i @> '{23,20}' ORDER BY distance) t;
           i          |     distance     
 ---------------------+------------------
  {20,23,51}          | 1.73205080756888
  {33,51,20,77,23,65} | 2.44948974278318
- {23,76,34,23,2,20}  |               -1
- {20,60,45,23,29}    |               -1
- {23,89,38,20,40,95} |               -1
- {23,20,72}          |               -1
- {73,23,20}          |               -1
- {6,97,20,89,23}     |               -1
- {20,98,30,23,1,66}  |               -1
- {57,23,39,46,50,20} |               -1
- {81,20,26,22,23}    |               -1
- {18,23,10,90,15,20} |               -1
+ {-1}                |               -1
+ {-1}                |               -1
+ {-1}                |               -1
+ {-1}                |               -1
+ {-1}                |               -1
+ {-1}                |               -1
+ {-1}                |               -1
+ {-1}                |               -1
+ {-1}                |               -1
+ {-1}                |               -1
 (12 rows)
 
