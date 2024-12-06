@@ -38,6 +38,7 @@ if [ "$LEVEL" = "hardcore" ]; then
 	./configure \
 		CFLAGS='-fno-omit-frame-pointer' \
 		--enable-cassert \
+		--enable-tap-tests \
 		--prefix=$CUSTOM_PG_BIN \
 		--quiet
 
