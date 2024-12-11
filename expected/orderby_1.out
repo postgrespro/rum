@@ -1,3 +1,12 @@
+/*
+ * ------------------------------------
+ *  NOTE: This test behaves differenly
+ * ------------------------------------
+ *
+ * orderby.out - test output for 64-bit systems and
+ * orderby_1.out - test output for 32-bit systems.
+ *
+ */
 CREATE TABLE tsts (id int, t tsvector, d timestamp);
 \copy tsts from 'data/tsts.data'
 CREATE INDEX tsts_idx ON tsts USING rum (t rum_tsvector_addon_ops, d)
@@ -420,6 +429,11 @@ SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER 
  458 | Fri May 20 21:21:22.326724 2016
 (3 rows)
 
+-- Test "ORDER BY" error message
+DROP INDEX tsts_idx;
+CREATE INDEX tsts_idx ON tsts USING rum (t rum_tsvector_addon_ops, d);
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ERROR:  doesn't support order by over pass-by-reference column
 -- Test multicolumn index
 RESET enable_indexscan;
 RESET enable_indexonlyscan;

@@ -1,12 +1,11 @@
 /*
- * ---------------------------------------------
- *  NOTE: This test behaves differenly on PgPro
- * ---------------------------------------------
+ * ------------------------------------
+ *  NOTE: This test behaves differenly
+ * ------------------------------------
  *
- * --------------------
- *  array.sql and array_1.sql
- * --------------------
- * Test output for 64-bit and 32-bit systems respectively.
+ * array.out - test output for 64-bit systems and
+ * array_1.out - test output for 32-bit systems.
+ *
  */
 set enable_seqscan=off;
 set enable_sort=off;
