@@ -1,3 +1,14 @@
+/*
+ * ------------------------------------
+ *  NOTE: This test behaves differenly
+ * ------------------------------------
+ *
+ * orderby_hash.out - test output for 64-bit systems and
+ * orderby_hash_1.out - test output for 32-bit systems.
+ *
+ */
+
+
 CREATE TABLE tstsh (id int, t tsvector, d timestamp);
 
 \copy tstsh from 'data/tsts.data'

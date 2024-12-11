@@ -1,3 +1,14 @@
+/*
+ * ------------------------------------
+ *  NOTE: This test behaves differenly
+ * ------------------------------------
+ *
+ * altorder_hash.out - test output for 64-bit systems and
+ * altorder_hash_1.out - test output for 32-bit systems.
+ *
+ */
+
+
 CREATE TABLE atstsh (id int, t tsvector, d timestamp);
 
 \copy atstsh from 'data/tsts.data'

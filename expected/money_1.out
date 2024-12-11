@@ -1,3 +1,12 @@
+/*
+ * ------------------------------------
+ *  NOTE: This test behaves differenly
+ * ------------------------------------
+ *
+ * money.out - test output for 64-bit systems and
+ * money_1.out - test output for 32-bit systems.
+ *
+ */
 set enable_seqscan=off;
 CREATE TABLE test_money (
 	i money
