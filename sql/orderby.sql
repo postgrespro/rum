@@ -1,3 +1,14 @@
+/*
+ * ------------------------------------
+ *  NOTE: This test behaves differenly
+ * ------------------------------------
+ *
+ * orderby.out - test output for 64-bit systems and
+ * orderby_1.out - test output for 32-bit systems.
+ *
+ */
+
+
 CREATE TABLE tsts (id int, t tsvector, d timestamp);
 
 \copy tsts from 'data/tsts.data'
