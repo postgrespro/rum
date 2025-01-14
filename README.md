@@ -60,6 +60,26 @@ Typical installation procedure may look like this:
 
 > **Important:** Don't forget to set the `PG_CONFIG` variable in case you want to test `RUM` on a custom build of PostgreSQL. Read more [here](https://wiki.postgresql.org/wiki/Building_and_Installing_PostgreSQL_Extension_Modules).
 
+## Tests
+
+$ make check
+
+This command runs:
+- regression tests;
+- isolation tests;
+- tap tests.
+
+    One of the tap tests downloads a 1GB archive and then unpacks it
+    into a file weighing almost 3GB. It is disabled by default.
+
+    To run this test, you need to set an environment variable:
+
+        $ export PG_TEST_EXTRA=big_values
+
+    The way to turn it off again:
+
+        $ export -n PG_TEST_EXTRA
+
 ## Common operators and functions
 
 The **rum** module provides next operators.

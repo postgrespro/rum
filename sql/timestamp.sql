@@ -1,3 +1,13 @@
+/*
+ * ------------------------------------
+ *  NOTE: This test behaves differenly
+ * ------------------------------------
+ *
+ * timestamp.out - test output for 64-bit systems and
+ * timestamp_1.out - test output for 32-bit systems.
+ *
+ */
+
 
 CREATE TABLE test_timestamp (
 	i timestamp

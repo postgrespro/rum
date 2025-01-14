@@ -1,6 +1,16 @@
+/*
+ * ------------------------------------
+ *  NOTE: This test behaves differenly
+ * ------------------------------------
+ *
+ * array.out - test output for 64-bit systems and
+ * array_1.out - test output for 32-bit systems.
+ *
+ */
+
+
 set enable_seqscan=off;
 set enable_sort=off;
-
 
 /*
  * Complete checks for int2[].
@@ -199,6 +209,20 @@ DROP INDEX idx_array;
 
 /*
  * Check ordering using distance operator
+ *
+ * We want to check that index scan provides us correct ordering by distance
+ * operator. File 'data/rum_array.data' contains two arrays that statisfy
+ * i @> '{23,20}' and have finite distance i <=> '{51}', and a bunch of arrays
+ * that statisfy i @> '{23,20}' and have infinite distance i <=> '{51}'.
+ *
+ * When ordering by distance the order of this bunch of arrays with infinite
+ * distance is not determined and may depend of PostgreSQL version and system.
+ * We don't add another sort expression to ORDER BY because that might cause
+ * the planner to avoid using the index. Instead, we replace arrays that have
+ * infinite distance with {-1} to unambiguously determine the test output.
+ *
+ * 'Infinity' is printed differently in the output in different PostgreSQL
+ * versions, so we replace it with -1.
  */
 
 CREATE TABLE test_array_order (
@@ -208,12 +232,29 @@ CREATE TABLE test_array_order (
 
 CREATE INDEX idx_array_order ON test_array_order USING rum (i rum_anyarray_ops);
 
+/*
+ * Check that plan of the query uses ordering provided by index scan
+ */
+
 EXPLAIN (COSTS OFF)
-SELECT *, i <=> '{51}' from test_array_order WHERE i @> '{23,20}' order by i <=> '{51}';
-SELECT i,
+SELECT
+	CASE WHEN distance = 'Infinity' THEN '{-1}'
+		ELSE i
+	END i,
 	CASE WHEN distance = 'Infinity' THEN -1
 		ELSE distance::numeric(18,14)
 	END distance
 	FROM
 		(SELECT *, (i <=> '{51}') AS distance
-		FROM test_array_order WHERE i @> '{23,20}' ORDER BY i <=> '{51}') t;
+		FROM test_array_order WHERE i @> '{23,20}' ORDER BY distance) t;
+
+SELECT
+	CASE WHEN distance = 'Infinity' THEN '{-1}'
+		ELSE i
+	END i,
+	CASE WHEN distance = 'Infinity' THEN -1
+		ELSE distance::numeric(18,14)
+	END distance
+	FROM
+		(SELECT *, (i <=> '{51}') AS distance
+		FROM test_array_order WHERE i @> '{23,20}' ORDER BY distance) t;

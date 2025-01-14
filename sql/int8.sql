@@ -1,3 +1,14 @@
+/*
+ * ------------------------------------
+ *  NOTE: This test behaves differenly
+ * ------------------------------------
+ *
+ * int8.out - test output for 64-bit systems and
+ * int8_1.out - test output for 32-bit systems.
+ *
+ */
+
+
 set enable_seqscan=off;
 
 CREATE TABLE test_int8 (

@@ -1,3 +1,14 @@
+/*
+ * ------------------------------------
+ *  NOTE: This test behaves differenly
+ * ------------------------------------
+ *
+ * altorder.out - test output for 64-bit systems and
+ * altorder_1.out - test output for 32-bit systems.
+ *
+ */
+
+
 CREATE TABLE atsts (id int, t tsvector, d timestamp);
 
 \copy atsts from 'data/tsts.data'

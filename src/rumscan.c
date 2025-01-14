@@ -4,7 +4,7 @@
  *	  routines to manage scans of inverted index relations
  *
  *
- * Portions Copyright (c) 2015-2022, Postgres Professional
+ * Portions Copyright (c) 2015-2024, Postgres Professional
  * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -214,7 +214,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 				}
 
 				if (scanKey == NULL)
-					elog(ERROR, "cannot order without attribute %d in WHERE clause",
+					elog(ERROR, "cannot order without attribute %d in ORDER BY clause",
 						 key->attnum);
 				else if (scanKey->nentries > 1)
 					elog(ERROR, "scan key should contain only one value");

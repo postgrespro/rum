@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 #
-# Copyright (c) 2019, Postgres Professional
+# Copyright (c) 2019-2024, Postgres Professional
 #
 # supported levels:
 #		* standard
@@ -38,6 +38,7 @@ if [ "$LEVEL" = "hardcore" ]; then
 	./configure \
 		CFLAGS='-fno-omit-frame-pointer' \
 		--enable-cassert \
+		--enable-tap-tests \
 		--prefix=$CUSTOM_PG_BIN \
 		--quiet
 
