@@ -25,12 +25,7 @@ RELATIVE_INCLUDES = $(addprefix src/, $(INCLUDES))
 
 LDFLAGS_SL += $(filter -lm, $(LIBS))
 
-REGRESS = security rum rum_validate rum_hash ruminv timestamp orderby orderby_hash \
-	altorder altorder_hash limits \
-	int2 int4 int8 float4 float8 money oid \
-    time timetz date interval \
-    macaddr inet cidr text varchar char bytea bit varbit \
-	numeric rum_weight expr
+REGRESS = --schedule=$(srcdir)/regress_schedule
 
 TAP_TESTS = 1
 
