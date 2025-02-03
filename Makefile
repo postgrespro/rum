@@ -11,14 +11,10 @@ OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
 	src/rumscan.o src/rumutil.o src/rumvacuum.o src/rumvalidate.o \
 	src/btree_rum.o src/rum_arr_utils.o $(WIN32RES)
 
-DATA_first = rum--1.0.sql
 DATA_updates = rum--1.0--1.1.sql rum--1.1--1.2.sql \
 			   rum--1.2--1.3.sql
 
-DATA = $(DATA_first) rum--$(EXTVERSION).sql $(DATA_updates)
-
-# Do not use DATA_built. It removes built files if clean target was used
-SQL_built = rum--$(EXTVERSION).sql $(DATA_updates)
+DATA_built = $(EXTENSION)--$(EXTVERSION).sql
 
 INCLUDES = rum.h rumsort.h
 RELATIVE_INCLUDES = $(addprefix src/, $(INCLUDES))
@@ -28,8 +24,8 @@ LDFLAGS_SL += $(filter -lm, $(LIBS))
 REGRESS = security rum rum_validate rum_hash ruminv timestamp orderby orderby_hash \
 	altorder altorder_hash limits \
 	int2 int4 int8 float4 float8 money oid \
-    time timetz date interval \
-    macaddr inet cidr text varchar char bytea bit varbit \
+	time timetz date interval \
+	macaddr inet cidr text varchar char bytea bit varbit \
 	numeric rum_weight expr
 
 TAP_TESTS = 1
@@ -47,6 +43,9 @@ include $(top_builddir)/src/Makefile.global
 include $(top_srcdir)/contrib/contrib-global.mk
 endif
 
+$(EXTENSION)--$(EXTVERSION).sql: rum_init.sql
+	cat $^ > $@
+
 ifeq ($(MAJORVERSION), 9.6)
 # arrays are not supported on 9.6
 else
@@ -60,16 +59,6 @@ wal-check: temp-install
 
 check: wal-check
 endif
-
-all: $(SQL_built)
-
-#9.6 requires 1.3 file but 10.0 could live with update files
-rum--$(EXTVERSION).sql: $(DATA_first) $(DATA_updates)
-	cat $(DATA_first) $(DATA_updates) > rum--$(EXTVERSION).sql
-
-# rule for updates, e.g. rum--1.0--1.1.sql
-rum--%.sql: gen_rum_sql--%.pl
-	perl $< > $@
 
 install: installincludes
 
@@ -92,5 +81,5 @@ submake-rum:
 
 isolationcheck: | submake-isolation submake-rum temp-install
 	$(pg_isolation_regress_check) \
-	    --temp-config $(top_srcdir)/contrib/rum/logical.conf \
+		--temp-config $(top_srcdir)/contrib/rum/logical.conf \
 		$(ISOLATIONCHECKS)
