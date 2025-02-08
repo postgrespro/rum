@@ -135,9 +135,11 @@ SELECT count(*) FROM test_text_a WHERE id < '400';
              QUERY PLAN             
 ------------------------------------
  Aggregate
+   Disabled Nodes: 1
    ->  Seq Scan on test_text_a
+         Disabled Nodes: 1
          Filter: (id < '400'::text)
-(3 rows)
+(5 rows)
 
 SELECT count(*) FROM test_text_a WHERE id < '400';
  count 
@@ -150,10 +152,12 @@ SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
                                  QUERY PLAN                                  
 -----------------------------------------------------------------------------
  Sort
+   Disabled Nodes: 1
    Sort Key: id
    ->  Seq Scan on test_text_a
+         Disabled Nodes: 1
          Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::text))
-(4 rows)
+(6 rows)
 
 SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
  id  
@@ -174,10 +178,12 @@ SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
                                  QUERY PLAN                                  
 -----------------------------------------------------------------------------
  Sort
+   Disabled Nodes: 1
    Sort Key: id
    ->  Seq Scan on test_text_a
+         Disabled Nodes: 1
          Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::text))
-(4 rows)
+(6 rows)
 
 SELECT id FROM test_text_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
  id  
@@ -254,9 +260,11 @@ SELECT count(*) FROM test_text_h_a WHERE id < '400';
              QUERY PLAN             
 ------------------------------------
  Aggregate
+   Disabled Nodes: 1
    ->  Seq Scan on test_text_h_a
+         Disabled Nodes: 1
          Filter: (id < '400'::text)
-(3 rows)
+(5 rows)
 
 SELECT count(*) FROM test_text_h_a WHERE id < '400';
  count 
@@ -269,10 +277,12 @@ SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
                                  QUERY PLAN                                  
 -----------------------------------------------------------------------------
  Sort
+   Disabled Nodes: 1
    Sort Key: id
    ->  Seq Scan on test_text_h_a
+         Disabled Nodes: 1
          Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id <= '400'::text))
-(4 rows)
+(6 rows)
 
 SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id <= '400' ORDER BY id;
  id  
@@ -293,10 +303,12 @@ SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
                                  QUERY PLAN                                  
 -----------------------------------------------------------------------------
  Sort
+   Disabled Nodes: 1
    Sort Key: id
    ->  Seq Scan on test_text_h_a
+         Disabled Nodes: 1
          Filter: ((t @@ '''wr'' & ''qh'''::tsquery) AND (id >= '400'::text))
-(4 rows)
+(6 rows)
 
 SELECT id FROM test_text_h_a WHERE  t @@ 'wr&qh' AND id >= '400' ORDER BY id;
  id  

@@ -521,8 +521,9 @@ EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i % '{}';
             QUERY PLAN            
 ----------------------------------
  Seq Scan on test_array
+   Disabled Nodes: 1
    Filter: (i % '{}'::smallint[])
-(2 rows)
+(3 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM test_array WHERE i && '{1}' ORDER BY add_info <=> '2016-05-16 14:21:25' LIMIT 10;
                                         QUERY PLAN                                        

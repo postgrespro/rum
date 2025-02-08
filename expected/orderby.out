@@ -194,12 +194,16 @@ SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY 
 
 EXPLAIN (costs off)
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
+                                     QUERY PLAN                                      
+-------------------------------------------------------------------------------------
  Limit
-   ->  Index Scan using tsts_idx on tsts
-         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
-(3 rows)
+   Disabled Nodes: 1
+   ->  Sort
+         Disabled Nodes: 1
+         Sort Key: ((d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone))
+         ->  Seq Scan on tsts
+               Disabled Nodes: 1
+(7 rows)
 
 SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
  id  |                d                |  ?column?   
