@@ -6,6 +6,11 @@
  * int8.out - test output for 64-bit systems and
  * int8_1.out - test output for 32-bit systems.
  *
+ * Since c01743aa486 (>=18) EXPLAIN output was changed,
+ * now it includes the number of disabled nodes
+ *
+ * int8_2.out - test output for 32-bit systems (>=18)
+ *
  */
 
 

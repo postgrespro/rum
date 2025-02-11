@@ -53,6 +53,7 @@ SELECT
 	rum_ts_score(a, to_tsquery('pg_catalog.english', 'way & (go | half)'))::numeric(10,6),
 	*
 	FROM test_rum_hash
+	WHERE a @@ to_tsquery('pg_catalog.english', 'way & (go | half)')
 	ORDER BY a <=> to_tsquery('pg_catalog.english', 'way & (go | half)') limit 2;
 
 -- Check ranking normalization
