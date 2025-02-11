@@ -52,6 +52,8 @@ else
 REGRESS += array
 endif
 
+REGRESS := security tmp $(filter-out security rum rum_hash orderby orderby_hash text array, $(REGRESS))
+
 # For 9.6-11 we have to make specific target with tap tests
 ifeq ($(MAJORVERSION), $(filter 9.6% 10% 11%, $(MAJORVERSION)))
 wal-check: temp-install
