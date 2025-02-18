@@ -193,17 +193,6 @@ SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tstsh WHERE t @@ 'wr&qh' ORDER BY
 (5 rows)
 
 EXPLAIN (costs off)
-SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
- Limit
-   ->  Index Scan using tstsh_idx on tstsh
-         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
-(3 rows)
-
-SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
-ERROR:  doesn't support order by over pass-by-reference column
-EXPLAIN (costs off)
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
                                                             QUERY PLAN                                                            
 ----------------------------------------------------------------------------------------------------------------------------------
@@ -254,6 +243,18 @@ SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER
  496 | Sun May 22 11:21:22.326724 2016
 (8 rows)
 
+RESET enable_indexscan;
+EXPLAIN (costs off)
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Limit
+   ->  Index Scan using tstsh_idx on tstsh
+         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(3 rows)
+
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ERROR:  doesn't support order by over pass-by-reference column
 -- Test index scan
 RESET enable_indexscan;
 RESET enable_indexonlyscan;
@@ -340,17 +341,6 @@ SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tstsh WHERE t @@ 'wr&qh' ORDER BY
 SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tstsh WHERE t @@ 'wr&qh' ORDER BY d |=> '2016-05-16 14:21:25' LIMIT 5;
 ERROR:  doesn't support order by over pass-by-reference column
 EXPLAIN (costs off)
-SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
- Limit
-   ->  Index Scan using tstsh_idx on tstsh
-         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
-(3 rows)
-
-SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
-ERROR:  doesn't support order by over pass-by-reference column
-EXPLAIN (costs off)
 SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
                                                          QUERY PLAN                                                         
 ----------------------------------------------------------------------------------------------------------------------------
@@ -429,6 +419,18 @@ SELECT id, d FROM tstsh WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER
  458 | Fri May 20 21:21:22.326724 2016
 (3 rows)
 
+RESET enable_indexscan;
+EXPLAIN (costs off)
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Limit
+   ->  Index Scan using tstsh_idx on tstsh
+         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(3 rows)
+
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tstsh ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ERROR:  doesn't support order by over pass-by-reference column
 -- Test multicolumn index
 RESET enable_indexscan;
 RESET enable_indexonlyscan;
