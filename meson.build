@@ -4,7 +4,7 @@
 # of the contrib source tree.
 
 extension = 'rum'
-extversion = '1.3'
+extversion = '1.4'
 
 rum_sources = files(
   'src/btree_rum.c',
@@ -49,6 +49,7 @@ install_data(
   'rum--1.0--1.1.sql',
   'rum--1.1--1.2.sql',
   'rum--1.2--1.3.sql',
+  'rum--1.3--1.4.sql',
   kwargs: contrib_data_args,
 )
 
