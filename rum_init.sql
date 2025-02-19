@@ -1724,3 +1724,41 @@ RETURNS float4
 AS 'MODULE_PATHNAME', 'rum_ts_score_td'
 LANGUAGE C IMMUTABLE STRICT;
 
+/*--------------------RUM debug functions-----------------------*/
+
+CREATE FUNCTION rum_metapage_info(
+    IN rel_name text,
+    IN blk_num int8,
+    OUT pending_head bigint,
+    OUT pending_tail bigint,
+    OUT tail_free_size int4,
+    OUT n_pending_pages bigint,
+    OUT n_pending_tuples bigint,
+    OUT n_total_pages bigint,
+    OUT n_entry_pages bigint,
+    OUT n_data_pages bigint,
+    OUT n_entries bigint,
+    OUT version bigint)
+AS 'MODULE_PATHNAME', 'rum_metapage_info'
+LANGUAGE C STRICT PARALLEL SAFE;
+
+CREATE FUNCTION rum_page_opaque_info(
+    IN rel_name text,
+    IN blk_num int8,
+    OUT leftlink bigint,
+    OUT rightlink bigint,
+    OUT maxoff int4,
+    OUT freespace int4,
+    OUT flags text[])
+AS 'MODULE_PATHNAME', 'rum_page_opaque_info'
+LANGUAGE C STRICT PARALLEL SAFE;
+
+CREATE FUNCTION rum_leaf_data_page_items(
+    IN rel_name text,
+    IN blk_num int8,
+    OUT tuple_id tid,
+    OUT add_info_is_null bool,
+    OUT addInfo varchar)
+RETURNS SETOF record
+AS 'MODULE_PATHNAME', 'rum_leaf_data_page_items'
+LANGUAGE C STRICT PARALLEL SAFE;
