@@ -24,7 +24,7 @@ rum_sources = files(
 if host_system == 'windows'
   rum_sources += rc_lib_gen.process(win32ver_rc, extra_args: [
     '--NAME', 'rum',
-    '--FILEDESC', 'rum - provides access method to work with the RUM indexes.',])
+    '--FILEDESC', 'RUM index access method',])
 endif
 
 rum = shared_module('rum',
@@ -87,10 +87,22 @@ tests += {
       'expr',
       'array',
     ],
+    'regress_args': [
+      '--temp-config', files('logical.conf')
+    ],
   },
   'tap': {
     'tests': [
       't/001_wal.pl',
+    ],
+  },
+  'isolation': {
+    'specs': [
+      'predicate-rum',
+      'predicate-rum-2',
+    ],
+    'regress_args': [
+      '--temp-config', files('logical.conf'),
     ],
   },
 }
