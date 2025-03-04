@@ -112,6 +112,7 @@ tests += {
     ],
     'regress_args': [
       '--temp-config', files('logical.conf'),
+      '--load-extension=rum',
     ],
   },
 }
