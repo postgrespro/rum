@@ -3,6 +3,9 @@
 # Does not support the PGXS infrastructure at this time. Please, compile as part
 # of the contrib source tree.
 
+extension = 'rum'
+extversion = '1.3'
+
 rum_sources = files(
   'src/btree_rum.c',
   'src/rum_arr_utils.c',
@@ -33,15 +36,19 @@ rum = shared_module('rum',
 )
 contrib_targets += rum
 
+configure_file(
+  input: 'rum_init.sql',
+  output: extension + '--' + extversion + '.sql',
+  copy: true,
+  install: true,
+  install_dir: contrib_data_args['install_dir'],
+)
+
 install_data(
   'rum.control',
   'rum--1.0--1.1.sql',
-  'rum--1.0.sql',
   'rum--1.1--1.2.sql',
-  'rum--1.1.sql',
   'rum--1.2--1.3.sql',
-  'rum--1.2.sql',
-  'rum--1.3.sql',
   kwargs: contrib_data_args,
 )
 
@@ -94,7 +101,9 @@ tests += {
   'tap': {
     'tests': [
       't/001_wal.pl',
+      't/002_pglist.pl',
     ],
+    'test_kwargs': {'timeout': 3000},
   },
   'isolation': {
     'specs': [
