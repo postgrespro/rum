@@ -1,3 +1,15 @@
+/*
+ * ------------------------------------
+ *  NOTE: This test behaves differenly
+ * ------------------------------------
+ *
+ * Since c01743aa486 (>=18) EXPLAIN output was changed,
+ * now it includes the number of disabled nodes
+ *
+ * text.out - test output for PostgreSQL (<18)
+ * text_1.out - for PostgreSQL (>=18)
+ *
+ */
 set enable_seqscan=off;
 
 CREATE TABLE test_text (
