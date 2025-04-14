@@ -5,10 +5,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wx1: INSERT INTO rum_tbl(tsv) values('qh');
@@ -32,10 +32,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wx1: INSERT INTO rum_tbl(tsv) values('qh');
@@ -58,10 +58,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wx1: INSERT INTO rum_tbl(tsv) values('qh');
@@ -84,10 +84,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wx1: INSERT INTO rum_tbl(tsv) values('qh');
@@ -110,10 +110,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
@@ -136,10 +136,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
@@ -162,10 +162,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
@@ -188,10 +188,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
@@ -214,10 +214,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
@@ -240,10 +240,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step rxy2: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh';
@@ -276,10 +276,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wx1: INSERT INTO rum_tbl(tsv) values('qh');
@@ -302,10 +302,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wx1: INSERT INTO rum_tbl(tsv) values('qh');
@@ -328,10 +328,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wx1: INSERT INTO rum_tbl(tsv) values('qh');
@@ -354,10 +354,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wy2: INSERT INTO rum_tbl(tsv) values('hx');
@@ -380,10 +380,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wy2: INSERT INTO rum_tbl(tsv) values('hx');
@@ -406,10 +406,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wy2: INSERT INTO rum_tbl(tsv) values('hx');
@@ -433,10 +433,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wx1: INSERT INTO rum_tbl(tsv) values('qh');
@@ -459,10 +459,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step wx1: INSERT INTO rum_tbl(tsv) values('qh');
@@ -485,10 +485,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 (5 rows)
 
 step c2: COMMIT;
@@ -512,10 +512,10 @@ step rxy1: SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'hx';
  id|tsv                                                                   
 ---+----------------------------------------------------------------------
  28|'aq':3 'eo':9 'ep':6 'fh':4 'hi':1 'hx':8 'jz':2 'pf':10 'xy':5 'zg':7
- 96|'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':8 'xy':1 'zg':3               
+ 96|'an':8 'be':9 'eo':5 'ep':2 'hx':4 'nw':7 'pf':6 'pv':10 'xy':1 'zg':3
 163|'aq':5 'ep':8 'fh':6 'hi':3 'hx':10 'jz':4 'sa':1 'sr':2 'xy':7 'zg':9
-231|'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5        
-299|'eo':3 'hx':2 'jd':8 'nw':5 'pf':4 'pv':6 'sm':7 'zg':1               
+231|'an':10 'aq':1 'eo':7 'ep':4 'fh':2 'hx':6 'nw':9 'pf':8 'xy':3 'zg':5
+299|'an':6 'be':7 'eo':3 'hx':2 'jd':10 'nw':5 'pf':4 'pv':8 'sm':9 'zg':1
 339|'hx'                                                                  
 (6 rows)
 
