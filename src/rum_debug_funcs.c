@@ -27,6 +27,7 @@
 #include "access/relation.h"
 #include "utils/varlena.h"
 #include "rum.h"
+#include "tsearch/ts_type.h"
 
 PG_FUNCTION_INFO_V1(rum_metapage_info);
 PG_FUNCTION_INFO_V1(rum_page_opaque_info);
@@ -114,6 +115,8 @@ static Oid get_cur_attr_oid(rum_page_items_state *inter_call_data);
 static Datum category_get_datum_text(RumNullCategory category);
 static Oid find_add_info_oid(RumState *rum_state_ptr);
 static OffsetNumber find_add_info_atrr_num(RumState *rum_state_ptr);
+
+static Datum get_positions_to_text_datum(Datum add_info);
 
 /*
  * The rum_metapage_info() function is used to retrieve 
@@ -386,12 +389,6 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 		/* Allocating memory for a long-lived structure */
 		inter_call_data = palloc(sizeof(rum_page_items_state));
 
-		/* Initializing the RumState structure */
-		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
-		initRumState(inter_call_data->rum_state_ptr, rel);
-
-		relation_close(rel, AccessShareLock);
-
 		/* Getting a copy of the page from the raw page */
 		page = get_page_from_raw(raw_page);
 
@@ -421,6 +418,12 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 					 errmsg("input page is not a RUM {data, leaf} page"),
 					 errdetail("Flags %04X, expected %04X",
 							   opaq->flags, (RUM_DATA | RUM_LEAF))));
+
+		/* Initializing the RumState structure */
+		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
+		initRumState(inter_call_data->rum_state_ptr, rel);
+
+		relation_close(rel, AccessShareLock);
 
 		/* Build a tuple descriptor for our result type */ 
 		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -494,9 +497,24 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 			values[2] = BoolGetDatum(high_key_ptr->addInfoIsNull);
 
 			/* Returning add info */
-			if(!high_key_ptr->addInfoIsNull && inter_call_data->add_info_oid != 0)
+			if(!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+				&& inter_call_data->add_info_oid != BYTEAOID)
+			{
 				values[3] = get_datum_text_by_oid(high_key_ptr->addInfo, 
 								  inter_call_data->add_info_oid);
+			}
+
+			/* 
+			 * In this case, we are dealing with the positions 
+			 * of tokens and they need to be decoded. 
+			 */
+			else if (!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+					&& inter_call_data->add_info_oid == BYTEAOID) 
+			{
+				/* values[3] = get_positions_to_text_datum(high_key_ptr->addInfo); */
+				values[3] = CStringGetTextDatum("high key positions in posting tree is not supported");
+			}
+
 			else nulls[3] = true;
 
 			/* Forming the returned tuple */
@@ -536,8 +554,23 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 		values[2] = BoolGetDatum(rum_item_ptr->addInfoIsNull);
 
 		/* Returning add info */
-		if(!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0)
-			values[3] = get_datum_text_by_oid(rum_item_ptr->addInfo, inter_call_data->add_info_oid);
+		if(!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+			&& inter_call_data->add_info_oid != BYTEAOID)
+		{
+			values[3] = get_datum_text_by_oid(rum_item_ptr->addInfo, 
+									 inter_call_data->add_info_oid);
+		}
+
+		/* 
+		 * In this case, we are dealing with the positions 
+		 * of tokens and they need to be decoded. 
+		 */
+		else if (!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+				&& inter_call_data->add_info_oid == BYTEAOID) 
+		{
+			values[3] = get_positions_to_text_datum(rum_item_ptr->addInfo); 
+		}
+
 		else nulls[3] = true;
 
 		/* Forming the returned tuple */
@@ -619,12 +652,6 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 		/* Allocating memory for a long-lived structure */
 		inter_call_data = palloc(sizeof(rum_page_items_state));
 
-		/* Initializing the RumState structure */
-		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
-		initRumState(inter_call_data->rum_state_ptr, rel);
-
-		relation_close(rel, AccessShareLock);
-
 		/* Getting a copy of the page from the raw page */
 		page = get_page_from_raw(raw_page);
 
@@ -654,6 +681,12 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 					 errmsg("input page is not a RUM {data} page"),
 					 errdetail("Flags %04X, expected %04X",
 							   opaq->flags, (RUM_DATA & ~RUM_LEAF))));
+
+		/* Initializing the RumState structure */
+		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
+		initRumState(inter_call_data->rum_state_ptr, rel);
+
+		relation_close(rel, AccessShareLock);
 
 		/* Build a tuple descriptor for our result type */ 
 		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -721,9 +754,24 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 			values[3] = BoolGetDatum(high_key_ptr->addInfoIsNull);
 
 			/* Returning add info */
-			if(!high_key_ptr->addInfoIsNull && inter_call_data->add_info_oid != 0)
+			if(!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0
+				&& inter_call_data->add_info_oid != BYTEAOID)
+			{
 				values[4] = get_datum_text_by_oid(high_key_ptr->addInfo, 
 								  inter_call_data->add_info_oid);
+			}
+
+			/* 
+			 * In this case, we are dealing with the positions 
+			 * of tokens and they need to be decoded. 
+			 */
+			else if (!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+					&& inter_call_data->add_info_oid == BYTEAOID) 
+			{
+				/* values[4] = get_positions_to_text_datum(high_key_ptr->addInfo); */
+				values[4] = CStringGetTextDatum("high key positions in posting tree is not supported");
+			}
+
 			else nulls[4] = true;
 
 			/* Forming the returned tuple */
@@ -745,9 +793,24 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 		values[3] = BoolGetDatum(posting_item_ptr->item.addInfoIsNull);
 
 		/* Returning add info */
-		if(!posting_item_ptr->item.addInfoIsNull && inter_call_data->add_info_oid != 0)
+		if(!posting_item_ptr->item.addInfoIsNull && inter_call_data->add_info_oid != 0
+			&& inter_call_data->add_info_oid != BYTEAOID)
+		{
 			values[4] = get_datum_text_by_oid(posting_item_ptr->item.addInfo, 
 							  inter_call_data->add_info_oid);
+		}
+
+		/* 
+		 * In this case, we are dealing with the positions 
+		 * of tokens and they need to be decoded. 
+		 */
+		else if (!posting_item_ptr->item.addInfoIsNull && inter_call_data->add_info_oid != 0 
+				&& inter_call_data->add_info_oid == BYTEAOID) 
+		{
+			/* values[4] = get_positions_to_text_datum(posting_item_ptr->item.addInfo); */
+			values[4] = CStringGetTextDatum("high key positions in posting tree is not supported");
+		}
+
 		else nulls[4] = true;
 
 		/* Forming the returned tuple */
@@ -833,12 +896,6 @@ rum_leaf_entry_page_items(PG_FUNCTION_ARGS)
 		/* Allocating memory for a long-lived structure */
 		inter_call_data = palloc(sizeof(rum_page_items_state));
 
-		/* Initializing the RumState structure */
-		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
-		initRumState(inter_call_data->rum_state_ptr, rel);
-
-		relation_close(rel, AccessShareLock);
-
 		/* Getting a copy of the page from the raw page */
 		page = get_page_from_raw(raw_page);
 
@@ -868,6 +925,12 @@ rum_leaf_entry_page_items(PG_FUNCTION_ARGS)
 					 errmsg("input page is not a RUM {leaf} page"),
 					 errdetail("Flags %04X, expected %04X",
 							   opaq->flags, RUM_LEAF)));
+
+		/* Initializing the RumState structure */
+		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
+		initRumState(inter_call_data->rum_state_ptr, rel);
+
+		relation_close(rel, AccessShareLock);
 
 		/* Build a tuple descriptor for our result type */ 
 		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -1008,10 +1071,23 @@ rum_leaf_entry_page_items(PG_FUNCTION_ARGS)
 		values[3] = ItemPointerGetDatum(&(rum_item_ptr->iptr)); 
 		values[4] = BoolGetDatum(rum_item_ptr->addInfoIsNull);
 
-
 		/* Returning add info */
-		if(!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0)
+		if (!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 && 
+			inter_call_data->add_info_oid != BYTEAOID)
+		{
 			values[5] = get_datum_text_by_oid(rum_item_ptr->addInfo, inter_call_data->add_info_oid);
+		}
+
+		/* 
+		 * In this case, we are dealing with the positions 
+		 * of tokens and they need to be decoded. 
+		 */
+		else if (!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+				&& inter_call_data->add_info_oid == BYTEAOID) 
+		{
+			values[5] = get_positions_to_text_datum(rum_item_ptr->addInfo); 
+		}
+		
 		else nulls[5] = true;
 
 		/* The current IndexTuple does not contain a posting tree */
@@ -1101,12 +1177,6 @@ rum_internal_entry_page_items(PG_FUNCTION_ARGS)
 		/* Allocating memory for a long-lived structure */
 		inter_call_data = palloc(sizeof(rum_page_items_state));
 
-		/* Initializing the RumState structure */
-		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
-		initRumState(inter_call_data->rum_state_ptr, rel);
-
-		relation_close(rel, AccessShareLock);
-
 		/* Getting a copy of the page from the raw page */
 		page = get_page_from_raw(raw_page);
 
@@ -1136,6 +1206,12 @@ rum_internal_entry_page_items(PG_FUNCTION_ARGS)
 					 errmsg("input page is not a RUM {} page"),
 					 errdetail("Flags %04X, expected %04X",
 							   opaq->flags, 0)));
+
+		/* Initializing the RumState structure */
+		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
+		initRumState(inter_call_data->rum_state_ptr, rel);
+
+		relation_close(rel, AccessShareLock);
 
 		/* Build a tuple descriptor for our result type */ 
 		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -1355,7 +1431,7 @@ get_page_from_raw(bytea *raw_page)
  * TODO: All types accepted by rum must be checked, but 
  * perhaps some types are missing or some are superfluous.
  */
-static Datum  
+static Datum
 get_datum_text_by_oid(Datum info, Oid info_oid)
 {
 	char *str_info = NULL;
@@ -1601,4 +1677,70 @@ find_add_info_atrr_num(RumState *rum_state_ptr)
 
 	/* Need to add 1 because the attributes are numbered from 1 */
 	return add_info_attr_num + 1;
+}
+
+#define POS_STR_BUF_LENGHT 1024
+#define POS_MAX_VAL_LENGHT 6
+
+/*
+ * A function for extracting the positions of tokens from additional 
+ * information. Returns a string in which the positions of the tokens 
+ * are recorded. The memory that the string occupies must be cleared later.
+ */
+static Datum
+get_positions_to_text_datum(Datum add_info)
+{
+	bytea	   		*positions;
+	char	   		*ptrt;
+	WordEntryPos 	position = 0;
+	int32			npos;
+
+	Datum 			res;
+	char 			*positions_str;
+	char 			*positions_str_cur_ptr;
+	int 			cur_max_str_lenght;
+
+	positions = DatumGetByteaP(add_info);
+	ptrt = (char *) VARDATA_ANY(positions);
+	npos = count_pos(VARDATA_ANY(positions),
+					 VARSIZE_ANY_EXHDR(positions));
+
+	/* Initialize the string */
+	positions_str = (char*) palloc(POS_STR_BUF_LENGHT * sizeof(char));
+	positions_str[0] = '\0';
+	cur_max_str_lenght = POS_STR_BUF_LENGHT;
+	positions_str_cur_ptr = positions_str;
+
+	/* Extract the positions of the tokens and put them in the string */
+	for (int i = 0; i < npos; i++)
+	{
+		/* At each iteration decode the position */
+		ptrt = decompress_pos(ptrt, &position);
+
+		/* Write this position in the string */
+		sprintf(positions_str_cur_ptr, "%d,", position);
+
+		/* Moving the pointer forward */
+		positions_str_cur_ptr += strlen(positions_str_cur_ptr);
+
+		/* 
+		 * Check that there is not too little left to the 
+		 * end of the line and, if necessary, overspend 
+		 * the memory. 
+		 */
+		if (cur_max_str_lenght - (positions_str_cur_ptr - positions_str) <= POS_MAX_VAL_LENGHT)
+		{
+			cur_max_str_lenght +=  POS_STR_BUF_LENGHT;
+			positions_str = (char*) repalloc(positions_str, cur_max_str_lenght * sizeof(char));
+			positions_str_cur_ptr = positions_str + strlen(positions_str);
+		}
+	}
+
+	/* Delete the last comma if there has been at least one iteration of the loop */
+	if (npos > 0)
+		positions_str[strlen(positions_str) - 1] = '\0';
+
+	res = CStringGetTextDatum(positions_str);
+	pfree(positions_str);
+	return res;
 }
