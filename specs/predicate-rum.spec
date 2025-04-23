@@ -26,7 +26,7 @@ setup
  FOR i in 1..338 LOOP
 	INSERT INTO rum_tbl(tsv) VALUES ('');
 	FOR j in 1..10 LOOP 
-		UPDATE rum_tbl SET tsv = tsv || (SELECT to_tsvector(t[1]) FROM text_table WHERE id1 = Xi % 676 + 1) WHERE id = i;
+		UPDATE rum_tbl SET tsv = tsv || (SELECT to_tsvector('simple', t[1]) FROM text_table WHERE id1 = Xi % 676 + 1) WHERE id = i;
 		Xi = (a * Xi + c) % m;
  	END LOOP;
  END LOOP;
