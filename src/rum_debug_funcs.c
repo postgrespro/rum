@@ -14,10 +14,12 @@
  * 2) I/O functions were not available for all types in
  *	  in the get_datum_text_by_oid() function.
  *
- * 3) SIGSEGV in case of bytea output as additional information.
+ * 3) The output of lexeme positions in the high keys of the posting 
+ * 	  tree is not supported.
  */
 
 #include "postgres.h"
+#include "miscadmin.h"
 #include "fmgr.h"
 #include "funcapi.h"
 #include "catalog/namespace.h"
@@ -115,8 +117,8 @@ static Oid get_cur_attr_oid(rum_page_items_state *inter_call_data);
 static Datum category_get_datum_text(RumNullCategory category);
 static Oid find_add_info_oid(RumState *rum_state_ptr);
 static OffsetNumber find_add_info_atrr_num(RumState *rum_state_ptr);
-
 static Datum get_positions_to_text_datum(Datum add_info);
+static char pos_get_weight(WordEntryPos position);
 
 /*
  * The rum_metapage_info() function is used to retrieve 
@@ -472,7 +474,7 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 	 */
 	if(fctx->call_cntr <= inter_call_data->maxoff)
 	{
-		RumItem					*high_key_ptr;					
+		RumItem					*high_key_ptr; 		/* to read high key from a page */		
 		RumItem 				*rum_item_ptr;		/* to read data from a page */
 		Datum 					values[4];			/* return values */
 		bool 					nulls[4];			/* true if the corresponding value is NULL */
@@ -497,7 +499,7 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 			values[2] = BoolGetDatum(high_key_ptr->addInfoIsNull);
 
 			/* Returning add info */
-			if(!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+			if(!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid 
 				&& inter_call_data->add_info_oid != BYTEAOID)
 			{
 				values[3] = get_datum_text_by_oid(high_key_ptr->addInfo, 
@@ -506,12 +508,11 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 
 			/* 
 			 * In this case, we are dealing with the positions 
-			 * of tokens and they need to be decoded. 
+			 * of lexemes and they need to be decoded. 
 			 */
-			else if (!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+			else if (!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid 
 					&& inter_call_data->add_info_oid == BYTEAOID) 
 			{
-				/* values[3] = get_positions_to_text_datum(high_key_ptr->addInfo); */
 				values[3] = CStringGetTextDatum("high key positions in posting tree is not supported");
 			}
 
@@ -525,26 +526,8 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 			SRF_RETURN_NEXT(fctx, result);
 		}
 
-		/* 
-		 * Reading information from the page in rum_item. 
-		 *
-		 * TODO: The fact is that being on the posting tree page, we don't know which 
-		 * index attribute this posting tree was built for, so we don't know the 
-		 * attribute number of the additional information. But the rumDataPageLeafRead() 
-		 * function requires it to read information from the page. Here we use the auxiliary 
-		 * function find_add_info_atr_num(), which simply iterates through the array with 
-		 * attributes that are additional information and selects the attribute number for 
-		 * which the additional information attribute is not NULL. This approach is incorrect 
-		 * because there may not be additional information for the attribute on the page, 
-		 * but we hope that in this case add_info_is_null will have the value true and the 
-		 * additional information will not be read.
-		 *
-		 * This problem can be solved by asking the user for the attribute number of 
-		 * additional information, because going through the index from top to bottom, 
-		 * he saw it next to the link to the posting tree root.
-		 */
+		/* Reading information from the page in rum_item */
 		inter_call_data->item_ptr = rumDataPageLeafRead(inter_call_data->item_ptr, 
-									/* inter_call_data->cur_tuple_key_attnum, */
 									find_add_info_atrr_num(inter_call_data->rum_state_ptr),
 									rum_item_ptr, false, inter_call_data->rum_state_ptr);
 
@@ -554,7 +537,7 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 		values[2] = BoolGetDatum(rum_item_ptr->addInfoIsNull);
 
 		/* Returning add info */
-		if(!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+		if(!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid
 			&& inter_call_data->add_info_oid != BYTEAOID)
 		{
 			values[3] = get_datum_text_by_oid(rum_item_ptr->addInfo, 
@@ -563,9 +546,9 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 
 		/* 
 		 * In this case, we are dealing with the positions 
-		 * of tokens and they need to be decoded. 
+		 * of lexemes and they need to be decoded. 
 		 */
-		else if (!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+		else if (!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid
 				&& inter_call_data->add_info_oid == BYTEAOID) 
 		{
 			values[3] = get_positions_to_text_datum(rum_item_ptr->addInfo); 
@@ -729,7 +712,7 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 	 */
 	if(fctx->call_cntr <= inter_call_data->maxoff)
 	{
-		RumItem					*high_key_ptr;
+		RumItem					*high_key_ptr;		/* to read high key from a page */
 		PostingItem 			*posting_item_ptr;	/* to read data from a page */
 		Datum 					values[5];			/* returned values */
 		bool 					nulls[5];			/* true if the corresponding returned value is NULL */
@@ -754,7 +737,7 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 			values[3] = BoolGetDatum(high_key_ptr->addInfoIsNull);
 
 			/* Returning add info */
-			if(!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0
+			if(!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid
 				&& inter_call_data->add_info_oid != BYTEAOID)
 			{
 				values[4] = get_datum_text_by_oid(high_key_ptr->addInfo, 
@@ -763,12 +746,11 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 
 			/* 
 			 * In this case, we are dealing with the positions 
-			 * of tokens and they need to be decoded. 
+			 * of lexemes and they need to be decoded. 
 			 */
-			else if (!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+			else if (!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid 
 					&& inter_call_data->add_info_oid == BYTEAOID) 
 			{
-				/* values[4] = get_positions_to_text_datum(high_key_ptr->addInfo); */
 				values[4] = CStringGetTextDatum("high key positions in posting tree is not supported");
 			}
 
@@ -793,7 +775,7 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 		values[3] = BoolGetDatum(posting_item_ptr->item.addInfoIsNull);
 
 		/* Returning add info */
-		if(!posting_item_ptr->item.addInfoIsNull && inter_call_data->add_info_oid != 0
+		if(!posting_item_ptr->item.addInfoIsNull && inter_call_data->add_info_oid != InvalidOid
 			&& inter_call_data->add_info_oid != BYTEAOID)
 		{
 			values[4] = get_datum_text_by_oid(posting_item_ptr->item.addInfo, 
@@ -802,12 +784,11 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 
 		/* 
 		 * In this case, we are dealing with the positions 
-		 * of tokens and they need to be decoded. 
+		 * of lexemes and they need to be decoded. 
 		 */
-		else if (!posting_item_ptr->item.addInfoIsNull && inter_call_data->add_info_oid != 0 
+		else if (!posting_item_ptr->item.addInfoIsNull && inter_call_data->add_info_oid != InvalidOid
 				&& inter_call_data->add_info_oid == BYTEAOID) 
 		{
-			/* values[4] = get_positions_to_text_datum(posting_item_ptr->item.addInfo); */
 			values[4] = CStringGetTextDatum("high key positions in posting tree is not supported");
 		}
 
@@ -1072,7 +1053,7 @@ rum_leaf_entry_page_items(PG_FUNCTION_ARGS)
 		values[4] = BoolGetDatum(rum_item_ptr->addInfoIsNull);
 
 		/* Returning add info */
-		if (!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 && 
+		if (!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid && 
 			inter_call_data->add_info_oid != BYTEAOID)
 		{
 			values[5] = get_datum_text_by_oid(rum_item_ptr->addInfo, inter_call_data->add_info_oid);
@@ -1080,9 +1061,9 @@ rum_leaf_entry_page_items(PG_FUNCTION_ARGS)
 
 		/* 
 		 * In this case, we are dealing with the positions 
-		 * of tokens and they need to be decoded. 
+		 * of lexemes and they need to be decoded. 
 		 */
-		else if (!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != 0 
+		else if (!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid 
 				&& inter_call_data->add_info_oid == BYTEAOID) 
 		{
 			values[5] = get_positions_to_text_datum(rum_item_ptr->addInfo); 
@@ -1427,22 +1408,16 @@ get_page_from_raw(bytea *raw_page)
  * int2, int4, int8, float4, float8, money, oid, timestamp, 
  * timestamptz, time, timetz, date, interval, macaddr, inet, 
  * cidr, text, varchar, char, bytea, bit, varbit, numeric.
- *
- * TODO: All types accepted by rum must be checked, but 
- * perhaps some types are missing or some are superfluous.
  */
 static Datum
 get_datum_text_by_oid(Datum info, Oid info_oid)
 {
 	char *str_info = NULL;
 
-	/* info cannot be NULL */
-	Assert(DatumGetPointer(info) != NULL);
-
 	/*
 	 * Form a string depending on the type of info.
 	 *
-	 * FIXME: The macros used below are taken from the 
+	 * TODO: The macros used below are taken from the 
 	 * pg_type_d file.h, and it says not to use them 
 	 * in the new code.
 	 */
@@ -1528,18 +1503,9 @@ get_datum_text_by_oid(Datum info, Oid info_oid)
 			str_info = OidOutputFunctionCall(F_CHAROUT, info);
 			break;
 
-		/* 
-		 * TODO: For some reason, the rum index created for a single tsv 
-		 * field contains additional information as bytea. In addition, 
-		 * if additional information in this format is extracted from 
-		 * posting tree pages, it cannot be displayed correctly as text. 
-		 * If the additional information was extracted from the entry 
-		 * tree pages, then it is displayed correctly.
-		 */
 		case BYTEAOID:
-			/* str_info = OidOutputFunctionCall(F_BYTEAOUT, info); */
-			/* break; */
-			return CStringGetTextDatum("BYTEAOID is not supported");
+			str_info = OidOutputFunctionCall(F_BYTEAOUT, info);
+			break;
 
 		case BITOID:
 			str_info = OidOutputFunctionCall(F_BIT_OUT, info);
@@ -1634,14 +1600,14 @@ get_rel_raw_page(Relation rel, BlockNumber blkno)
  * the Oid of additional information for an attribute for 
  * which it is not NULL.
  *
- * TODO: The logic of the function assumes that there cannot 
+ * The logic of the function assumes that there cannot 
  * be several types of additional information in the index, 
  * otherwise it will not work. 
  */
 static Oid
 find_add_info_oid(RumState *rum_state_ptr)
 {
-	Oid add_info_oid = 0;
+	Oid add_info_oid = InvalidOid;
 
 	/* Number of index attributes */
 	int num_attrs = rum_state_ptr->origTupdesc->natts;
@@ -1651,8 +1617,13 @@ find_add_info_oid(RumState *rum_state_ptr)
 	 * oid of additional information.
 	 */
 	for (int i = 0; i < num_attrs; i++) 
+	{
 		if ((rum_state_ptr->addAttrs)[i] != NULL)
+		{
+			Assert(add_info_oid == InvalidOid);
 			add_info_oid = ((rum_state_ptr->addAttrs)[i])->atttypid; 
+		}
+	}
 
 	return add_info_oid;
 }
@@ -1661,19 +1632,28 @@ find_add_info_oid(RumState *rum_state_ptr)
  * This is an auxiliary function to get the attribute number 
  * for additional information. It is used in the rum_leaf_data_page_items() 
  * function to call the rumDataPageLeafRead() function.
+ *
+ * The logic of the function assumes that there cannot 
+ * be several types of additional information in the index, 
+ * otherwise it will not work. 
  */
 static OffsetNumber
 find_add_info_atrr_num(RumState *rum_state_ptr)
 {
-	OffsetNumber add_info_attr_num = 0;
+	OffsetNumber add_info_attr_num = InvalidOffsetNumber;
 
 	/* Number of index attributes */
 	int num_attrs = rum_state_ptr->origTupdesc->natts;
 
 	/* Go through the addAttrs array */
-	for (int i = 0; i < num_attrs; i++) 
+	for (int i = 0; i < num_attrs; i++)
+	{
 		if ((rum_state_ptr->addAttrs)[i] != NULL)
+		{
+			Assert(add_info_attr_num == InvalidOffsetNumber);
 			add_info_attr_num = i;
+		}
+	}
 
 	/* Need to add 1 because the attributes are numbered from 1 */
 	return add_info_attr_num + 1;
@@ -1683,8 +1663,8 @@ find_add_info_atrr_num(RumState *rum_state_ptr)
 #define POS_MAX_VAL_LENGHT 6
 
 /*
- * A function for extracting the positions of tokens from additional 
- * information. Returns a string in which the positions of the tokens 
+ * A function for extracting the positions of lexemes from additional 
+ * information. Returns a string in which the positions of the lexemes 
  * are recorded. The memory that the string occupies must be cleared later.
  */
 static Datum
@@ -1711,14 +1691,17 @@ get_positions_to_text_datum(Datum add_info)
 	cur_max_str_lenght = POS_STR_BUF_LENGHT;
 	positions_str_cur_ptr = positions_str;
 
-	/* Extract the positions of the tokens and put them in the string */
+	/* Extract the positions of the lexemes and put them in the string */
 	for (int i = 0; i < npos; i++)
 	{
 		/* At each iteration decode the position */
 		ptrt = decompress_pos(ptrt, &position);
 
-		/* Write this position in the string */
-		sprintf(positions_str_cur_ptr, "%d,", position);
+		/* Write this position and weight in the string */
+		if(pos_get_weight(position) == 'D')
+			sprintf(positions_str_cur_ptr, "%d,", WEP_GETPOS(position));
+		else
+			sprintf(positions_str_cur_ptr, "%d%c,", WEP_GETPOS(position), pos_get_weight(position));
 
 		/* Moving the pointer forward */
 		positions_str_cur_ptr += strlen(positions_str_cur_ptr);
@@ -1742,5 +1725,27 @@ get_positions_to_text_datum(Datum add_info)
 
 	res = CStringGetTextDatum(positions_str);
 	pfree(positions_str);
+	return res;
+}
+
+/*
+ * The function extracts the weight and 
+ * returns the corresponding letter.
+ */
+static char
+pos_get_weight(WordEntryPos position)
+{
+	char res = 'D';
+
+	switch(WEP_GETWEIGHT(position))
+	{
+		case 3:
+			return 'A';
+		case 2:
+			return 'B';
+		case 1:
+			return 'C';
+	}
+
 	return res;
 }
