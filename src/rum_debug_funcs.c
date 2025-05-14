@@ -318,7 +318,7 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 	values[3] = Int32GetDatum(opaq->freespace);
 
 #if PG_VERSION_NUM >= 160000
-	values[4] = ItemPointerGetDatum(construct_array_builtin(flags, nflags, TEXTOID));
+	values[4] = PointerGetDatum(construct_array_builtin(flags, nflags, TEXTOID));
 #else
 	values[4] = PointerGetDatum(construct_array(flags, nflags, 
 									TEXTOID, -1, false, TYPALIGN_INT));
@@ -1478,6 +1478,7 @@ get_datum_text_by_oid(Datum info, Oid info_oid)
 			str_info = OidOutputFunctionCall(F_FLOAT8OUT, info);
 			break;
 
+#if PG_VERSION_NUM >= 140000
 		/* 
 		 * TODO: The oid of the function for displaying this 
 		 * type as text could not be found. 
@@ -1486,6 +1487,7 @@ get_datum_text_by_oid(Datum info, Oid info_oid)
 			/* str_addInfo = OidOutputFunctionCall(, addInfo); */
 			/* break; */
 			return CStringGetTextDatum("MONEYOID is not supported");
+#endif
 
 		case OIDOID:
 			str_info = OidOutputFunctionCall(F_OIDOUT, info);
