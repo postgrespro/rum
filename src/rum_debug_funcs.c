@@ -316,7 +316,13 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 	values[1] = Int64GetDatum(opaq->rightlink);
 	values[2] = Int32GetDatum(opaq->maxoff);
 	values[3] = Int32GetDatum(opaq->freespace);
-	values[4] = PointerGetDatum(construct_array_builtin(flags, nflags, TEXTOID));
+
+#if PG_VERSION_NUM >= 160000
+	values[4] = ItemPointerGetDatum(construct_array_builtin(flags, nflags, TEXTOID));
+#else
+	values[4] = PointerGetDatum(construct_array(flags, nflags, 
+									TEXTOID, -1, false, TYPALIGN_INT));
+#endif
 
 	/* Build and return the result tuple. */
 	resultTuple = heap_form_tuple(tupdesc, values, nulls);
@@ -495,7 +501,13 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 		{
 			high_key_ptr = RumDataPageGetRightBound(inter_call_data->page);
 			values[0] = BoolGetDatum(true);
+
+#if PG_VERSION_NUM >= 160000
 			values[1] = ItemPointerGetDatum(&(high_key_ptr->iptr));
+#else
+			values[1] = PointerGetDatum(&(high_key_ptr->iptr));
+#endif
+
 			values[2] = BoolGetDatum(high_key_ptr->addInfoIsNull);
 
 			/* Returning add info */
@@ -533,7 +545,13 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 
 		/* Writing data from rum_item to values */
 		values[0] = false;
+
+#if PG_VERSION_NUM >= 160000
 		values[1] = ItemPointerGetDatum(&(rum_item_ptr->iptr)); 
+#else
+		values[1] = PointerGetDatum(&(rum_item_ptr->iptr)); 
+#endif
+
 		values[2] = BoolGetDatum(rum_item_ptr->addInfoIsNull);
 
 		/* Returning add info */
@@ -733,7 +751,13 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 			high_key_ptr = RumDataPageGetRightBound(inter_call_data->page);
 			values[0] = BoolGetDatum(true);
 			nulls[1] = true;
+
+#if PG_VERSION_NUM >= 160000
 			values[2] = ItemPointerGetDatum(&(high_key_ptr->iptr));
+#else
+			values[2] = PointerGetDatum(&(high_key_ptr->iptr));
+#endif
+
 			values[3] = BoolGetDatum(high_key_ptr->addInfoIsNull);
 
 			/* Returning add info */
@@ -771,7 +795,13 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 		/* Writing data from posting_item_ptr to values */
 		values[0] = BoolGetDatum(false);
 		values[1] = UInt32GetDatum(PostingItemGetBlockNumber(posting_item_ptr)); 
+
+#if PG_VERSION_NUM >= 160000
 		values[2] = ItemPointerGetDatum(&(posting_item_ptr->item.iptr)); 
+#else
+		values[2] = PointerGetDatum(&(posting_item_ptr->item.iptr)); 
+#endif
+
 		values[3] = BoolGetDatum(posting_item_ptr->item.addInfoIsNull);
 
 		/* Returning add info */
@@ -1049,7 +1079,12 @@ rum_leaf_entry_page_items(PG_FUNCTION_ARGS)
 		values[2] = category_get_datum_text(inter_call_data->cur_tuple_key_category);
 
 		/* Writing data from rum_item to values */
+#if PG_VERSION_NUM >= 160000
 		values[3] = ItemPointerGetDatum(&(rum_item_ptr->iptr)); 
+#else
+		values[3] = PointerGetDatum(&(rum_item_ptr->iptr)); 
+#endif
+
 		values[4] = BoolGetDatum(rum_item_ptr->addInfoIsNull);
 
 		/* Returning add info */
