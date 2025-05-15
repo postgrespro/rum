@@ -16,7 +16,6 @@
 #include "catalog/pg_type.h"
 #include "funcapi.h"
 #include "miscadmin.h"
-#include "tsearch/ts_type.h"
 #include "tsearch/ts_utils.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
@@ -80,8 +79,6 @@ PG_FUNCTION_INFO_V1(rum_ts_join_pos);
 
 PG_FUNCTION_INFO_V1(tsquery_to_distance_query);
 
-static unsigned int	count_pos(char *ptr, int len);
-static char *decompress_pos(char *ptr, WordEntryPos *pos);
 static Datum build_tsvector_entry(TSVector vector, WordEntry *we);
 static Datum build_tsvector_hash_entry(TSVector vector, WordEntry *we);
 static Datum build_tsquery_entry(TSQuery query, QueryOperand *operand);
@@ -964,7 +961,6 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 }
 
 #define SIXTHBIT 0x20
-#define LOWERMASK 0x1F
 
 static unsigned int
 compress_pos(char *target, WordEntryPos *pos, int npos)
@@ -999,7 +995,7 @@ compress_pos(char *target, WordEntryPos *pos, int npos)
 	return ptr - target;
 }
 
-static char *
+extern char *
 decompress_pos(char *ptr, WordEntryPos *pos)
 {
 	int			i;
@@ -1027,7 +1023,7 @@ decompress_pos(char *ptr, WordEntryPos *pos)
 	}
 }
 
-static unsigned int
+extern unsigned int
 count_pos(char *ptr, int len)
 {
 	int			count = 0,
