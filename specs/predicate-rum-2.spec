@@ -6,24 +6,29 @@
 
 setup
 {
- CREATE EXTENSION rum;
-
  CREATE TABLE rum_tbl (id serial, tsv tsvector);
 
  CREATE TABLE text_table (id1 serial, t text[]);
 
- SELECT SETSEED(0.5);
-
  INSERT INTO text_table(t) SELECT array[chr(i) || chr(j)] FROM generate_series(65,90) i,
  generate_series(65,90) j ; 
 
- INSERT INTO rum_tbl(tsv) SELECT to_tsvector('simple', t[1] ) FROM  text_table; 
-
+ -- We need to use pseudorandom to generate values for test table
+ -- In this case we use linear congruential generator because random() 
+ -- function may generate different outputs with different systems
  DO $$
+  DECLARE 
+	c integer := 17;
+	a integer := 261;
+	m integer := 6760;
+	Xi integer := 228;
  BEGIN
- FOR j in 1..10 LOOP
- UPDATE rum_tbl SET tsv = tsv || q.t1 FROM (SELECT id1,to_tsvector('simple', t[1] )
- as t1 FROM text_table) as q WHERE id = (random()*q.id1)::integer;
+ FOR i in 1..338 LOOP
+	INSERT INTO rum_tbl(tsv) VALUES ('');
+	FOR j in 1..10 LOOP 
+		UPDATE rum_tbl SET tsv = tsv || (SELECT to_tsvector('simple', t[1]) FROM text_table WHERE id1 = Xi % 676 + 1) WHERE id = i;
+		Xi = (a * Xi + c) % m;
+ 	END LOOP;
  END LOOP;
  END;
  $$;
@@ -35,7 +40,6 @@ teardown
 {
  DROP TABLE text_table;
  DROP TABLE rum_tbl;
- DROP EXTENSION rum;
 }
 
 session "s1"

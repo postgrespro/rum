@@ -4,6 +4,7 @@
 results
 __pycache__
 *.pyc
+rum--*.sql
 tmp_install
 log
 

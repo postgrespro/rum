@@ -1748,7 +1748,11 @@ entryFindItem(RumState * rumstate, RumScanEntry entry, RumItem * item, Snapshot 
 	{
 		if (compareRumItemScanDirection(rumstate, entry->attnumOrig,
 							entry->scanDirection,
-							&entry->curItem, item) >= 0)
+							&entry->curItem, item) >= 0 &&
+							entry->offset >= 0 &&
+							entry->offset < entry->nlist &&
+							rumCompareItemPointers(&entry->curItem.iptr,
+												   &entry->list[entry->offset].iptr) == 0)
 			return;
 		while (entry->offset >= 0 && entry->offset < entry->nlist)
 		{
