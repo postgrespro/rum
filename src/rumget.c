@@ -889,7 +889,14 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 
 		LockBuffer(entry->buffer, RUM_SHARE);
 		page = BufferGetPage(entry->buffer);
-
+		if (!RumPageIsLeaf(page))
+		{
+			/*
+			 * Root page becomes non-leaf while we unlock it. just return.
+			 */
+			LockBuffer(entry->buffer, RUM_UNLOCK);
+			return;
+		}
 		PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
 
 		if (scanPage(rumstate, entry, &entry->curItem, false))
