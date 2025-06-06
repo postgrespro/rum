@@ -193,25 +193,6 @@ SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY 
 (5 rows)
 
 EXPLAIN (costs off)
-SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
- Limit
-   ->  Index Scan using tsts_idx on tsts
-         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
-(3 rows)
-
-SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
- id  |                d                |  ?column?   
------+---------------------------------+-------------
- 355 | Mon May 16 14:21:22.326724 2016 |    2.673276
- 356 | Mon May 16 15:21:22.326724 2016 | 3597.326724
- 354 | Mon May 16 13:21:22.326724 2016 | 3602.673276
- 357 | Mon May 16 16:21:22.326724 2016 | 7197.326724
- 353 | Mon May 16 12:21:22.326724 2016 | 7202.673276
-(5 rows)
-
-EXPLAIN (costs off)
 SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
                                                             QUERY PLAN                                                            
 ----------------------------------------------------------------------------------------------------------------------------------
@@ -261,6 +242,26 @@ SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER 
  484 | Sat May 21 23:21:22.326724 2016
  496 | Sun May 22 11:21:22.326724 2016
 (8 rows)
+
+RESET enable_indexscan;
+EXPLAIN (costs off)
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Limit
+   ->  Index Scan using tsts_idx on tsts
+         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(3 rows)
+
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ id  |                d                |  ?column?   
+-----+---------------------------------+-------------
+ 355 | Mon May 16 14:21:22.326724 2016 |    2.673276
+ 356 | Mon May 16 15:21:22.326724 2016 | 3597.326724
+ 354 | Mon May 16 13:21:22.326724 2016 | 3602.673276
+ 357 | Mon May 16 16:21:22.326724 2016 | 7197.326724
+ 353 | Mon May 16 12:21:22.326724 2016 | 7202.673276
+(5 rows)
 
 -- Test index scan
 RESET enable_indexscan;
@@ -372,25 +373,6 @@ SELECT id, d, d |=> '2016-05-16 14:21:25' FROM tsts WHERE t @@ 'wr&qh' ORDER BY 
 (5 rows)
 
 EXPLAIN (costs off)
-SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
-                                    QUERY PLAN                                     
------------------------------------------------------------------------------------
- Limit
-   ->  Index Scan using tsts_idx on tsts
-         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
-(3 rows)
-
-SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
- id  |                d                |  ?column?   
------+---------------------------------+-------------
- 355 | Mon May 16 14:21:22.326724 2016 |    2.673276
- 356 | Mon May 16 15:21:22.326724 2016 | 3597.326724
- 354 | Mon May 16 13:21:22.326724 2016 | 3602.673276
- 357 | Mon May 16 16:21:22.326724 2016 | 7197.326724
- 353 | Mon May 16 12:21:22.326724 2016 | 7202.673276
-(5 rows)
-
-EXPLAIN (costs off)
 SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d <= '2016-05-16 14:21:25' ORDER BY d;
                                                          QUERY PLAN                                                         
 ----------------------------------------------------------------------------------------------------------------------------
@@ -468,6 +450,26 @@ SELECT id, d FROM tsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER 
  484 | Sat May 21 23:21:22.326724 2016
  458 | Fri May 20 21:21:22.326724 2016
 (3 rows)
+
+RESET enable_indexscan;
+EXPLAIN (costs off)
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+                                    QUERY PLAN                                     
+-----------------------------------------------------------------------------------
+ Limit
+   ->  Index Scan using tsts_idx on tsts
+         Order By: (d <=> 'Mon May 16 14:21:25 2016'::timestamp without time zone)
+(3 rows)
+
+SELECT id, d, d <=> '2016-05-16 14:21:25' FROM tsts ORDER BY d <=> '2016-05-16 14:21:25' LIMIT 5;
+ id  |                d                |  ?column?   
+-----+---------------------------------+-------------
+ 355 | Mon May 16 14:21:22.326724 2016 |    2.673276
+ 356 | Mon May 16 15:21:22.326724 2016 | 3597.326724
+ 354 | Mon May 16 13:21:22.326724 2016 | 3602.673276
+ 357 | Mon May 16 16:21:22.326724 2016 | 7197.326724
+ 353 | Mon May 16 12:21:22.326724 2016 | 7202.673276
+(5 rows)
 
 -- Test "ORDER BY" error message
 DROP INDEX tsts_idx;
