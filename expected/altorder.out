@@ -3,8 +3,13 @@
  *  NOTE: This test behaves differenly
  * ------------------------------------
  *
- * altorder.out - test output for 64-bit systems and
- * altorder_1.out - test output for 32-bit systems.
+ * altorder.out - test output for 64-bit systems
+ * altorder_1.out - test output for 32-bit systems
+ *
+ * Since c01743aa486 (>=18) EXPLAIN output was changed,
+ * now it includes the number of disabled nodes
+ *
+ * altorder_2.out - test output for 32-bit systems (>=18)
  *
  */
 CREATE TABLE atsts (id int, t tsvector, d timestamp);

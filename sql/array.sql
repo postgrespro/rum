@@ -6,6 +6,12 @@
  * array.out - test output for 64-bit systems and
  * array_1.out - test output for 32-bit systems.
  *
+ * Since c01743aa486 (>=18) EXPLAIN output was changed,
+ * now it includes the number of disabled nodes
+ *
+ * array_2.out - test output for 64-bit systems (>=18).
+ * array_3.out - test output for 32-bit systems (>=18).
+ *
  */
 
 
