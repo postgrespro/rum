@@ -53,6 +53,7 @@ extern RumSortItem *rum_tuplesort_getrum(RumTuplesortstate *state, bool forward,
 extern struct RumScanItem *rum_tuplesort_getrumitem(RumTuplesortstate *state, bool forward,
 					 bool *should_free);
 
+extern void rum_tuplesort_rescan(RumTuplesortstate *state);
 extern void rum_tuplesort_end(RumTuplesortstate *state);
 
 #endif   /* RUMSORT_H */

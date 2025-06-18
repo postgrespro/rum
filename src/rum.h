@@ -713,6 +713,9 @@ typedef struct RumScanEntryData
 	/* Find by AddInfo */
 	bool		useMarkAddInfo;
 	RumItem		markAddInfo;
+
+	/* used in scanGetItemRegular() */
+	bool 		needReset;
 }	RumScanEntryData;
 
 typedef struct
@@ -760,6 +763,13 @@ typedef struct RumScanOpaqueData
 
 	ScanDirection	naturalOrder;
 	bool			secondPass;
+
+	/* 
+	 * The case of a key scan, which is
+	 * ordered by additional information.
+	 */
+	bool 			scanWithAltOrderKey;
+	int 			altOrderKeyNum;
 }	RumScanOpaqueData;
 
 typedef RumScanOpaqueData *RumScanOpaque;

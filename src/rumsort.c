@@ -413,7 +413,8 @@ RumTuplesortstate *
 rum_tuplesort_begin_rumitem(int workMem, FmgrInfo *cmp)
 {
 #if PG_VERSION_NUM >= 160000
-	RumTuplesortstate *state = tuplesort_begin_common(workMem, false);
+	/* RumTuplesortstate *state = tuplesort_begin_common(workMem, false); */
+	RumTuplesortstate *state = tuplesort_begin_common(workMem, TUPLESORT_RANDOMACCESS);
 	MemoryContext oldcontext;
 
 	oldcontext = MemoryContextSwitchTo(TSS_GET(state)->sortcontext);
@@ -429,7 +430,8 @@ rum_tuplesort_begin_rumitem(int workMem, FmgrInfo *cmp)
 
 	return state;
 #else
-	RumTuplesortstate *state = tuplesort_begin_common(workMem, false);
+	/* RumTuplesortstate *state = tuplesort_begin_common(workMem, false); */
+	RumTuplesortstate *state = tuplesort_begin_common(workMem, TUPLESORT_RANDOMACCESS);
 	RumTuplesortstateExt *rs;
 	MemoryContext oldcontext;
 
@@ -585,4 +587,10 @@ rum_tuplesort_getrumitem(RumTuplesortstate *state, bool forward,
 {
 	return (RumScanItem *) rum_tuplesort_getrum_internal(state, forward,
 														 should_free);
+}
+
+void
+rum_tuplesort_rescan(RumTuplesortstate *state)
+{
+	return tuplesort_rescan(state);
 }
