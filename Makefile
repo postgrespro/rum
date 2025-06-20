@@ -35,15 +35,6 @@ ISOLATION_OPTS = --load-extension=rum
 EXTRA_CLEAN = pglist_tmp
 
 ifdef USE_PGXS
-
-# We cannot run isolation test for versions 12,13 in PGXS case
-# because 'pg_isolation_regress' is not copied to install
-# directory, see src/test/isolation/Makefile
-ifeq ($(MAJORVERSION),$(filter 12% 13%,$(MAJORVERSION)))
-undefine ISOLATION
-undefine ISOLATION_OPTS
-endif
-
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
@@ -56,6 +47,24 @@ endif
 
 $(EXTENSION)--$(EXTVERSION).sql: rum_init.sql
 	cat $^ > $@
+
+#
+# On versions 12 and 13 isolation tests cannot be run using pgxs.
+# Override installcheck target to avoid the error. This is just a
+# shortcut version of installcheck target from pgxs.mk that runs
+# all other tests besides isolation tests.
+#
+ifdef USE_PGXS
+ifeq ($(MAJORVERSION), $(filter 12% 13%, $(MAJORVERSION)))
+installcheck: submake $(REGRESS_PREP)
+ifdef REGRESS
+	$(pg_regress_installcheck) $(REGRESS_OPTS) $(REGRESS)
+endif
+ifdef TAP_TESTS
+	$(prove_installcheck)
+endif
+endif
+endif
 
 ifeq ($(MAJORVERSION), 9.6)
 # arrays are not supported on 9.6
