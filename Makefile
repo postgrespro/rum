@@ -21,12 +21,12 @@ RELATIVE_INCLUDES = $(addprefix src/, $(INCLUDES))
 
 LDFLAGS_SL += $(filter -lm, $(LIBS))
 
-REGRESS = security rum rum_validate rum_hash ruminv timestamp orderby orderby_hash \
-	altorder altorder_hash limits \
+REGRESS = security rum rum_validate rum_hash ruminv timestamp \
+	orderby orderby_hash altorder altorder_hash limits \
 	int2 int4 int8 float4 float8 money oid \
 	time timetz date interval \
 	macaddr inet cidr text varchar char bytea bit varbit \
-	numeric rum_weight expr
+	numeric rum_weight expr array
 
 TAP_TESTS = 1
 
@@ -66,24 +66,16 @@ endif
 endif
 endif
 
-ifeq ($(MAJORVERSION), 9.6)
+# --------------------------------------------------------
+# Make conditional targets to save backward compatibility
+# with PG11, PG10 and PG9.6.
+# --------------------------------------------------------
+ifeq ($(MAJORVERSION), $(filter 9.6% 10% 11%, $(MAJORVERSION)))
+
 # arrays are not supported on 9.6
-else
-REGRESS += array
+ifeq ($(MAJORVERSION), 9.6)
+REGRESS := $(filter-out array, $(REGRESS))
 endif
-
-# For 9.6-11 we have to make specific target with tap tests
-ifeq ($(MAJORVERSION), $(filter 9.6% 10% 11%, $(MAJORVERSION)))
-wal-check: temp-install
-	$(prove_check)
-
-check: wal-check
-endif
-
-#
-# Make conditional targets to save backward compatibility with PG11, PG10 and PG9.6.
-#
-ifeq ($(MAJORVERSION), $(filter 9.6% 10% 11%, $(MAJORVERSION)))
 
 install: installincludes
 
@@ -108,4 +100,9 @@ isolationcheck: | submake-isolation submake-rum temp-install
 	$(pg_isolation_regress_check) \
 		--temp-config $(top_srcdir)/contrib/rum/logical.conf \
 		$(ISOLATIONCHECKS)
+
+# For 9.6-11 we have to make specific target with tap tests
+check: temp-install
+	$(prove_check)
+
 endif
