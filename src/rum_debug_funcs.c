@@ -38,6 +38,18 @@ PG_FUNCTION_INFO_V1(rum_internal_data_page_items);
 PG_FUNCTION_INFO_V1(rum_leaf_entry_page_items);
 PG_FUNCTION_INFO_V1(rum_internal_entry_page_items);
 
+/*
+ * This is necessary in order for the prepare_scan()
+ * function to determine the type of the scanned page.
+ */
+typedef enum 
+{
+	LEAF_DATA_PAGE,
+	INTERNAL_DATA_PAGE,
+	LEAF_ENTRY_PAGE,
+	INTERNAL_ENTRY_PAGE
+} page_type_flags;
+
 /* 
  * A structure that stores information between calls to the 
  * rum_leaf_data_page_items(), rum_internal_data_page_items(),
@@ -119,6 +131,16 @@ static Oid find_add_info_oid(RumState *rum_state_ptr);
 static OffsetNumber find_add_info_atrr_num(RumState *rum_state_ptr);
 static Datum get_positions_to_text_datum(Datum add_info);
 static char pos_get_weight(WordEntryPos position);
+static void check_superuser(void);
+static void check_page_opaque_data_size(Page page);
+static void check_page_is_meta_page(RumPageOpaque opaq);
+static void check_page_is_leaf_data_page(RumPageOpaque opaq);
+static void check_page_is_internal_data_page(RumPageOpaque opaq);
+static void check_page_is_leaf_entry_page(RumPageOpaque opaq);
+static void check_page_is_internal_entry_page(RumPageOpaque opaq);
+static bool prepare_scan(text *relname, uint32 blkno, 
+						 rum_page_items_state **inter_call_data, 
+						 page_type_flags page_type);
 
 /*
  * The rum_metapage_info() function is used to retrieve 
@@ -153,10 +175,7 @@ rum_metapage_info(PG_FUNCTION_ARGS)
 	char 				version_buf[20];
 
 	/* Only the superuser can use this */
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use raw page functions")));
+	check_superuser();
 
 	/* Getting rel by name and raw page by number */
 	rel = get_rel_from_name(relname);
@@ -171,24 +190,13 @@ rum_metapage_info(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 
 	/* Checking the size of the opaque area of the page */
-	if (PageGetSpecialSize(page) != MAXALIGN(sizeof(RumPageOpaqueData)))
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("input page is not a valid RUM metapage"),
-				 errdetail("Expected special size %d, got %d.",
-						   (int) MAXALIGN(sizeof(RumPageOpaqueData)),
-						   (int) PageGetSpecialSize(page))));
+	check_page_opaque_data_size(page);
 
 	/* Getting a page description from an opaque area */
 	opaq = RumPageGetOpaque(page);
 
 	/* Checking the flags */
-	if (opaq->flags != RUM_META)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("input page is not a RUM metapage"),
-				 errdetail("Flags %04X, expected %04X",
-						   opaq->flags, RUM_META)));
+	check_page_is_meta_page(opaq);
 
 	/* Build a tuple descriptor for our result type */
 	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -252,10 +260,7 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 	uint16				flagbits;		/* flags in the opaque area of the page */
 
 	/* Only the superuser can use this */
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use raw page functions")));
+	check_superuser();
 
 	/* Getting rel by name and raw page by number */
 	rel = get_rel_from_name(relname);
@@ -270,13 +275,7 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 
 	/* Checking the size of the opaque area of the page */
-	if (PageGetSpecialSize(page) != MAXALIGN(sizeof(RumPageOpaqueData)))
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("input page is not a valid RUM data leaf page"),
-				 errdetail("Expected special size %d, got %d.",
-						   (int) MAXALIGN(sizeof(RumPageOpaqueData)),
-						   (int) PageGetSpecialSize(page))));
+	check_page_opaque_data_size(page);
 
 	/* Getting a page description from an opaque area */
 	opaq = RumPageGetOpaque(page);
@@ -362,76 +361,32 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 	rum_page_items_state 		*inter_call_data;
 
 	/* Only the superuser can use this */
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use this function")));
+	check_superuser();
 
 	/* 
 	 * In the case of the first function call, it is necessary 
-	 * to get the page by its number and create a Runstate 
+	 * to get the page by its number and create a RumState 
 	 * structure for scanning the page.
 	 */
 	if (SRF_IS_FIRSTCALL())
 	{
-		Relation 				rel;		/* needed to initialize the RumState structure */ 
-		bytea	   			    *raw_page;	/* The raw page obtained from rel */
-
 		TupleDesc			    tupdesc;	/* description of the result tuple */
 		MemoryContext 			oldmctx;	/* the old function memory context */
-		Page 					page;		/* the page to be scanned */
-		RumPageOpaque 			opaq;		/* data from the opaque area of the page */
 
 		/* 
 		 * Initializing the FuncCallContext structure and switching the memory 
 		 * context to the one needed for structures that must be saved during 
-		 * multiple calls
+		 * multiple calls.
 		 */
 		fctx = SRF_FIRSTCALL_INIT();
 		oldmctx = MemoryContextSwitchTo(fctx->multi_call_memory_ctx);
 
-		/* Getting rel by name and raw page by number */
-		rel = get_rel_from_name(relname);
-		raw_page = get_rel_raw_page(rel, blkno);
-
-		/* Allocating memory for a long-lived structure */
-		inter_call_data = palloc(sizeof(rum_page_items_state));
-
-		/* Getting a copy of the page from the raw page */
-		page = get_page_from_raw(raw_page);
-
 		/* If the page is new, the function should return NULL */
-		if (PageIsNew(page))
+		if (!prepare_scan(relname, blkno, &inter_call_data, LEAF_DATA_PAGE))
 		{
 			MemoryContextSwitchTo(oldmctx);
 			PG_RETURN_NULL();
 		}
-
-		/* Checking the size of the opaque area of the page */
-		if (PageGetSpecialSize(page) != MAXALIGN(sizeof(RumPageOpaqueData)))
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("input page is not a valid RUM page"),
-					 errdetail("Expected special size %d, got %d.",
-							   (int) MAXALIGN(sizeof(RumPageOpaqueData)),
-							   (int) PageGetSpecialSize(page))));
-
-		/* Getting a page description from an opaque area */
-		opaq = RumPageGetOpaque(page);
-
-		/* Checking the flags */
-		if (opaq->flags != (RUM_DATA | RUM_LEAF))
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("input page is not a RUM {data, leaf} page"),
-					 errdetail("Flags %04X, expected %04X",
-							   opaq->flags, (RUM_DATA | RUM_LEAF))));
-
-		/* Initializing the RumState structure */
-		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
-		initRumState(inter_call_data->rum_state_ptr, rel);
-
-		relation_close(rel, AccessShareLock);
 
 		/* Build a tuple descriptor for our result type */ 
 		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -439,21 +394,6 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 
 		/* Needed to for subsequent recording tupledesc in fctx */
 		BlessTupleDesc(tupdesc);
-
-		/*
-		 * Write to the long-lived structure the number of RumItem 
-		 * structures on the page and a pointer to the data on the page.
-		 */
-		inter_call_data->page = page;
-		inter_call_data->maxoff = opaq->maxoff;
-		inter_call_data->item_ptr = RumDataPageGetData(page);
-		inter_call_data->add_info_oid = find_add_info_oid(inter_call_data->rum_state_ptr);
-
-		/* 
-		 * It is necessary for the correct reading of the 
-		 * tid (see the function rumDataPageLeafRead()) 
-		 */
-		memset(&(inter_call_data->cur_rum_item), 0, sizeof(RumItem));
 
 		/* 
 		 * Save a pointer to a long-lived structure and 
@@ -618,10 +558,7 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 	rum_page_items_state 		*inter_call_data;
 
 	/* Only the superuser can use this */
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use this function")));
+	check_superuser();
 
 	/* 
 	 * In the case of the first function call, it is necessary 
@@ -630,13 +567,8 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 	 */
 	if (SRF_IS_FIRSTCALL())
 	{
-		Relation 				rel;		/* needed to initialize the RumState structure */ 
-		bytea 					*raw_page;	/* The raw page obtained from rel */
-
 		TupleDesc 				tupdesc;	/* description of the result tuple */
 		MemoryContext 			oldmctx;	/* the old function memory context */
-		Page 					page;		/* the page to be scanned */
-		RumPageOpaque 			opaq;		/* data from the opaque area of the page */
 
 		/* 
 		 * Initializing the FuncCallContext structure and switching the memory 
@@ -646,48 +578,12 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 		fctx = SRF_FIRSTCALL_INIT();
 		oldmctx = MemoryContextSwitchTo(fctx->multi_call_memory_ctx);
 
-		/* Getting rel by name and raw page by number */
-		rel = get_rel_from_name(relname);
-		raw_page = get_rel_raw_page(rel, blkno);
-
-		/* Allocating memory for a long-lived structure */
-		inter_call_data = palloc(sizeof(rum_page_items_state));
-
-		/* Getting a copy of the page from the raw page */
-		page = get_page_from_raw(raw_page);
-
 		/* If the page is new, the function should return NULL */
-		if (PageIsNew(page))
+		if (!prepare_scan(relname, blkno, &inter_call_data, INTERNAL_DATA_PAGE))
 		{
 			MemoryContextSwitchTo(oldmctx);
 			PG_RETURN_NULL();
 		}
-
-		/* Checking the size of the opaque area of the page */
-		if (PageGetSpecialSize(page) != MAXALIGN(sizeof(RumPageOpaqueData)))
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("input page is not a valid RUM page"),
-					 errdetail("Expected special size %d, got %d.",
-							   (int) MAXALIGN(sizeof(RumPageOpaqueData)),
-							   (int) PageGetSpecialSize(page))));
-
-		/* Getting a page description from an opaque area */
-		opaq = RumPageGetOpaque(page);
-
-		/* Checking the flags */
-		if (opaq->flags != (RUM_DATA & ~RUM_LEAF))
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("input page is not a RUM {data} page"),
-					 errdetail("Flags %04X, expected %04X",
-							   opaq->flags, (RUM_DATA & ~RUM_LEAF))));
-
-		/* Initializing the RumState structure */
-		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
-		initRumState(inter_call_data->rum_state_ptr, rel);
-
-		relation_close(rel, AccessShareLock);
 
 		/* Build a tuple descriptor for our result type */ 
 		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -695,15 +591,6 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 
 		/* Needed to for subsequent recording tupledesc in fctx */
 		BlessTupleDesc(tupdesc);
-
-		/*
-		 * Write to the long-lived structure the number of RumItem 
-		 * structures on the page and a pointer to the data on the page.
-		 */
-		inter_call_data->page = page;
-		inter_call_data->maxoff = opaq->maxoff;
-		inter_call_data->item_ptr = RumDataPageGetData(page);
-		inter_call_data->add_info_oid = find_add_info_oid(inter_call_data->rum_state_ptr);
 
 		/* 
 		 * Save a pointer to a long-lived structure and 
@@ -872,10 +759,7 @@ rum_leaf_entry_page_items(PG_FUNCTION_ARGS)
 	rum_page_items_state 		*inter_call_data;
 
 	/* Only the superuser can use this */
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use this function")));
+	check_superuser();
 
 	/* 
 	 * In the case of the first function call, it is necessary 
@@ -884,13 +768,8 @@ rum_leaf_entry_page_items(PG_FUNCTION_ARGS)
 	 */
 	if (SRF_IS_FIRSTCALL())
 	{
-		Relation 				rel;		/* needed to initialize the RumState structure */ 
-		bytea 					*raw_page;	/* The raw page obtained from rel */
-
 		TupleDesc 				tupdesc;	/* description of the result tuple */
 		MemoryContext 			oldmctx;	/* the old function memory context */
-		Page 					page;		/* the page to be scanned */
-		RumPageOpaque 			opaq;		/* data from the opaque area of the page */
 
 		/* 
 		 * Initializing the FuncCallContext structure and switching the memory 
@@ -900,48 +779,12 @@ rum_leaf_entry_page_items(PG_FUNCTION_ARGS)
 		fctx = SRF_FIRSTCALL_INIT();
 		oldmctx = MemoryContextSwitchTo(fctx->multi_call_memory_ctx);
 
-		/* Getting rel by name and raw page by number */
-		rel = get_rel_from_name(relname);
-		raw_page = get_rel_raw_page(rel, blkno);
-
-		/* Allocating memory for a long-lived structure */
-		inter_call_data = palloc(sizeof(rum_page_items_state));
-
-		/* Getting a copy of the page from the raw page */
-		page = get_page_from_raw(raw_page);
-
 		/* If the page is new, the function should return NULL */
-		if (PageIsNew(page))
+		if (!prepare_scan(relname, blkno, &inter_call_data, LEAF_ENTRY_PAGE))
 		{
 			MemoryContextSwitchTo(oldmctx);
 			PG_RETURN_NULL();
 		}
-
-		/* Checking the size of the opaque area of the page */
-		if (PageGetSpecialSize(page) != MAXALIGN(sizeof(RumPageOpaqueData)))
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("input page is not a valid RUM page"),
-					 errdetail("Expected special size %d, got %d.",
-							   (int) MAXALIGN(sizeof(RumPageOpaqueData)),
-							   (int) PageGetSpecialSize(page))));
-
-		/* Getting a page description from an opaque area */
-		opaq = RumPageGetOpaque(page);
-
-		/* Checking the flags */
-		if (opaq->flags != RUM_LEAF)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("input page is not a RUM {leaf} page"),
-					 errdetail("Flags %04X, expected %04X",
-							   opaq->flags, RUM_LEAF)));
-
-		/* Initializing the RumState structure */
-		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
-		initRumState(inter_call_data->rum_state_ptr, rel);
-
-		relation_close(rel, AccessShareLock);
 
 		/* Build a tuple descriptor for our result type */ 
 		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -949,16 +792,6 @@ rum_leaf_entry_page_items(PG_FUNCTION_ARGS)
 
 		/* Needed to for subsequent recording tupledesc in fctx */
 		BlessTupleDesc(tupdesc);
-
-		/* 
-		 * We save all the necessary information for 
-		 * scanning the page in a long-lived structure. 
-		 */
-		inter_call_data->page = page;
-		inter_call_data->maxoff = PageGetMaxOffsetNumber(page); 
-		inter_call_data->need_new_tuple = true;
-		inter_call_data->cur_tuple_num = FirstOffsetNumber;
-		inter_call_data->add_info_oid = find_add_info_oid(inter_call_data->rum_state_ptr);
 
 		/* 
 		 * Save a pointer to a long-lived structure and 
@@ -1158,10 +991,7 @@ rum_internal_entry_page_items(PG_FUNCTION_ARGS)
 	rum_page_items_state 		*inter_call_data;
 
 	/* Only the superuser can use this */
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to use this function")));
+	check_superuser();
 
 	/* 
 	 * In the case of the first function call, it is necessary 
@@ -1170,13 +1000,8 @@ rum_internal_entry_page_items(PG_FUNCTION_ARGS)
 	 */
 	if (SRF_IS_FIRSTCALL())
 	{
-		Relation 				rel;		/* needed to initialize the RumState structure */ 
-		bytea 					*raw_page;	/* the raw page obtained from rel */
-
 		TupleDesc 				tupdesc;	/* description of the result tuple */
 		MemoryContext 			oldmctx;	/* the old function memory context */
-		Page 					page;		/* the page to be scanned */
-		RumPageOpaque 			opaq;		/* data from the opaque area of the page */
 
 		/* 
 		 * Initializing the FuncCallContext structure and switching the memory 
@@ -1186,48 +1011,12 @@ rum_internal_entry_page_items(PG_FUNCTION_ARGS)
 		fctx = SRF_FIRSTCALL_INIT();
 		oldmctx = MemoryContextSwitchTo(fctx->multi_call_memory_ctx);
 
-		/* Getting rel by name and raw page by number */
-		rel = get_rel_from_name(relname);
-		raw_page = get_rel_raw_page(rel, blkno);
-
-		/* Allocating memory for a long-lived structure */
-		inter_call_data = palloc(sizeof(rum_page_items_state));
-
-		/* Getting a copy of the page from the raw page */
-		page = get_page_from_raw(raw_page);
-
 		/* If the page is new, the function should return NULL */
-		if (PageIsNew(page))
+		if (!prepare_scan(relname, blkno, &inter_call_data, INTERNAL_ENTRY_PAGE))
 		{
 			MemoryContextSwitchTo(oldmctx);
 			PG_RETURN_NULL();
 		}
-
-		/* Checking the size of the opaque area of the page */
-		if (PageGetSpecialSize(page) != MAXALIGN(sizeof(RumPageOpaqueData)))
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("input page is not a valid RUM page"),
-					 errdetail("Expected special size %d, got %d.",
-							   (int) MAXALIGN(sizeof(RumPageOpaqueData)),
-							   (int) PageGetSpecialSize(page))));
-
-		/* Getting a page description from an opaque area */
-		opaq = RumPageGetOpaque(page);
-
-		/* Checking the flags */
-		if (opaq->flags != 0)
-			ereport(ERROR,
-					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-					 errmsg("input page is not a RUM {} page"),
-					 errdetail("Flags %04X, expected %04X",
-							   opaq->flags, 0)));
-
-		/* Initializing the RumState structure */
-		inter_call_data->rum_state_ptr = palloc(sizeof(RumState));
-		initRumState(inter_call_data->rum_state_ptr, rel);
-
-		relation_close(rel, AccessShareLock);
 
 		/* Build a tuple descriptor for our result type */ 
 		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
@@ -1235,14 +1024,6 @@ rum_internal_entry_page_items(PG_FUNCTION_ARGS)
 
 		/* Needed to for subsequent recording tupledesc in fctx */
 		BlessTupleDesc(tupdesc);
-
-		/* 
-		 * We save all the necessary information for 
-		 * scanning the page in a long-lived structure. 
-		 */
-		inter_call_data->page = page;
-		inter_call_data->maxoff = PageGetMaxOffsetNumber(page); 
-		inter_call_data->cur_tuple_num = FirstOffsetNumber;
 
 		/* 
 		 * Save a pointer to a long-lived structure and 
@@ -1814,4 +1595,182 @@ pos_get_weight(WordEntryPos position)
 	}
 
 	return res;
+}
+
+/*
+ * Functions for checks.
+ */
+static void
+check_superuser(void)
+{
+	if (!superuser())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must be superuser to use this function")));
+}
+
+static void
+check_page_opaque_data_size(Page page)
+{
+	if (PageGetSpecialSize(page) != MAXALIGN(sizeof(RumPageOpaqueData)))
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("input page is not a valid RUM metapage"),
+				 errdetail("Expected special size %d, got %d.",
+						   (int) MAXALIGN(sizeof(RumPageOpaqueData)),
+						   (int) PageGetSpecialSize(page))));
+}
+
+static void
+check_page_is_meta_page(RumPageOpaque opaq)
+{
+	if (opaq->flags != RUM_META)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("input page is not a RUM metapage"),
+				 errdetail("Flags %04X, expected %04X",
+						   opaq->flags, RUM_META)));
+}
+
+static void
+check_page_is_leaf_data_page(RumPageOpaque opaq)
+{
+	if (opaq->flags != (RUM_DATA | RUM_LEAF))
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("input page is not a RUM {data, leaf} page"),
+				 errdetail("Flags %04X, expected %04X",
+						   opaq->flags, (RUM_DATA | RUM_LEAF))));
+}
+
+static void
+check_page_is_internal_data_page(RumPageOpaque opaq)
+{
+	if (opaq->flags != (RUM_DATA & ~RUM_LEAF))
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("input page is not a RUM {data} page"),
+				 errdetail("Flags %04X, expected %04X",
+						   opaq->flags, (RUM_DATA & ~RUM_LEAF))));
+}
+
+static void
+check_page_is_leaf_entry_page(RumPageOpaque opaq)
+{
+	if (opaq->flags != RUM_LEAF)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("input page is not a RUM {leaf} page"),
+				 errdetail("Flags %04X, expected %04X",
+						   opaq->flags, RUM_LEAF)));
+}
+
+static void
+check_page_is_internal_entry_page(RumPageOpaque opaq)
+{
+	if (opaq->flags != 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("input page is not a RUM {} page"),
+				 errdetail("Flags %04X, expected %04X",
+						   opaq->flags, 0)));
+}
+
+/*
+ * An auxiliary function for preparing the scan. 
+ * Depending on the type of page, it fills in 
+ * inter_call_data and makes the necessary checks.
+ */
+static bool 
+prepare_scan(text *relname, uint32 blkno, 
+			 rum_page_items_state **inter_call_data, 
+			 page_type_flags page_type)
+{
+	Relation 				rel;		/* needed to initialize the RumState structure */ 
+	bytea	   			    *raw_page;	/* The raw page obtained from rel */
+
+	Page 					page;		/* the page to be scanned */
+	RumPageOpaque 			opaq;		/* data from the opaque area of the page */
+
+	/* Getting rel by name and raw page by number */
+	rel = get_rel_from_name(relname);
+	raw_page = get_rel_raw_page(rel, blkno);
+
+	/* Allocating memory for a long-lived structure */
+	*inter_call_data = palloc(sizeof(rum_page_items_state));
+
+	/* Getting a copy of the page from the raw page */
+	page = get_page_from_raw(raw_page);
+
+	/* If the page is new */
+	if (PageIsNew(page))
+	{
+		pfree(*inter_call_data);
+		return false;
+	}
+
+	/* Checking the size of the opaque area of the page */
+	check_page_opaque_data_size(page);
+
+	/* Getting a page description from an opaque area */
+	opaq = RumPageGetOpaque(page);
+
+	/* Initializing the RumState structure */
+	(*inter_call_data)->rum_state_ptr = palloc(sizeof(RumState));
+	initRumState((*inter_call_data)->rum_state_ptr, rel);
+
+	relation_close(rel, AccessShareLock);
+
+	/*  Writing the page into a long-lived structure */
+	(*inter_call_data)->page = page;
+
+	/* 
+	 * Depending on the type of page, it performs the 
+	 * necessary checks and writes the necessary data 
+	 * into a long-lived structure.
+	 */
+	if (page_type == LEAF_DATA_PAGE || page_type == INTERNAL_DATA_PAGE) 
+	{
+		if (page_type == LEAF_DATA_PAGE) 
+		{
+			check_page_is_leaf_data_page(opaq);
+
+			/* 
+			 * It is necessary for the correct reading of the 
+			 * tid (see the function rumDataPageLeafRead()) 
+			 */
+			memset(&((*inter_call_data)->cur_rum_item), 0, sizeof(RumItem));
+		}
+
+		else check_page_is_internal_data_page(opaq);
+
+		(*inter_call_data)->maxoff = opaq->maxoff;
+		(*inter_call_data)->item_ptr = RumDataPageGetData(page);
+		(*inter_call_data)->add_info_oid = find_add_info_oid((*inter_call_data)->rum_state_ptr);
+	}
+
+	else if (page_type == LEAF_ENTRY_PAGE || page_type == INTERNAL_ENTRY_PAGE)
+	{
+		if (page_type == LEAF_ENTRY_PAGE)
+		{
+			check_page_is_leaf_entry_page(opaq);
+
+			(*inter_call_data)->need_new_tuple = true;
+			(*inter_call_data)->add_info_oid = find_add_info_oid((*inter_call_data)->rum_state_ptr);
+		}
+
+		else check_page_is_internal_entry_page(opaq);
+
+		(*inter_call_data)->maxoff = PageGetMaxOffsetNumber(page); 
+		(*inter_call_data)->cur_tuple_num = FirstOffsetNumber;
+	}
+
+	else 
+	{
+		pfree((*inter_call_data)->rum_state_ptr);
+		pfree(*inter_call_data);
+		return false;
+	}
+
+	return true;
 }
