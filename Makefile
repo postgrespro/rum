@@ -21,12 +21,12 @@ RELATIVE_INCLUDES = $(addprefix src/, $(INCLUDES))
 
 LDFLAGS_SL += $(filter -lm, $(LIBS))
 
-REGRESS = security rum rum_validate rum_hash ruminv timestamp orderby orderby_hash \
-	altorder altorder_hash limits \
+REGRESS = security rum rum_validate rum_hash ruminv timestamp \
+	orderby orderby_hash altorder altorder_hash limits \
 	int2 int4 int8 float4 float8 money oid \
 	time timetz date interval \
 	macaddr inet cidr text varchar char bytea bit varbit \
-	numeric rum_weight expr
+	numeric rum_weight expr array
 
 TAP_TESTS = 1
 
@@ -35,15 +35,6 @@ ISOLATION_OPTS = --load-extension=rum
 EXTRA_CLEAN = pglist_tmp
 
 ifdef USE_PGXS
-
-# We cannot run isolation test for versions 12,13 in PGXS case
-# because 'pg_isolation_regress' is not copied to install
-# directory, see src/test/isolation/Makefile
-ifeq ($(MAJORVERSION),$(filter 12% 13%,$(MAJORVERSION)))
-undefine ISOLATION
-undefine ISOLATION_OPTS
-endif
-
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
@@ -57,24 +48,34 @@ endif
 $(EXTENSION)--$(EXTVERSION).sql: rum_init.sql
 	cat $^ > $@
 
-ifeq ($(MAJORVERSION), 9.6)
+#
+# On versions 12 and 13 isolation tests cannot be run using pgxs.
+# Override installcheck target to avoid the error. This is just a
+# shortcut version of installcheck target from pgxs.mk that runs
+# all other tests besides isolation tests.
+#
+ifdef USE_PGXS
+ifeq ($(MAJORVERSION), $(filter 12% 13%, $(MAJORVERSION)))
+installcheck: submake $(REGRESS_PREP)
+ifdef REGRESS
+	$(pg_regress_installcheck) $(REGRESS_OPTS) $(REGRESS)
+endif
+ifdef TAP_TESTS
+	$(prove_installcheck)
+endif
+endif
+endif
+
+# --------------------------------------------------------
+# Make conditional targets to save backward compatibility
+# with PG11, PG10 and PG9.6.
+# --------------------------------------------------------
+ifeq ($(MAJORVERSION), $(filter 9.6% 10% 11%, $(MAJORVERSION)))
+
 # arrays are not supported on 9.6
-else
-REGRESS += array
+ifeq ($(MAJORVERSION), 9.6)
+REGRESS := $(filter-out array, $(REGRESS))
 endif
-
-# For 9.6-11 we have to make specific target with tap tests
-ifeq ($(MAJORVERSION), $(filter 9.6% 10% 11%, $(MAJORVERSION)))
-wal-check: temp-install
-	$(prove_check)
-
-check: wal-check
-endif
-
-#
-# Make conditional targets to save backward compatibility with PG11, PG10 and PG9.6.
-#
-ifeq ($(MAJORVERSION), $(filter 9.6% 10% 11%, $(MAJORVERSION)))
 
 install: installincludes
 
@@ -99,4 +100,9 @@ isolationcheck: | submake-isolation submake-rum temp-install
 	$(pg_isolation_regress_check) \
 		--temp-config $(top_srcdir)/contrib/rum/logical.conf \
 		$(ISOLATIONCHECKS)
+
+# For 9.6-11 we have to make specific target with tap tests
+check: temp-install
+	$(prove_check)
+
 endif
