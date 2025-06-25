@@ -51,6 +51,16 @@ typedef enum
 } page_type_flags;
 
 /* 
+ * The size of the result arrays 
+ * depends on the type of page.
+ */
+typedef enum 
+{
+	LEAF_DATA_PAGE_RES_SIZE = 4,
+	INTERNAL_DATA_PAGE_RES_SIZE = 5
+} page_type_res_size;
+
+/* 
  * A structure that stores information between calls to the 
  * rum_leaf_data_page_items(), rum_internal_data_page_items(),
  * rum_leaf_entry_page_items(), rum_internal_entry_page_items() 
@@ -104,6 +114,9 @@ typedef struct rum_page_items_state
 	/* It is necessary to scan the posting list */
 	RumItem 		cur_rum_item;
 
+	/* For the data_page_get_next_result() function */
+	PostingItem 	cur_pitem;
+
 	/* 
 	 * The Oid of the additional information in the index. 
 	 * It is read from the RumConfig structure. 
@@ -141,6 +154,13 @@ static void check_page_is_internal_entry_page(RumPageOpaque opaq);
 static bool prepare_scan(text *relname, uint32 blkno, 
 						 rum_page_items_state **inter_call_data, 
 						 page_type_flags page_type);
+
+static bool data_page_get_next_result(Datum *result, rum_page_items_state *inter_call_data, 
+									  page_type_flags page_type, FuncCallContext *srf_fctx);
+static void data_page_get_high_key_result(Datum *result, Datum *values, bool *nulls, 
+										  rum_page_items_state *inter_call_data, 
+										  FuncCallContext *srf_fctx, 
+										  page_type_flags page_type);
 
 /*
  * The rum_metapage_info() function is used to retrieve 
@@ -420,103 +440,10 @@ rum_leaf_data_page_items(PG_FUNCTION_ARGS)
 	 */
 	if(fctx->call_cntr <= inter_call_data->maxoff)
 	{
-		RumItem					*high_key_ptr; 		/* to read high key from a page */		
-		RumItem 				*rum_item_ptr;		/* to read data from a page */
-		Datum 					values[4];			/* return values */
-		bool 					nulls[4];			/* true if the corresponding value is NULL */
-
-		/* For the results */
-		HeapTuple				resultTuple;
 		Datum					result;
 
-		memset(nulls, 0, sizeof(nulls));
-		rum_item_ptr = &(inter_call_data->cur_rum_item);
-
-		/* 
-		 * The high key of the current page is the RumItem structure and 
-		 * it is located immediately after the PageHeader. On the first 
-		 * call, we return the information it stores.
-		 */
-		if (fctx->call_cntr == 0) 
-		{
-			high_key_ptr = RumDataPageGetRightBound(inter_call_data->page);
-			values[0] = BoolGetDatum(true);
-
-#if PG_VERSION_NUM >= 160000
-			values[1] = ItemPointerGetDatum(&(high_key_ptr->iptr));
-#else
-			values[1] = PointerGetDatum(&(high_key_ptr->iptr));
-#endif
-
-			values[2] = BoolGetDatum(high_key_ptr->addInfoIsNull);
-
-			/* Returning add info */
-			if(!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid 
-				&& inter_call_data->add_info_oid != BYTEAOID)
-			{
-				values[3] = get_datum_text_by_oid(high_key_ptr->addInfo, 
-								  inter_call_data->add_info_oid);
-			}
-
-			/* 
-			 * In this case, we are dealing with the positions 
-			 * of lexemes and they need to be decoded. 
-			 */
-			else if (!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid 
-					&& inter_call_data->add_info_oid == BYTEAOID) 
-			{
-				values[3] = CStringGetTextDatum("high key positions in posting tree is not supported");
-			}
-
-			else nulls[3] = true;
-
-			/* Forming the returned tuple */
-			resultTuple = heap_form_tuple(fctx->tuple_desc, values, nulls);
-			result = HeapTupleGetDatum(resultTuple);
-
-			/* Returning the result of the current call */
-			SRF_RETURN_NEXT(fctx, result);
-		}
-
-		/* Reading information from the page in rum_item */
-		inter_call_data->item_ptr = rumDataPageLeafRead(inter_call_data->item_ptr, 
-									find_add_info_atrr_num(inter_call_data->rum_state_ptr),
-									rum_item_ptr, false, inter_call_data->rum_state_ptr);
-
-		/* Writing data from rum_item to values */
-		values[0] = false;
-
-#if PG_VERSION_NUM >= 160000
-		values[1] = ItemPointerGetDatum(&(rum_item_ptr->iptr)); 
-#else
-		values[1] = PointerGetDatum(&(rum_item_ptr->iptr)); 
-#endif
-
-		values[2] = BoolGetDatum(rum_item_ptr->addInfoIsNull);
-
-		/* Returning add info */
-		if(!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid
-			&& inter_call_data->add_info_oid != BYTEAOID)
-		{
-			values[3] = get_datum_text_by_oid(rum_item_ptr->addInfo, 
-									 inter_call_data->add_info_oid);
-		}
-
-		/* 
-		 * In this case, we are dealing with the positions 
-		 * of lexemes and they need to be decoded. 
-		 */
-		else if (!(rum_item_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid
-				&& inter_call_data->add_info_oid == BYTEAOID) 
-		{
-			values[3] = get_positions_to_text_datum(rum_item_ptr->addInfo); 
-		}
-
-		else nulls[3] = true;
-
-		/* Forming the returned tuple */
-		resultTuple = heap_form_tuple(fctx->tuple_desc, values, nulls);
-		result = HeapTupleGetDatum(resultTuple);
+		data_page_get_next_result(&result, inter_call_data, 
+								  LEAF_DATA_PAGE, fctx); 
 
 		/* Returning the result of the current call */
 		SRF_RETURN_NEXT(fctx, result);
@@ -617,103 +544,10 @@ rum_internal_data_page_items(PG_FUNCTION_ARGS)
 	 */
 	if(fctx->call_cntr <= inter_call_data->maxoff)
 	{
-		RumItem					*high_key_ptr;		/* to read high key from a page */
-		PostingItem 			*posting_item_ptr;	/* to read data from a page */
-		Datum 					values[5];			/* returned values */
-		bool 					nulls[5];			/* true if the corresponding returned value is NULL */
-
-		/* For the results */
-		HeapTuple 				resultTuple;
 		Datum 					result;
 
-		memset(nulls, 0, sizeof(nulls));
-
-		/* 
-		 * The high key of the current page is the RumItem structure and 
-		 * it is located immediately after the PageHeader. On the first 
-		 * call, we return the information it stores.
-		 */
-		if (fctx->call_cntr == 0) 
-		{
-			high_key_ptr = RumDataPageGetRightBound(inter_call_data->page);
-			values[0] = BoolGetDatum(true);
-			nulls[1] = true;
-
-#if PG_VERSION_NUM >= 160000
-			values[2] = ItemPointerGetDatum(&(high_key_ptr->iptr));
-#else
-			values[2] = PointerGetDatum(&(high_key_ptr->iptr));
-#endif
-
-			values[3] = BoolGetDatum(high_key_ptr->addInfoIsNull);
-
-			/* Returning add info */
-			if(!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid
-				&& inter_call_data->add_info_oid != BYTEAOID)
-			{
-				values[4] = get_datum_text_by_oid(high_key_ptr->addInfo, 
-								  inter_call_data->add_info_oid);
-			}
-
-			/* 
-			 * In this case, we are dealing with the positions 
-			 * of lexemes and they need to be decoded. 
-			 */
-			else if (!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid 
-					&& inter_call_data->add_info_oid == BYTEAOID) 
-			{
-				values[4] = CStringGetTextDatum("high key positions in posting tree is not supported");
-			}
-
-			else nulls[4] = true;
-
-			/* Forming the returned tuple */
-			resultTuple = heap_form_tuple(fctx->tuple_desc, values, nulls);
-			result = HeapTupleGetDatum(resultTuple);
-
-			/* Returning the result of the current call */
-			SRF_RETURN_NEXT(fctx, result);
-		}
-
-		/* Reading information from the page */
-		posting_item_ptr = (PostingItem *) inter_call_data->item_ptr; 
-		inter_call_data->item_ptr += sizeof(PostingItem);
-
-		/* Writing data from posting_item_ptr to values */
-		values[0] = BoolGetDatum(false);
-		values[1] = UInt32GetDatum(PostingItemGetBlockNumber(posting_item_ptr)); 
-
-#if PG_VERSION_NUM >= 160000
-		values[2] = ItemPointerGetDatum(&(posting_item_ptr->item.iptr)); 
-#else
-		values[2] = PointerGetDatum(&(posting_item_ptr->item.iptr)); 
-#endif
-
-		values[3] = BoolGetDatum(posting_item_ptr->item.addInfoIsNull);
-
-		/* Returning add info */
-		if(!posting_item_ptr->item.addInfoIsNull && inter_call_data->add_info_oid != InvalidOid
-			&& inter_call_data->add_info_oid != BYTEAOID)
-		{
-			values[4] = get_datum_text_by_oid(posting_item_ptr->item.addInfo, 
-							  inter_call_data->add_info_oid);
-		}
-
-		/* 
-		 * In this case, we are dealing with the positions 
-		 * of lexemes and they need to be decoded. 
-		 */
-		else if (!posting_item_ptr->item.addInfoIsNull && inter_call_data->add_info_oid != InvalidOid
-				&& inter_call_data->add_info_oid == BYTEAOID) 
-		{
-			values[4] = CStringGetTextDatum("high key positions in posting tree is not supported");
-		}
-
-		else nulls[4] = true;
-
-		/* Forming the returned tuple */
-		resultTuple = heap_form_tuple(fctx->tuple_desc, values, nulls);
-		result = HeapTupleGetDatum(resultTuple);
+		data_page_get_next_result(&result, inter_call_data, 
+								  INTERNAL_DATA_PAGE, fctx);
 
 		/* Returning the result of the current call */
 		SRF_RETURN_NEXT(fctx, result);
@@ -1740,6 +1574,7 @@ prepare_scan(text *relname, uint32 blkno,
 			 * tid (see the function rumDataPageLeafRead()) 
 			 */
 			memset(&((*inter_call_data)->cur_rum_item), 0, sizeof(RumItem));
+			memset(&((*inter_call_data)->cur_pitem), 0, sizeof(PostingItem));
 		}
 
 		else check_page_is_internal_data_page(opaq);
@@ -1773,4 +1608,173 @@ prepare_scan(text *relname, uint32 blkno,
 	}
 
 	return true;
+}
+
+/*
+ * An auxiliary function for reading information from leaf 
+ * and internal pages of the Posting Tree. For each call, 
+ * it returns the next result to be returned from the SRF 
+ * function.
+ *
+ * Note: although Posting Item is only used on internal 
+ * pages of Posting True, in this function it is used as 
+ * a storage for the information being read. This is 
+ * convenient in order to make this function universal 
+ * for internal and leaf pages of the Posting Tree.
+ */
+static bool 
+data_page_get_next_result(Datum *result, rum_page_items_state *inter_call_data, 
+						  page_type_flags page_type, FuncCallContext *srf_fctx)
+{
+	PostingItem 			*pitem_ptr;			/* to read data from a page */
+	Datum 					*values;			/* return values */
+	bool 					*nulls;				/* true if the corresponding value is NULL */
+	int 					res_size; 			/* size of arrays with results */
+	int						counter = 0;		/* counter for filling arrays */
+	HeapTuple				resultTuple;		/* to generate the results */
+
+	/* The size of the result array depends on the type of page */
+	if (page_type == LEAF_DATA_PAGE) 
+		res_size = LEAF_DATA_PAGE_RES_SIZE;
+	else if (page_type == INTERNAL_DATA_PAGE) 
+		res_size = INTERNAL_DATA_PAGE_RES_SIZE;
+	else return false;
+
+	values = (Datum*) palloc(res_size * sizeof(Datum));
+	nulls = (bool*) palloc(res_size * sizeof(bool));
+	memset(nulls, 0, sizeof(bool) * res_size);
+
+	/* Pointer to the currently readable element */
+	pitem_ptr = &(inter_call_data->cur_pitem);
+
+	/* 
+	 * The high key of the current page is the RumItem structure and 
+	 * it is located immediately after the PageHeader. On the first 
+	 * call, we return the information it stores.
+	 */
+	if (srf_fctx->call_cntr == 0)
+	{
+		data_page_get_high_key_result(result, values, nulls, 
+									  inter_call_data, 
+									  srf_fctx, page_type);
+
+		/* Returning the result */
+		pfree(values);
+		pfree(nulls);
+		return true;
+	}
+
+	/* Reading information from the leaf data page */
+	if (page_type == LEAF_DATA_PAGE)
+	{
+		inter_call_data->item_ptr = rumDataPageLeafRead(inter_call_data->item_ptr, 
+									find_add_info_atrr_num(inter_call_data->rum_state_ptr),
+									&(pitem_ptr->item), false, inter_call_data->rum_state_ptr);
+	}
+
+	/* Reading information from the internal data page */
+	else
+	{
+		pitem_ptr = (PostingItem*) inter_call_data->item_ptr;
+		inter_call_data->item_ptr += sizeof(PostingItem);
+	}
+
+	/* Write the read information into arrays of results */
+	values[counter++] = BoolGetDatum(false);
+
+	if (page_type == INTERNAL_DATA_PAGE)
+		values[counter++] = UInt32GetDatum(PostingItemGetBlockNumber(pitem_ptr));
+
+#if PG_VERSION_NUM >= 160000
+	values[counter++] = ItemPointerGetDatum(&(pitem_ptr->item.iptr)); 
+#else
+	values[counter++] = PointerGetDatum(&(pitem_ptr->item.iptr)); 
+#endif
+
+	values[counter++] = BoolGetDatum(pitem_ptr->item.addInfoIsNull);
+
+	/* Writing add info */
+	if(!(pitem_ptr->item.addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid
+		&& inter_call_data->add_info_oid != BYTEAOID)
+	{
+		values[counter] = get_datum_text_by_oid(pitem_ptr->item.addInfo, 
+								 inter_call_data->add_info_oid);
+	}
+
+	else if (!(pitem_ptr->item.addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid
+			&& inter_call_data->add_info_oid == BYTEAOID) 
+	{
+		if (page_type == LEAF_DATA_PAGE)
+			values[counter] = get_positions_to_text_datum(pitem_ptr->item.addInfo); 
+		else
+			values[counter] = CStringGetTextDatum("high key positions in posting tree is not supported");
+	}
+
+	else nulls[counter] = true;
+
+	/* Forming the returned tuple */
+	resultTuple = heap_form_tuple(srf_fctx->tuple_desc, values, nulls);
+	*result = HeapTupleGetDatum(resultTuple);
+
+	pfree(values);
+	pfree(nulls);
+	return true;
+}
+
+/*
+ * An auxiliary function for reading the high key 
+ * from the internal and leaf pages of the Posting Tree.
+ */
+static void 
+data_page_get_high_key_result(Datum *result, Datum *values, bool *nulls, 
+							  rum_page_items_state *inter_call_data, 
+							  FuncCallContext *srf_fctx, page_type_flags page_type)
+{
+	RumItem					*high_key_ptr; 		/* to read high key from a page */
+	int 					counter = 0;		/* counter for filling arrays */
+	HeapTuple				resultTuple;		/* to generate the results */
+
+	/* Reading the high key from the page */
+	high_key_ptr = RumDataPageGetRightBound(inter_call_data->page);
+
+	/* Write the read information into arrays of results */
+	values[counter++] = BoolGetDatum(true);
+
+	if (page_type == INTERNAL_DATA_PAGE)
+		nulls[counter++] = true;
+
+#if PG_VERSION_NUM >= 160000
+	values[counter++] = ItemPointerGetDatum(&(high_key_ptr->iptr));
+#else
+	values[counter++] = PointerGetDatum(&(high_key_ptr->iptr));
+#endif
+
+	values[counter++] = BoolGetDatum(high_key_ptr->addInfoIsNull);
+
+	/* Writing add info */
+	if(!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid 
+		&& inter_call_data->add_info_oid != BYTEAOID)
+	{
+		values[counter] = get_datum_text_by_oid(high_key_ptr->addInfo, 
+						  inter_call_data->add_info_oid);
+	}
+
+	/* 
+	 * In this case, we are dealing with the positions 
+	 * of lexemes and they need to be decoded. 
+	 *
+	 * TODO: At the moment high key positions 
+	 * in posting tree is not supported.
+	 */
+	else if (!(high_key_ptr->addInfoIsNull) && inter_call_data->add_info_oid != InvalidOid 
+			&& inter_call_data->add_info_oid == BYTEAOID) 
+	{
+		values[counter] = CStringGetTextDatum("high key positions in posting tree is not supported");
+	}
+
+	else nulls[counter] = true;
+
+	/* Forming the returned tuple */
+	resultTuple = heap_form_tuple(srf_fctx->tuple_desc, values, nulls);
+	*result = HeapTupleGetDatum(resultTuple);
 }
