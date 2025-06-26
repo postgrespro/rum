@@ -26,7 +26,7 @@ REGRESS = security rum rum_validate rum_hash ruminv timestamp \
 	int2 int4 int8 float4 float8 money oid \
 	time timetz date interval \
 	macaddr inet cidr text varchar char bytea bit varbit \
-	numeric rum_weight expr array
+	numeric rum_weight expr array rum_debug_funcs
 
 TAP_TESTS = 1
 
@@ -47,6 +47,11 @@ endif
 
 $(EXTENSION)--$(EXTVERSION).sql: rum_init.sql
 	cat $^ > $@
+
+# rum_debug_funcs tests only for enterprise
+ifneq ($(PGPRO_EDITION), enterprise)
+	REGRESS := $(filter-out rum_debug_funcs, $(REGRESS))
+endif
 
 #
 # On versions 12 and 13 isolation tests cannot be run using pgxs.
