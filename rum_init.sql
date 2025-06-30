@@ -1727,7 +1727,7 @@ LANGUAGE C IMMUTABLE STRICT;
 
 CREATE FUNCTION rum_metapage_info(
     IN rel_name text,
-    IN blk_num int8,
+    IN blk_num int4,
     OUT pending_head bigint,
     OUT pending_tail bigint,
     OUT tail_free_size int4,
@@ -1743,7 +1743,7 @@ LANGUAGE C STRICT PARALLEL SAFE;
 
 CREATE FUNCTION rum_page_opaque_info(
     IN rel_name text,
-    IN blk_num int8,
+    IN blk_num int4,
     OUT leftlink bigint,
     OUT rightlink bigint,
     OUT maxoff int4,
@@ -1754,7 +1754,7 @@ LANGUAGE C STRICT PARALLEL SAFE;
 
 CREATE FUNCTION rum_leaf_data_page_items(
     IN rel_name text,
-    IN blk_num int8,
+    IN blk_num int4,
     OUT is_high_key bool,
     OUT tuple_id tid,
     OUT add_info_is_null bool,
@@ -1765,9 +1765,9 @@ LANGUAGE C STRICT PARALLEL SAFE;
 
 CREATE FUNCTION rum_internal_data_page_items(
     IN rel_name text,
-    IN blk_num int8,
+    IN blk_num int4,
     OUT is_high_key bool,
-    OUT block_number int8,
+    OUT block_number int4,
     OUT tuple_id tid,
     OUT add_info_is_null bool,
     OUT add_info varchar)
@@ -1777,26 +1777,26 @@ LANGUAGE C STRICT PARALLEL SAFE;
 
 CREATE FUNCTION rum_leaf_entry_page_items(
     IN rel_name text,
-    IN blk_num int8,
+    IN blk_num int4,
     OUT key varchar,
-    OUT attrnum int8,
+    OUT attrnum int4,
     OUT category varchar,
     OUT tuple_id tid,
     OUT add_info_is_null bool,
     OUT add_info varchar,
     OUT is_postring_tree bool,
-    OUT postring_tree_root int8)
+    OUT postring_tree_root int4)
 RETURNS SETOF record
 AS 'MODULE_PATHNAME', 'rum_leaf_entry_page_items'
 LANGUAGE C STRICT PARALLEL SAFE;
 
 CREATE FUNCTION rum_internal_entry_page_items(
     IN rel_name text,
-    IN blk_num int8,
+    IN blk_num int4,
     OUT key varchar,
-    OUT attrnum int8,
+    OUT attrnum int4,
     OUT category varchar,
-    OUT down_link int8)
+    OUT down_link int4)
 RETURNS SETOF record
 AS 'MODULE_PATHNAME', 'rum_internal_entry_page_items'
 LANGUAGE C STRICT PARALLEL SAFE;
