@@ -94,6 +94,7 @@ make_query_item_wrap(QueryItem *item, QueryItemWrap *parent, bool not)
 
 					wrap->type = QI_OPR;
 					wrap->oper = oper;
+					wrap->not = not;
 
 					make_query_item_wrap(item + item->qoperator.left, wrap, not);
 					make_query_item_wrap(item + 1, wrap, not);
