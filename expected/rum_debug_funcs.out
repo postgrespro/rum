@@ -8013,7 +8013,7 @@ SELECT * FROM rum_leaf_data_page_items('test_with_addinfo_idx_true', 22);
 (736 rows)
 
 DROP TABLE test_debug_table;
--- Проверяем с позициями лексем
+-- Check with the positions of the lexemes
 CREATE TABLE test_debug_table_with_weight(t text, a tsvector, r text);
 CREATE FUNCTION fill_test_debug_weight_trigger() RETURNS trigger AS $$
 begin
@@ -8638,12 +8638,12 @@ SELECT * FROM rum_page_opaque_info('test_with_weight_idx', 21);
 (1 row)
 
 SELECT * FROM rum_internal_data_page_items('test_with_weight_idx', 21);
- is_high_key | block_number | tuple_id | add_info_is_null |                      add_info                       
--------------+--------------+----------+------------------+-----------------------------------------------------
+ is_high_key | block_number | tuple_id | add_info_is_null |                    add_info                    
+-------------+--------------+----------+------------------+------------------------------------------------
  t           |              | (0,0)    | t                | 
- f           |           23 | (39,43)  | f                | high key positions in posting tree is not supported
- f           |           22 | (74,9)   | f                | high key positions in posting tree is not supported
- f           |           24 | (98,9)   | f                | high key positions in posting tree is not supported
+ f           |           23 | (39,43)  | f                | varlena types in posting tree is not supported
+ f           |           22 | (74,9)   | f                | varlena types in posting tree is not supported
+ f           |           24 | (98,9)   | f                | varlena types in posting tree is not supported
  f           |           25 | (0,0)    | t                | 
 (5 rows)
 
@@ -8654,9 +8654,9 @@ SELECT * FROM rum_page_opaque_info('test_with_weight_idx', 22);
 (1 row)
 
 SELECT * FROM rum_leaf_data_page_items('test_with_weight_idx', 22);
- is_high_key | tuple_id | add_info_is_null |                      add_info                       
--------------+----------+------------------+-----------------------------------------------------
- t           | (74,9)   | f                | high key positions in posting tree is not supported
+ is_high_key | tuple_id | add_info_is_null |                    add_info                    
+-------------+----------+------------------+------------------------------------------------
+ t           | (74,9)   | f                | varlena types in posting tree is not supported
  f           | (40,1)   | f                | 1A,9
  f           | (40,2)   | f                | 1A,9
  f           | (40,3)   | f                | 1A,9

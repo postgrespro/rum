@@ -45,13 +45,13 @@ include $(top_builddir)/src/Makefile.global
 include $(top_srcdir)/contrib/contrib-global.mk
 endif
 
-$(EXTENSION)--$(EXTVERSION).sql: rum_init.sql
-	cat $^ > $@
-
 # rum_debug_funcs tests only for enterprise
 ifneq ($(PGPRO_EDITION), enterprise)
 	REGRESS := $(filter-out rum_debug_funcs, $(REGRESS))
 endif
+
+$(EXTENSION)--$(EXTVERSION).sql: rum_init.sql
+	cat $^ > $@
 
 #
 # On versions 12 and 13 isolation tests cannot be run using pgxs.
