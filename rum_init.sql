@@ -1752,51 +1752,101 @@ CREATE FUNCTION rum_page_opaque_info(
 AS 'MODULE_PATHNAME', 'rum_page_opaque_info'
 LANGUAGE C STRICT PARALLEL SAFE;
 
-CREATE FUNCTION rum_leaf_data_page_items(
-    IN rel_name text,
-    IN blk_num int4,
-    OUT is_high_key bool,
-    OUT tuple_id tid,
-    OUT add_info_is_null bool,
-    OUT add_info varchar)
+CREATE OR REPLACE FUNCTION
+rum_page_items_info(rel_name text, blk_num int4, page_type int4)
 RETURNS SETOF record
-AS 'MODULE_PATHNAME', 'rum_leaf_data_page_items'
-LANGUAGE C STRICT PARALLEL SAFE;
+AS 'MODULE_PATHNAME', 'rum_page_items_info'
+LANGUAGE C STRICT;
+
+CREATE FUNCTION rum_leaf_data_page_items(
+    rel_name text, 
+    blk_num int4
+)
+RETURNS TABLE(
+  is_high_key bool, 
+  tuple_id tid, 
+  add_info_is_null bool, 
+  add_info varchar
+) 
+AS $$
+    SELECT * 
+    FROM rum_page_items_info(rel_name, blk_num, 0)
+        AS rum_page_items_info(
+            is_high_key bool, 
+            tuple_id tid, 
+            add_info_is_null bool, 
+            add_info varchar
+        );
+$$ LANGUAGE sql;
 
 CREATE FUNCTION rum_internal_data_page_items(
-    IN rel_name text,
-    IN blk_num int4,
-    OUT is_high_key bool,
-    OUT block_number int4,
-    OUT tuple_id tid,
-    OUT add_info_is_null bool,
-    OUT add_info varchar)
-RETURNS SETOF record
-AS 'MODULE_PATHNAME', 'rum_internal_data_page_items'
-LANGUAGE C STRICT PARALLEL SAFE;
+    rel_name text, 
+    blk_num int4
+)
+RETURNS TABLE(
+    is_high_key bool, 
+    block_number int4, 
+    tuple_id tid, 
+    add_info_is_null bool, 
+    add_info varchar
+) 
+AS $$
+    SELECT * 
+    FROM rum_page_items_info(rel_name, blk_num, 1)
+        AS rum_page_items_info(
+            is_high_key bool, 
+            block_number int4, 
+            tuple_id tid, 
+            add_info_is_null bool, 
+            add_info varchar
+        );
+$$ LANGUAGE sql;
 
 CREATE FUNCTION rum_leaf_entry_page_items(
-    IN rel_name text,
-    IN blk_num int4,
-    OUT key varchar,
-    OUT attrnum int4,
-    OUT category varchar,
-    OUT tuple_id tid,
-    OUT add_info_is_null bool,
-    OUT add_info varchar,
-    OUT is_postring_tree bool,
-    OUT postring_tree_root int4)
-RETURNS SETOF record
-AS 'MODULE_PATHNAME', 'rum_leaf_entry_page_items'
-LANGUAGE C STRICT PARALLEL SAFE;
+    rel_name text, 
+    blk_num int4
+)
+RETURNS TABLE(
+    key varchar, 
+    attrnum int4, 
+    category varchar, 
+    tuple_id tid, 
+    add_info_is_null bool, 
+    add_info varchar, 
+    is_postring_tree bool, 
+    postring_tree_root int4
+) 
+AS $$
+  SELECT *
+  FROM rum_page_items_info(rel_name, blk_num, 2)
+      AS rum_page_items_info(
+          key varchar,
+          attrnum int4,
+          category varchar,
+          tuple_id tid,
+          add_info_is_null bool,
+          add_info varchar,
+          is_postring_tree bool,
+          postring_tree_root int4
+      );
+$$ LANGUAGE sql;
 
 CREATE FUNCTION rum_internal_entry_page_items(
-    IN rel_name text,
-    IN blk_num int4,
-    OUT key varchar,
-    OUT attrnum int4,
-    OUT category varchar,
-    OUT down_link int4)
-RETURNS SETOF record
-AS 'MODULE_PATHNAME', 'rum_internal_entry_page_items'
-LANGUAGE C STRICT PARALLEL SAFE;
+    rel_name text, 
+    blk_num int4
+)
+RETURNS TABLE(
+    key varchar, 
+    attrnum int4, 
+    category varchar, 
+    down_link int4) 
+AS $$
+  SELECT *
+  FROM rum_page_items_info(rel_name, blk_num, 3)
+      AS rum_page_items_info(
+          key varchar, 
+          attrnum int4, 
+          category varchar, 
+          down_link int4
+      );
+$$ LANGUAGE sql;

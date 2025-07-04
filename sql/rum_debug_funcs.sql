@@ -85,7 +85,7 @@ SELECT * FROM rum_leaf_data_page_items('test_with_addinfo_idx_true', 22);
 
 DROP TABLE test_debug_table;
 
--- Проверяем с позициями лексем
+-- Check with the positions of the lexemes
 CREATE TABLE test_debug_table_with_weight(t text, a tsvector, r text);
 
 CREATE FUNCTION fill_test_debug_weight_trigger() RETURNS trigger AS $$
