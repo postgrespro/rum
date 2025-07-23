@@ -1446,6 +1446,298 @@ keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 }
 
 /*
+ * Auxiliary functions for scanGetItemRegularAltorderWithAddInfo()
+ */
+static bool
+isEntryWithAddInfo(RumState *rumstate, RumScanEntry entry)
+{
+	return (rumstate->attrnAddToColumn == entry->attnum);
+}
+
+static bool
+isKeyWithAddInfo(RumState *rumstate, RumScanKey key)
+{
+	return isEntryWithAddInfo(rumstate, key->scanEntry[0]);
+}
+
+/*
+ * In the case of Alternative Order, the entries in the posting lists
+ * are arranged in the sort order of the additional information 
+ * (for those keys that have additional information). For the rest of 
+ * the keys, the records are arranged in tid order (standard behavior). 
+ * The scanGetItemRegular() function is suitable for scanning if all 
+ * the posting lists it scans are sorted by tid, so we needed a function 
+ * that would scan if some of the posting lists are sorted by additional 
+ * information and some by tid.
+ *
+ * The scanning algorithm of the scanGetItemRegularAltorderWithAddInfo() 
+ * function is not optimal. It binds myAdvancePast to those RumScanEntry 
+ * that have additional information, and in the rest, RumScanEtnry searches 
+ * for a matching tuple and returns it if it is found.
+ */
+static bool
+scanGetItemRegularAltorderWithAddInfo(IndexScanDesc scan, RumItem *advancePast, 
+									  RumItem *item, bool *recheck)
+{
+	RumScanOpaque so = (RumScanOpaque) scan->opaque;
+	RumState   *rumstate = &so->rumstate;
+	RumItem		myAdvancePast = *advancePast;
+	bool		allFinished;
+	bool		match, itemSet;
+
+	Assert(rumstate->useAlternativeOrder == true);
+
+	/* 
+	 * Loop until a suitable item is found, or 
+	 * until any RumScanKey or RumScanEntry ends.
+	 */
+	for (;;)
+	{
+		/* 
+		 * In all RumScanEntry that have additional 
+		 * information, we set the curItem so that 
+		 * it is > myAdvancePast. Reset the rest of 
+		 * the RumScanEntry, because each time you 
+		 * need to look for a suitable curItem first.
+		 */
+		allFinished = true;
+		for (int i = 0; i < so->totalentries; i++)
+		{
+			RumScanEntry entry = so->entries[i];
+
+			/* Reset RumScanEntry if needed */
+			if (isEntryWithAddInfo(rumstate, entry) == false)
+			{
+				/* Reset RumScanEntry */
+				entry->offset = 0;
+				continue;
+			}
+
+			/* 
+			 * For RumScanEntry with additional information, 
+			 * we set curItem based on myAdvancePast. 
+			 */
+			while (entry->isFinished == false &&
+				   (!ItemPointerIsValid(&myAdvancePast.iptr) ||
+				   compareCurRumItemScanDirection(rumstate, entry,
+												 &myAdvancePast) <= 0))
+			{
+				entryGetItem(rumstate, entry, NULL, scan->xs_snapshot);
+
+				if (!ItemPointerIsValid(&myAdvancePast.iptr))
+					break;
+			}
+
+			if (entry->isFinished == false)
+				allFinished = false;
+		}
+
+		if (allFinished)
+		{
+			/* all entries exhausted, so we're done */
+			return false;
+		}
+
+		/* 
+		 * Set the curItem for keys with additional information.
+		 * Item is equal to the minimum curItem of these keys.
+		 */
+		itemSet = false;
+		for (int i = 0; i < so->nkeys; i++) 
+		{
+			RumScanKey key = so->keys[i];
+			int cmp;
+
+			/* 
+			 * Skip the OrderBy keys and those that
+			 * do not have additional information.
+			 */
+			if (key->orderBy || isKeyWithAddInfo(rumstate, key) == false) 
+				continue;
+
+			/* Setting the curItem for the current key */
+			keyGetItem(&so->rumstate, so->tempCtx, key);
+
+			if (key->isFinished)
+				return false;	/* finished one of keys */
+
+			if (itemSet == false)
+			{
+				*item = key->curItem;
+				itemSet = true;
+			}
+			cmp = compareRumItem(rumstate, key->attnumOrig,
+								 &key->curItem, item);
+			if ((ScanDirectionIsForward(key->scanDirection) && cmp < 0) ||
+				(ScanDirectionIsBackward(key->scanDirection) && cmp > 0))
+				*item = key->curItem;
+		}
+
+		/* 
+		 * Check that the keys with additional information 
+		 * have the same tid and at the same time their curItem 
+		 * is suitable from the point of view of consistentFn.
+		 */
+		match = true;
+		for (int i = 0; match && i < so->nkeys; i++)
+		{
+			RumScanKey	key = so->keys[i];
+
+			/* 
+			 * Skip the OrderBy keys and those that
+			 * do not have additional information.
+			 */
+			if (key->orderBy || isKeyWithAddInfo(rumstate, key) == false)
+				continue;
+
+			if (key->curItemMatches)
+			{
+				if (rumCompareItemPointers(&item->iptr, &key->curItem.iptr) == 0)
+					continue;
+			}
+			match = false;
+			break;
+		}
+
+		/* 
+		 * If something doesn't fit, update
+		 * myAdvancePast and start over.
+		 */
+		if (!match)
+		{
+			myAdvancePast = *item;
+			continue;
+		}
+
+		/* 
+		 * For those RumScanEntry that do not have additional information, 
+		 * need to set the curItem so that it has the same tid as the item 
+		 * that was set above based on those RumScanEntry that have 
+		 * additional information. If there is no such tid, then need 
+		 * to update myAdvancePast and start over.
+		 */
+		for (int i = 0; i < so->totalentries; i++) 
+		{
+			RumScanEntry entry = so->entries[i];
+
+			/* Skip those RumScanEntry that have additional information */
+			if(isEntryWithAddInfo(rumstate, entry) == true) 
+				continue;
+
+			/* 
+			 * For the current RumScanEntry, we are looking for a
+			 * curItem that has the same tid as the item.
+			 */
+			while (entry->isFinished == false)
+			{
+				entryGetItem(rumstate, entry, NULL, scan->xs_snapshot);
+
+				if (rumCompareItemPointers(&item->iptr, &entry->curItem.iptr) == 0) 
+					break;
+			}
+
+			if (entry->isFinished == false)
+				allFinished = false;
+		}
+
+		/* 
+		 * If something is finished, update
+		 * myAdvancePast and start over.
+		 */
+		if (allFinished)
+		{
+			myAdvancePast = *item;
+			continue;
+		}
+
+		/* Set the curItem for keys without additional information */
+		for (int i = 0; i < so->nkeys; i++) 
+		{
+			RumScanKey key = so->keys[i];
+
+			/* 
+			 * Skip the OrderBy keys and those 
+			 * that have additional information. 
+			 */
+			if (key->orderBy || isKeyWithAddInfo(rumstate, key) == true) 
+				continue;
+
+			/* Setting the curItem for the current key */
+			keyGetItem(&so->rumstate, so->tempCtx, key);
+
+			if (key->isFinished)
+				return false;	/* finished one of keys */
+		}
+
+		/* 
+		 * Check the matching for keys without additional information
+		 */
+		match = true;
+		for (int i = 0; match && i < so->nkeys; i++)
+		{
+			RumScanKey	key = so->keys[i];
+
+			/* 
+			 * Skip the OrderBy keys and those 
+			 * that have additional information. 
+			 */
+			if (key->orderBy || isKeyWithAddInfo(rumstate, key) == true) 
+				continue;
+
+			if (key->curItemMatches)
+			{
+				if (rumCompareItemPointers(&item->iptr, &key->curItem.iptr) == 0)
+					continue;
+			}
+			match = false;
+			break;
+		}
+
+		/* If everything fits, then we exit the loop */
+		if (match)
+			break;
+
+		/*
+		 * If haven't left the loop above, then need
+		 * to update myAdvancePast and start over.
+		 */
+		myAdvancePast = *item;
+	}
+
+	/*
+	 * We must return recheck = true if any of the keys are marked recheck.
+	 */
+	*recheck = false;
+	for (int i = 0; i < so->nkeys; i++)
+	{
+		RumScanKey	key = so->keys[i];
+
+		if (key->orderBy)
+		{
+			/* Catch up order key with *item */
+			for (int j = 0; j < key->nentries; j++)
+			{
+				RumScanEntry entry = key->scanEntry[j];
+
+				while (entry->isFinished == false &&
+					   compareRumItem(rumstate, key->attnumOrig,
+									  &entry->curItem, item) < 0)
+				{
+					entryGetItem(rumstate, entry, NULL, scan->xs_snapshot);
+				}
+			}
+		}
+		else if (key->recheckCurItem)
+		{
+			*recheck = true;
+			break;
+		}
+	}
+
+	return true;
+}
+
+/*
  * Get next heap item pointer (after advancePast) from scan.
  * Returns true if anything found.
  * On success, *item and *recheck are set.
@@ -1464,6 +1756,24 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 	uint32		i;
 	bool		allFinished;
 	bool		match, itemSet;
+
+	/* 
+	 * In the case of an Alternative Order and when some
+	 * RumScanEtnry has additional information, need
+	 * to use scanGetItemRegularAltorderWithAddInfo()
+	 * for scanning. See its description.
+	 */
+	if (rumstate->useAlternativeOrder)
+	{
+		for (i = 0; i < so->totalentries; i++)
+		{
+			RumScanEntry entry = so->entries[i];
+
+			if (isEntryWithAddInfo(rumstate, entry))
+				return scanGetItemRegularAltorderWithAddInfo(scan, advancePast, 
+												 			 item, recheck);
+		}
+	}
 
 	for (;;)
 	{
