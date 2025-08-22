@@ -35,113 +35,116 @@ PG_FUNCTION_INFO_V1(rum_page_items_info);
 #define VARLENA_MSG "varlena types in posting tree is " \
 					"not supported"
 
-#define cur_pitem_addinfo_is_normal(inter_call_data) \
-	(!((inter_call_data)->cur_pitem.item.addInfoIsNull) && \
-	(inter_call_data)->add_info_oid != InvalidOid)
+#define cur_pitem_addinfo_is_normal(icdata) \
+	(!((icdata)->cur_pitem.item.addInfoIsNull) && \
+	(icdata)->cur_key_add_info_oid != InvalidOid)
 
-#define cur_high_key_addinfo_is_normal(inter_call_data) \
-	(!(((inter_call_data)->cur_high_key)->addInfoIsNull) && \
-	(inter_call_data)->add_info_oid != InvalidOid)
+#define cur_high_key_addinfo_is_normal(icdata) \
+	(!(((icdata)->cur_high_key)->addInfoIsNull) && \
+	(icdata)->cur_key_add_info_oid != InvalidOid)
 
-#define addinfo_is_positions(inter_call_data) \
-	((inter_call_data)->add_info_oid == BYTEAOID)
+#define addinfo_is_positions(icdata) \
+	((icdata)->cur_key_add_info_oid == BYTEAOID)
 
-#define is_entry_internal_high_key(inter_call_data) \
-	(RumPageRightMost((inter_call_data)->page) && \
-	(inter_call_data)->cur_tuple_num == (inter_call_data)->maxoff)
+#define is_entry_internal_high_key(icdata) \
+	(RumPageRightMost((icdata)->page) && \
+	(icdata)->cur_tuple_num == (icdata)->maxoff)
 
-#define cur_key_is_norm(inter_call_data) \
-	((inter_call_data)->cur_tuple_key_category == RUM_CAT_NORM_KEY)
+#define cur_key_is_norm(icdata) \
+	((icdata)->cur_key_category == RUM_CAT_NORM_KEY)
 
-#define is_data_page(inter_call_data) \
-	((inter_call_data)->page_type == LEAF_DATA_PAGE || \
-	(inter_call_data)->page_type == INTERNAL_DATA_PAGE)
+#define is_data_page(icdata) \
+	((icdata)->page_type == LEAF_DATA_PAGE || \
+	(icdata)->page_type == INTERNAL_DATA_PAGE)
 
-#define is_entry_page(inter_call_data) \
-	((inter_call_data)->page_type == LEAF_ENTRY_PAGE || \
-	(inter_call_data)->page_type == INTERNAL_ENTRY_PAGE)
+#define is_entry_page(icdata) \
+	((icdata)->page_type == LEAF_ENTRY_PAGE || \
+	(icdata)->page_type == INTERNAL_ENTRY_PAGE)
 
-#define get_new_index_tuple(inter_call_data) \
+#define get_add_info_attr(icdata) \
+	((icdata)->rum_state_ptr->addAttrs[(icdata)->cur_key_attnum - 1])
+
+#define get_new_index_tuple(icdata) \
 do { \
-	inter_call_data->cur_itup = \
-		(IndexTuple) PageGetItem(inter_call_data->page, \
-					PageGetItemId(inter_call_data->page, \
-					inter_call_data->cur_tuple_num)); \
+	(icdata)->cur_itup = \
+		(IndexTuple) PageGetItem((icdata)->page, \
+					PageGetItemId((icdata)->page, \
+					(icdata)->cur_tuple_num)); \
 } while(0)
 
-#define get_new_item_posting_list(inter_call_data) \
+#define get_new_item_posting_list(icdata) \
 do { \
-	(inter_call_data)->item_ptr = \
-		rumDataPageLeafRead((inter_call_data)->item_ptr, \
-		(inter_call_data)->add_info_attr_num, \
-		&((inter_call_data)->cur_pitem.item), \
-		false, (inter_call_data)->rum_state_ptr); \
+	(icdata)->item_ptr = \
+		rumDataPageLeafRead((icdata)->item_ptr, \
+		(icdata)->cur_key_attnum, \
+		&((icdata)->cur_pitem.item), \
+		false, (icdata)->rum_state_ptr); \
 } while(0);
 
-#define write_res_addinfo_is_null_to_values(inter_call_data, counter) \
+#define write_res_addinfo_is_null_to_values(icdata, counter) \
 do { \
-	(inter_call_data)->values[(counter)] = \
-		BoolGetDatum((inter_call_data)->cur_pitem.item.addInfoIsNull); \
+	(icdata)->values[(counter)] = \
+		BoolGetDatum((icdata)->cur_pitem.item.addInfoIsNull); \
 } while(0)
 
 #if PG_VERSION_NUM >= 160000
-#define write_res_iptr_to_values(inter_call_data, counter) \
+#define write_res_iptr_to_values(icdata, counter) \
 do { \
-	(inter_call_data)->values[(counter)] = \
-		ItemPointerGetDatum(&((inter_call_data)->cur_pitem.item.iptr)); \
+	(icdata)->values[(counter)] = \
+		ItemPointerGetDatum(&((icdata)->cur_pitem.item.iptr)); \
 } while(0)
 #else
-#define write_res_iptr_to_values(inter_call_data, counter) \
+#define write_res_iptr_to_values(icdata, counter) \
 do { \
-	(inter_call_data)->values[(counter)] = \
-		PointerGetDatum(&((inter_call_data)->cur_pitem.item.iptr)); \
+	(icdata)->values[(counter)] = \
+		PointerGetDatum(&((icdata)->cur_pitem.item.iptr)); \
 } while(0)
 #endif
 
-#define write_res_blck_num_to_values(inter_call_data, counter) \
+#define write_res_blck_num_to_values(icdata, counter) \
 do { \
-	(inter_call_data)->values[(counter)] = \
-		UInt32GetDatum(PostingItemGetBlockNumber(&((inter_call_data)->cur_pitem))); \
+	(icdata)->values[(counter)] = \
+		UInt32GetDatum(PostingItemGetBlockNumber(&((icdata)->cur_pitem))); \
 } while(0)
 
-#define write_res_addinfo_to_values(inter_call_data, counter) \
+#define write_res_addinfo_to_values(icdata, counter) \
 do { \
-	(inter_call_data)->values[(counter)] = \
-		get_datum_text_by_oid((inter_call_data)->cur_pitem.item.addInfo, \
-		(inter_call_data)->add_info_oid); \
+	(icdata)->values[(counter)] = \
+		get_datum_text_by_oid((icdata)->cur_pitem.item.addInfo, \
+		(icdata)->cur_key_add_info_oid); \
 } while(0)
 
-#define write_res_addinfo_pos_to_values(inter_call_data, counter) \
+#define write_res_addinfo_pos_to_values(icdata, counter) \
 do { \
-	(inter_call_data)->values[(counter)] = \
-		get_positions_to_text_datum((inter_call_data)->cur_pitem.item.addInfo); \
+	(icdata)->values[(counter)] = \
+		get_positions_to_text_datum((icdata)->cur_pitem.item.addInfo); \
 } while(0)
 
-#define read_high_key_data_page(inter_call_data) \
+#define read_high_key_data_page(icdata) \
 do { \
-	memcpy(&((inter_call_data)->cur_pitem.item), \
-		RumDataPageGetRightBound((inter_call_data)->page), \
+	memcpy(&((icdata)->cur_pitem.item), \
+		RumDataPageGetRightBound((icdata)->page), \
 		sizeof(RumItem)); \
 } while(0)
 
-#define read_key_data_page(inter_call_data) \
+#define read_key_data_page(icdata) \
 do { \
-	memcpy(&((inter_call_data)->cur_pitem), \
-		RumDataPageGetItem((inter_call_data)->page, \
-		(inter_call_data)->srf_fctx->call_cntr), sizeof(PostingItem)); \
+	memcpy(&((icdata)->cur_pitem), \
+		RumDataPageGetItem((icdata)->page, \
+		(icdata)->srf_fctx->call_cntr), sizeof(PostingItem)); \
 } while(0)
 
-#define prepare_result_tuple(inter_call_data) \
+#define prepare_result_tuple(icdata) \
 do { \
-	(inter_call_data)->resultTuple = \
-		heap_form_tuple((inter_call_data)->srf_fctx->tuple_desc, \
-		(inter_call_data)->values, (inter_call_data)->nulls); \
-	(inter_call_data)->result = \
-		HeapTupleGetDatum((inter_call_data)->resultTuple); \
+	(icdata)->resultTuple = \
+		heap_form_tuple((icdata)->srf_fctx->tuple_desc, \
+		(icdata)->values, (icdata)->nulls); \
+	(icdata)->result = \
+		HeapTupleGetDatum((icdata)->resultTuple); \
 } while(0)
 
-#define prepare_cur_pitem_to_posting_list(inter_call_data) \
-	memset(&((inter_call_data)->cur_pitem), 0, sizeof(PostingItem))
+#define prepare_cur_pitem_to_posting_list(icdata) \
+	memset(&((icdata)->cur_pitem), 0, sizeof(PostingItem))
 
 /*
  * This is necessary in order for the prepare_scan()
@@ -177,6 +180,7 @@ typedef struct rum_page_items_state
 {
 	/* Scanned page info  */
 	Page 			page;
+	uint32 			page_num;
 
 	/* 
 	 * The type of the scanned page, can be:
@@ -216,16 +220,10 @@ typedef struct rum_page_items_state
 	IndexTuple 		cur_itup;
 
 	/* The number of the current IndexTuple on the page */
-	int 			cur_tuple_num;
+	OffsetNumber 	cur_tuple_num;
 
 	/* The number of the current element in the current IndexTuple */
 	int 			cur_tuple_item_num;
-
-	/* Parameters of the current key in the IndexTuple */
-	OffsetNumber 	cur_tuple_key_attnum;
-	Datum 			cur_tuple_key;
-	RumNullCategory cur_tuple_key_category;
-	Oid 			cur_tuple_key_oid;
 
 	/* 
 	 * The number of the child page that 
@@ -239,10 +237,19 @@ typedef struct rum_page_items_state
 	 */
 	bool 			need_new_tuple;
 
+	/* 
+	 * Parameters of the current key in the IndexTuple 
+	 * or the key for which the posting tree was built.
+	 */
+	OffsetNumber 	cur_key_attnum;
+	Datum 			cur_key;
+	RumNullCategory cur_key_category;
+	Oid 			cur_key_oid;
+
 	/* Information about the type of additional information */
-	Oid 			add_info_oid;
-	OffsetNumber 	add_info_attr_num;
-	bool 			add_info_byval;
+	bool 			cur_key_add_info_is_null;
+	Oid 			cur_key_add_info_oid;
+	bool 			cur_key_add_info_byval;
 
 	/* 
 	 * To generate the results of each 
@@ -261,14 +268,11 @@ typedef struct rum_page_items_state
 	RumState		*rum_state_ptr;
 } rum_page_items_state;
 
-static Page get_page_from_raw(bytea *raw_page);
 static Datum get_datum_text_by_oid(Datum info, Oid info_id);
 static Relation get_rel_from_name(text *relname);
-static bytea *get_rel_raw_page(Relation rel, BlockNumber blkno);
+static Page get_rel_page(Relation rel, BlockNumber blkno);
 static Oid get_cur_tuple_key_oid(rum_page_items_state *inter_call_data);
 static Datum category_get_datum_text(RumNullCategory category);
-static Oid find_add_info_oid(RumState *rum_state_ptr);
-static OffsetNumber find_add_info_atrr_num(RumState *rum_state_ptr);
 static Datum get_positions_to_text_datum(Datum add_info);
 static char pos_get_weight(WordEntryPos position);
 static void check_superuser(void);
@@ -289,6 +293,13 @@ static void get_entry_leaf_posting_list_result(rum_page_items_state *inter_call_
 static void get_entry_leaf_posting_tree_result(rum_page_items_state *inter_call_data);
 static void prepare_new_entry_leaf_posting_list(rum_page_items_state *inter_call_data);
 static void write_res_cur_tuple_key_to_values(rum_page_items_state *inter_call_data);
+static bool find_page_in_posting_tree(BlockNumber target_page_num, 
+	BlockNumber cur_page_num, RumState *rum_state_ptr);
+static bool find_posting_tree_root(BlockNumber *cur_page_num, 
+	OffsetNumber *cur_tuple_num, OffsetNumber *cur_key_attnum, 
+	BlockNumber *posting_root_num, RumState *rum_state_ptr);
+static BlockNumber find_min_entry_leaf_page(rum_page_items_state *inter_call_data);
+static OffsetNumber find_attnum_posting_tree_key(rum_page_items_state *inter_call_data);
 
 /*
  * The rum_metapage_info() function is used to retrieve 
@@ -305,7 +316,6 @@ rum_metapage_info(PG_FUNCTION_ARGS)
 
 	Relation 			rel;			/* needed to initialize the RumState structure */ 
 
-	bytea	   			*raw_page;		/* the raw page obtained from rel */
 	RumPageOpaque 		opaq;			/* data from the opaque area of the page */
 	RumMetaPageData		*metadata;		/* data stored on the meta page */
 	Page				page;			/* the page to be scanned */
@@ -325,13 +335,10 @@ rum_metapage_info(PG_FUNCTION_ARGS)
 	/* Only the superuser can use this */
 	check_superuser();
 
-	/* Getting rel by name and raw page by number */
+	/* Getting rel by name and page by number */
 	rel = get_rel_from_name(relname);
-	raw_page = get_rel_raw_page(rel, blkno);
+	page = get_rel_page(rel, blkno);
 	relation_close(rel, AccessShareLock);
-
-	/* Getting a copy of the page from the raw page */
-	page = get_page_from_raw(raw_page);
 
 	/* If the page is new, the function should return NULL */
 	if (PageIsNew(page))
@@ -373,6 +380,8 @@ rum_metapage_info(PG_FUNCTION_ARGS)
 	snprintf(version_buf, sizeof(version_buf), "0x%X", metadata->rumVersion);
 	values[9] = CStringGetTextDatum(version_buf);
 
+	pfree(page);
+
 	/* Build and return the result tuple */
 	resultTuple = heap_form_tuple(tupdesc, values, nulls);
 
@@ -394,7 +403,6 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 
 	Relation 			rel;			/* needed to initialize the RumState structure */ 
 
-	bytea	   			*raw_page;		/* the raw page obtained from rel */
 	RumPageOpaque 		opaq;			/* data from the opaque area of the page */
 	Page				page;			/* the page to be scanned */
 
@@ -412,11 +420,8 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 
 	/* Getting rel by name and raw page by number */
 	rel = get_rel_from_name(relname);
-	raw_page = get_rel_raw_page(rel, blkno);
+	page = get_rel_page(rel, blkno);
 	relation_close(rel, AccessShareLock);
-
-	/* Getting a copy of the page from the raw page */
-	page = get_page_from_raw(raw_page);
 
 	/* If the page is new, the function should return NULL */
 	if (PageIsNew(page))
@@ -471,6 +476,8 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 									TEXTOID, -1, false, TYPALIGN_INT));
 #endif
 
+	pfree(page);
+
 	/* Build and return the result tuple. */
 	resultTuple = heap_form_tuple(tupdesc, values, nulls);
 
@@ -480,10 +487,11 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 
 /*
  * The main universal function that is used to scan 
- * all types of pages. There are four SQL wrappers 
- * made around this function, each of which 
- * scans a specific type of pages. page_type is 
- * used to select the type of page to scan.
+ * all types of pages (except for the meta page). 
+ * There are four SQL wrappers made around this 
+ * function, each of which scans a specific type 
+ * of pages. page_type is used to select the type 
+ * of page to scan.
  */
 Datum
 rum_page_items_info(PG_FUNCTION_ARGS)
@@ -523,9 +531,8 @@ rum_page_items_info(PG_FUNCTION_ARGS)
 		fctx = SRF_FIRSTCALL_INIT();
 		oldmctx = MemoryContextSwitchTo(fctx->multi_call_memory_ctx);
 
-		/* If the page is new, the function should return NULL */
-		if (!prepare_scan(relname, blkno, &inter_call_data, 
-										fctx, page_type))
+		/* Before scanning the page, you need to prepare inter_call_data */
+		if (!prepare_scan(relname, blkno, &inter_call_data, fctx, page_type))
 		{
 			MemoryContextSwitchTo(oldmctx);
 			PG_RETURN_NULL();
@@ -604,19 +611,15 @@ prepare_scan(text *relname, uint32 blkno,
 			 page_type_flags page_type)
 {
 	Relation 				rel;		/* needed to initialize the RumState structure */ 
-	bytea	   			    *raw_page;	/* The raw page obtained from rel */
 
 	Page 					page;		/* the page to be scanned */
 	RumPageOpaque 			opaq;		/* data from the opaque area of the page */
 
 	int 					res_size;
 
-	/* Getting rel by name and raw page by number */
+	/* Getting rel by name and page by number */
 	rel = get_rel_from_name(relname);
-	raw_page = get_rel_raw_page(rel, blkno);
-
-	/* Getting a copy of the page from the raw page */
-	page = get_page_from_raw(raw_page);
+	page = get_rel_page(rel, blkno);
 
 	/* The page cannot be new */
 	if (PageIsNew(page)) return false;
@@ -639,13 +642,8 @@ prepare_scan(text *relname, uint32 blkno,
 	/*  Writing the page and page type into a long-lived structure */
 	(*inter_call_data)->srf_fctx = srf_fctx;
 	(*inter_call_data)->page = page;
+	(*inter_call_data)->page_num = blkno;
 	(*inter_call_data)->page_type = page_type;
-	(*inter_call_data)->add_info_oid = 
-		find_add_info_oid((*inter_call_data)->rum_state_ptr);
-	(*inter_call_data)->add_info_attr_num = 
-		find_add_info_atrr_num((*inter_call_data)->rum_state_ptr);
-	(*inter_call_data)->add_info_byval = 
-		get_typbyval((*inter_call_data)->add_info_oid);
 
 	/* The number of results returned depends on the type of page */
 	if ((*inter_call_data)->page_type == LEAF_DATA_PAGE) 
@@ -677,9 +675,38 @@ prepare_scan(text *relname, uint32 blkno,
 
 		(*inter_call_data)->maxoff = opaq->maxoff;
 		(*inter_call_data)->item_ptr = RumDataPageGetData(page);
+
+		/* 
+		 * If the scanned page belongs to a posting tree, 
+		 * we do not know which key this posting tree was 
+		 * built for. However, we need to know the attribute 
+		 * number of the key in order to correctly determine 
+		 * the type of additional information that can be 
+		 * associated with it.
+		 *
+		 * The find_attnum_posting_tree_key() function is used 
+		 * to find the key attribute number. The function scans 
+		 * the index and searches for the page we are scanning 
+		 * in the posting tree, while remembering which key 
+		 * this posting tree was built for.
+		 */
+		(*inter_call_data)->cur_key_attnum = 
+			find_attnum_posting_tree_key(*inter_call_data);
+
+		/* Error handling find_attnum_posting_tree_key() */
+		if ((*inter_call_data)->cur_key_attnum == InvalidOffsetNumber)
+			return false;
+
+		if (get_add_info_attr(*inter_call_data))
+		{
+			(*inter_call_data)->cur_key_add_info_oid =
+				get_add_info_attr(*inter_call_data)->atttypid;
+			(*inter_call_data)->cur_key_add_info_byval =
+				get_add_info_attr(*inter_call_data)->attbyval;
+		}
 	}
 
-	else
+	else /* the entry tree page case */
 	{
 		if ((*inter_call_data)->page_type == LEAF_ENTRY_PAGE)
 		{
@@ -703,7 +730,7 @@ prepare_scan(text *relname, uint32 blkno,
  * it returns the next result to be returned from the 
  * rum_page_items_info() function.
  */
-static void 
+static void
 data_page_get_next_result(rum_page_items_state *inter_call_data)
 {
 	int						counter = 0;
@@ -780,7 +807,7 @@ data_page_get_next_result(rum_page_items_state *inter_call_data)
 
 		else /* If the page is internal or result is high key */
 		{
-			if (inter_call_data->add_info_byval == false) 
+			if (inter_call_data->cur_key_add_info_byval == false) 
 				inter_call_data->values[counter] = 
 					CStringGetTextDatum(VARLENA_MSG);
 
@@ -1008,15 +1035,15 @@ write_res_cur_tuple_key_to_values(rum_page_items_state *inter_call_data)
 
 	if(cur_key_is_norm(inter_call_data))
 		inter_call_data->values[counter++] =
-			get_datum_text_by_oid(inter_call_data->cur_tuple_key,
-						inter_call_data->cur_tuple_key_oid);
+			get_datum_text_by_oid(inter_call_data->cur_key,
+						inter_call_data->cur_key_oid);
 	else inter_call_data->nulls[counter++] = true;
 
 	inter_call_data->values[counter++] =
-		UInt16GetDatum(inter_call_data->cur_tuple_key_attnum);
+		UInt16GetDatum(inter_call_data->cur_key_attnum);
 
 	inter_call_data->values[counter++] =
-		category_get_datum_text(inter_call_data->cur_tuple_key_category);
+		category_get_datum_text(inter_call_data->cur_key_category);
 
 	if (inter_call_data->page_type == INTERNAL_ENTRY_PAGE)
 		inter_call_data->values[counter] = 
@@ -1035,7 +1062,7 @@ get_cur_tuple_key_oid(rum_page_items_state *inter_call_data)
 	OffsetNumber attnum;
 	FormData_pg_attribute *attrs;
 
-	attnum = inter_call_data->cur_tuple_key_attnum;
+	attnum = inter_call_data->cur_key_attnum;
 	orig_tuple_desc = inter_call_data->rum_state_ptr->origTupdesc;
 	attrs = orig_tuple_desc->attrs; 
 	result = (attrs[attnum - 1]).atttypid;
@@ -1050,57 +1077,41 @@ get_cur_tuple_key_oid(rum_page_items_state *inter_call_data)
 static void
 get_entry_index_tuple_values(rum_page_items_state *inter_call_data)
 {
+	RumState *rum_state_ptr = inter_call_data->rum_state_ptr;
+
 	/* Scanning the IndexTuple */
-	inter_call_data->cur_tuple_key_attnum = 
-		rumtuple_get_attrnum(inter_call_data->rum_state_ptr, 
+	inter_call_data->cur_key_attnum = 
+		rumtuple_get_attrnum(rum_state_ptr, 
 							inter_call_data->cur_itup);
 
-	inter_call_data->cur_tuple_key = 
-		rumtuple_get_key(inter_call_data->rum_state_ptr, 
+	inter_call_data->cur_key = 
+		rumtuple_get_key(rum_state_ptr, 
 						inter_call_data->cur_itup, 
-						&(inter_call_data->cur_tuple_key_category));
+						&(inter_call_data->cur_key_category));
 
-	inter_call_data->cur_tuple_key_oid = 
+	inter_call_data->cur_key_oid = 
 		get_cur_tuple_key_oid(inter_call_data);
 
 	if (inter_call_data->page_type == INTERNAL_ENTRY_PAGE)
 		inter_call_data->cur_tuple_down_link = 
 			RumGetDownlink(inter_call_data->cur_itup);
+
+	if (inter_call_data->page_type == LEAF_ENTRY_PAGE &&
+		get_add_info_attr(inter_call_data))
+	{
+		(inter_call_data)->cur_key_add_info_oid =
+			get_add_info_attr(inter_call_data)->atttypid;
+		(inter_call_data)->cur_key_add_info_byval =
+			get_add_info_attr(inter_call_data)->attbyval;
+	}
 }
 
 /*
- * A copy of the get_page_from_raw() 
- * function from pageinspect.
- *
- * Get a palloc'd, maxalign'ed page image 
- * from the result of get_rel_raw_page() 
- */
-static Page
-get_page_from_raw(bytea *raw_page)
-{
-	Page		page;
-	int			raw_page_size;
-
-	raw_page_size = VARSIZE_ANY_EXHDR(raw_page);
-
-	if (raw_page_size != BLCKSZ)
-		ereport(ERROR,
-				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-				 errmsg("invalid page size"),
-				 errdetail("Expected %d bytes, got %d.",
-						   BLCKSZ, raw_page_size)));
-
-	page = palloc(raw_page_size);
-
-	memcpy(page, VARDATA_ANY(raw_page), raw_page_size);
-
-	return page;
-}
-
-/*
- * This function and get_rel_raw_page() are derived from the separation 
- * of the get_raw_page_internal() function, which was copied from the pageinspect code.
- * It is needed in order to call the initRumState() function if necessary.
+ * This function and get_rel_raw_page() are derived 
+ * from the separation of the get_raw_page_internal() 
+ * function, which was copied from the pageinspect code. 
+ * It is needed in order to call the initRumState() 
+ * function if necessary.
  */
 static Relation
 get_rel_from_name(text *relname)
@@ -1161,16 +1172,17 @@ get_rel_from_name(text *relname)
 }
 
 /*
- * This function and get_rel_from_name() are derived from the separation 
- * of the get_raw_page_internal() function, which was copied from the pageinspect code.
- * It is needed in order to call the initRumState() function if necessary.
+ * This function is used to get 
+ * a copy of the relation page.
  */
-static bytea*
-get_rel_raw_page(Relation rel, BlockNumber blkno)
+static Page
+get_rel_page(Relation rel, BlockNumber blkno)
 {
 	bytea	   			*raw_page;
 	char	   			*raw_page_data;
+	int					raw_page_size;
 	Buffer				buf;
+	Page				page;
 
 	if (blkno >= RelationGetNumberOfBlocksInFork(rel, MAIN_FORKNUM))
 		ereport(ERROR,
@@ -1192,77 +1204,289 @@ get_rel_raw_page(Relation rel, BlockNumber blkno)
 	LockBuffer(buf, BUFFER_LOCK_UNLOCK);
 	ReleaseBuffer(buf);
 
-	return raw_page;
+	raw_page_size = VARSIZE_ANY_EXHDR(raw_page);
+
+	if (raw_page_size != BLCKSZ)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("invalid page size"),
+				 errdetail("Expected %d bytes, got %d.",
+						   BLCKSZ, raw_page_size)));
+
+	page = palloc(raw_page_size);
+
+	memcpy(page, VARDATA_ANY(raw_page), raw_page_size);
+
+	/* Cleaning the memory that raw_page occupies */
+	pfree(raw_page);
+
+	return page;
 }
 
 /*
- * This function looks through the addAttrs array and extracts 
- * the Oid of additional information for an attribute for 
- * which it is not NULL.
+ * In the case of scanning a posting tree page, we
+ * do not know the key for which this posting tree
+ * was built (as well as the key attribute number).
+ * This function finds the attribute number of the
+ * key for which the posting tree was built.
  *
- * The logic of the function assumes that there cannot 
- * be several types of additional information in the index, 
- * otherwise it will not work. 
+ * First, the function descends to the leftmost 
+ * leaf page of the entry tree, after which it 
+ * searches for links to the posting tree there and 
+ * searches in each posting tree for the number of 
+ * the page we are scanning. If the page you are 
+ * looking for is found, then you need to return 
+ * the key attribute number that was contained in 
+ * the IndexTuple along with the link to the posting 
+ * tree. If nothing is found, the function returns 
+ * InvalidOffsetNumber.
  */
-static Oid
-find_add_info_oid(RumState *rum_state_ptr)
+static OffsetNumber
+find_attnum_posting_tree_key(rum_page_items_state *inter_call_data)
 {
-	Oid add_info_oid = InvalidOid;
+	BlockNumber 		target_page_num = inter_call_data->page_num;
+	RumState 			*rum_state_ptr = inter_call_data->rum_state_ptr;
 
-	/* Number of index attributes */
-	int num_attrs = rum_state_ptr->origTupdesc->natts;
+	/* Returned result*/
+	OffsetNumber 		key_attnum = InvalidOffsetNumber;
 
 	/* 
-	 * For each of the attributes, we read the 
-	 * oid of additional information.
+	 * The page search starts from the first
+	 * internal page of the entry tree.
 	 */
-	for (int i = 0; i < num_attrs; i++) 
+	BlockNumber 		cur_page_num = 1;
+	OffsetNumber 		cur_tuple_num = FirstOffsetNumber; 
+	BlockNumber 		posting_root_num = InvalidBlockNumber;
+
+	/* Search for the leftmost leaf page of the entry tree */
+	cur_page_num = find_min_entry_leaf_page(inter_call_data);
+
+	/* 
+	 * At each iteration of the loop, we find the 
+	 * root of the posting tree, then we search for 
+	 * the desired page in this posting tree. The 
+	 * loop ends when a page is found, or when 
+	 * there is no longer a posting tree.
+	 */
+	while (find_posting_tree_root(&cur_page_num, &cur_tuple_num, 
+			&key_attnum, &posting_root_num, rum_state_ptr)) 
 	{
-		if ((rum_state_ptr->addAttrs)[i] != NULL)
-		{
-			Assert(add_info_oid == InvalidOid);
-			add_info_oid = ((rum_state_ptr->addAttrs)[i])->atttypid; 
-		}
+		if (posting_root_num == target_page_num ||
+			find_page_in_posting_tree(target_page_num, 
+					posting_root_num, rum_state_ptr))
+			break;
 	}
 
-	return add_info_oid;
+	return key_attnum;
 }
 
 /* 
- * This is an auxiliary function to get the attribute number 
- * for additional information. It is used in the rum_leaf_data_page_items() 
- * function to call the rumDataPageLeafRead() function.
- *
- * The logic of the function assumes that there cannot 
- * be several types of additional information in the index, 
- * otherwise it will not work. 
- */
-static OffsetNumber
-find_add_info_atrr_num(RumState *rum_state_ptr)
+ * The function is used to find the number 
+ * of the leftmost leaf page of the entry tree.
+ */ 
+static BlockNumber
+find_min_entry_leaf_page(rum_page_items_state *inter_call_data)
 {
-	OffsetNumber add_info_attr_num = InvalidOffsetNumber;
+	RumState 			*rum_state_ptr = inter_call_data->rum_state_ptr;
 
-	/* Number of index attributes */
-	int num_attrs = rum_state_ptr->origTupdesc->natts;
+	/* 
+	 * The page search starts from the first
+	 * internal page of the entry tree.
+	 */
+	BlockNumber 		cur_page_num = 1;
+	Page 				cur_page;
+	RumPageOpaque 		cur_opaq;
+	IndexTuple			cur_itup;
 
-	/* Go through the addAttrs array */
-	for (int i = 0; i < num_attrs; i++)
+	for (;;) 
 	{
-		if ((rum_state_ptr->addAttrs)[i] != NULL)
+		/* Getting page by number */
+		cur_page = get_rel_page(rum_state_ptr->index, cur_page_num);
+
+		/* The page cannot be new */
+		if (PageIsNew(cur_page)) return InvalidOffsetNumber;
+
+		/* Getting a page description from an opaque area */
+		cur_opaq = RumPageGetOpaque(cur_page);
+
+		/* If the required page is found */
+		if (cur_opaq->flags == RUM_LEAF && RumPageLeftMost(cur_page))
 		{
-			Assert(add_info_attr_num == InvalidOffsetNumber);
-			add_info_attr_num = i;
+			pfree(cur_page);
+			return cur_page_num;
+		}
+
+		/* If cur_page is still an internal page */
+		else if (cur_opaq->flags == 0)
+		{
+			/* Read the first IndexTuple */
+			cur_itup = (IndexTuple) PageGetItem(cur_page, 
+								PageGetItemId(cur_page, 1));
+
+			/* Step onto the child page */
+			cur_page_num = RumGetDownlink(cur_itup);
+			pfree(cur_page);
+		}
+
+		else /* Error case */
+		{
+			pfree(cur_page);
+			return InvalidBlockNumber;
 		}
 	}
+}
 
-	/* Need to add 1 because the attributes are numbered from 1 */
-	return add_info_attr_num + 1;
+/* 
+ * This function is used to sequentially find
+ * the roots of the posting tree. In the first
+ * call, *cur_page_num should be the leftmost
+ * leaf page of the entry tree, and *cur_tuple_num
+ * should be equal to FirstOffsetNumber. Then, for
+ * each call, the function will return the root
+ * number of the posting tree until they exhaust.
+ */
+static bool
+find_posting_tree_root(BlockNumber *cur_page_num, 
+					   OffsetNumber *cur_tuple_num, 
+					   OffsetNumber *cur_key_attnum, 
+					   BlockNumber *posting_root_num,
+					   RumState *rum_state_ptr)
+{
+	Page 				cur_page;
+	RumPageOpaque 		cur_opaq;
+	IndexTuple			cur_itup;
+
+	for (;;)
+	{
+		/* Getting rel by name and page by number */
+		cur_page = get_rel_page(rum_state_ptr->index, *cur_page_num);
+
+		/* The page cannot be new */
+		if (PageIsNew(cur_page)) break;
+
+		/* Getting a page description from an opaque area */
+		cur_opaq = RumPageGetOpaque(cur_page);
+
+		Assert(cur_opaq->flags == RUM_LEAF);
+
+		/* Scanning current page */
+		while (*cur_tuple_num <= PageGetMaxOffsetNumber(cur_page))
+		{
+			cur_itup = (IndexTuple) 
+				PageGetItem(cur_page, PageGetItemId(cur_page, (*cur_tuple_num)++));
+
+			*cur_key_attnum = rumtuple_get_attrnum(rum_state_ptr, cur_itup);
+
+			if (RumIsPostingTree(cur_itup)) 
+			{
+				*posting_root_num = RumGetPostingTree(cur_itup);
+				pfree(cur_page);
+				return true;
+			}
+		}
+
+		/* 
+		 * If haven't found anything, need to move on 
+		 * or terminate the function if the pages are over.
+		 */
+		if (cur_opaq->rightlink == InvalidBlockNumber) break;
+		else
+		{
+			*cur_page_num = cur_opaq->rightlink;
+			*cur_tuple_num = FirstOffsetNumber;
+			pfree(cur_page);
+		} 
+	}
+
+	/* Error case */
+	*cur_page_num = InvalidBlockNumber;
+	*posting_root_num = InvalidBlockNumber;
+	*cur_tuple_num = InvalidOffsetNumber;
+	*cur_key_attnum = InvalidOffsetNumber;
+	pfree(cur_page);
+	return false;
 }
 
 /*
- * A function for extracting the positions of lexemes from additional 
- * information. Returns a string in which the positions of the lexemes 
- * are recorded. The memory that the string occupies must be cleared later.
+ * This function is designed to search for a
+ * link to a target page on the pages of the 
+ * posting tree. It sequentially scans each
+ * level of the posting tree and returns true
+ * if a link to the target page was found on
+ * any of the pages of the posting tree.
+ */
+static bool
+find_page_in_posting_tree(BlockNumber target_page_num, 
+						  BlockNumber cur_page_num, 
+						  RumState *rum_state_ptr)
+{
+	Page 				cur_page;
+	RumPageOpaque 		cur_opaq;
+	PostingItem			cur_pitem;
+	BlockNumber  		next_page_num;
+
+	/* Page loop */
+	for (;;) 
+	{
+		cur_page = get_rel_page(rum_state_ptr->index, cur_page_num);
+
+		/* The page cannot be new */
+		if (PageIsNew(cur_page)) 
+		{
+			pfree(cur_page);
+			return false;
+		}
+
+		/* Getting a page description from an opaque area */
+		cur_opaq = RumPageGetOpaque(cur_page);
+
+		/* If this is a leaf page, we stop the loop */
+		if (cur_opaq->flags == (RUM_DATA | RUM_LEAF))
+		{
+			pfree(cur_page);
+			return false;
+		}
+
+		/* 
+		 * Reading the first PostingItem from
+		 * the current page. This is necessary
+		 * to remember the link down.
+		 */
+		memcpy(&cur_pitem, 
+			RumDataPageGetItem(cur_page, 1), sizeof(PostingItem));
+		next_page_num = PostingItemGetBlockNumber(&cur_pitem);
+
+		/* The loop that scans the page */
+		for (int i = 1; i <= cur_opaq->maxoff; i++)
+		{
+			/* Reading the PostingItem from the current page */
+			memcpy(&cur_pitem, 
+				RumDataPageGetItem(cur_page, i), sizeof(PostingItem));
+
+			if (target_page_num == PostingItemGetBlockNumber(&cur_pitem))
+			{
+				pfree(cur_page);
+				return true;
+			}
+		}
+
+		/* Go to the next page */
+
+		/* If a step to the right is impossible, step down */
+		if (cur_opaq->rightlink == InvalidBlockNumber)
+			cur_page_num = next_page_num;
+
+		/* Step to the right */ 
+		else cur_page_num = cur_opaq->rightlink;
+
+		pfree(cur_page);
+	}
+}
+
+/*
+ * A function for extracting the positions of lexemes 
+ * from additional information. Returns a string in 
+ * which the positions of the lexemes are recorded. 
  */
 static Datum
 get_positions_to_text_datum(Datum add_info)
@@ -1285,7 +1509,7 @@ get_positions_to_text_datum(Datum add_info)
 	/* Initialize the string */
 	positions_str = (char*) palloc(POS_STR_BUF_LENGHT * sizeof(char));
 	positions_str[0] = '\0';
-	cur_max_str_lenght = POS_STR_BUF_LENGHT;
+	cur_max_str_lenght = POS_STR_BUF_LENGHT - 1;
 	positions_str_cur_ptr = positions_str;
 
 	/* Extract the positions of the lexemes and put them in the string */
