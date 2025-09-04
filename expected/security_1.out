@@ -14,4 +14,9 @@
 CREATE FUNCTION rum_anyarray_similar(anyarray,anyarray) RETURNS bool AS $$ SELECT false $$ LANGUAGE SQL;
 CREATE EXTENSION rum;
 ERROR:  function "rum_anyarray_similar" already exists with same argument types
+CONTEXT:  SQL statement "CREATE FUNCTION rum_anyarray_similar(anyarray,anyarray)
+RETURNS bool
+AS '$libdir/rum'
+LANGUAGE C STRICT STABLE"
+extension script file "rum--1.3.sql", near line 1530
 DROP FUNCTION rum_anyarray_similar(anyarray,anyarray);
