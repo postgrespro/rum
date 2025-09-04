@@ -6,8 +6,8 @@
  * altorder.out - test output for 64-bit systems
  * altorder_1.out - test output for 32-bit systems
  *
- * Since c01743aa486 (>=18) EXPLAIN output was changed,
- * now it includes the number of disabled nodes
+ * Since c01743aa486 and 161320b4b96 (>=18) EXPLAIN output was changed,
+ * now it shows whether nodes are disabled.
  *
  * altorder_2.out - test output for 32-bit systems (>=18)
  *
