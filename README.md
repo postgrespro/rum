@@ -174,7 +174,7 @@ Supported operations: `<`, `<=`, `=`, `>=`, `>` for all types and
 timestamp and timestamptz types.
 
 This operator supports ordering by the `<=>`, `<=|` and `|=>` operators. It can be used with
-`rum_tsvector_addon_ops`, `rum_tsvector_hash_addon_ops' and `rum_anyarray_addon_ops` operator classes.
+`rum_tsvector_addon_ops`, `rum_tsvector_hash_addon_ops` and `rum_anyarray_addon_ops` operator classes.
 
 ### rum_tsvector_addon_ops
 
