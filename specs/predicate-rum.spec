@@ -60,3 +60,21 @@ setup		{
 step "rxy2"	{ SELECT id, tsv FROM rum_tbl WHERE tsv @@ 'qh'; }
 step "wy2"	{ INSERT INTO rum_tbl(tsv) values('hx'); }
 step "c2"	{ COMMIT; }
+
+permutation "rxy1" "wx1" "c1" "rxy2" "wy2" "c2"
+permutation "rxy1" "wx1" "rxy2" "c1" "wy2" "c2"
+permutation "rxy1" "wx1" "rxy2" "wy2" "c1" "c2"
+permutation "rxy1" "wx1" "rxy2" "wy2" "c2" "c1"
+permutation "rxy1" "rxy2" "wx1" "c1" "wy2" "c2"
+permutation "rxy1" "rxy2" "wx1" "wy2" "c1" "c2"
+permutation "rxy1" "rxy2" "wx1" "wy2" "c2" "c1"
+permutation "rxy1" "rxy2" "wy2" "wx1" "c1" "c2"
+permutation "rxy1" "rxy2" "wy2" "wx1" "c2" "c1"
+permutation "rxy1" "rxy2" "wy2" "c2" "wx1" "c1"
+permutation "rxy2" "rxy1" "wx1" "c1" "wy2" "c2"
+permutation "rxy2" "rxy1" "wx1" "wy2" "c1" "c2"
+permutation "rxy2" "rxy1" "wx1" "wy2" "c2" "c1"
+permutation "rxy2" "rxy1" "wy2" "wx1" "c1" "c2"
+permutation "rxy2" "rxy1" "wy2" "wx1" "c2" "c1"
+permutation "rxy2" "rxy1" "wy2" "c2" "wx1" "c1"
+permutation "rxy2" "wy2" "c2" "rxy1" "wx1" "c1"
