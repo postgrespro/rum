@@ -3,8 +3,8 @@
  *  NOTE: This test behaves differenly
  * ------------------------------------
  *
- * Since c01743aa486 (>=18) EXPLAIN output was changed,
- * now it includes the number of disabled nodes
+ * Since c01743aa486 and 161320b4b96 (>=18) EXPLAIN output was changed,
+ * now it shows whether nodes are disabled.
  *
  * text.out - test output for PostgreSQL (<18)
  * text_1.out - for PostgreSQL (>=18)
