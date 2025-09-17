@@ -768,8 +768,7 @@ typedef struct RumScanOpaqueData
 	 * The case of a key scan, which is
 	 * ordered by additional information.
 	 */
-	bool 			scanWithAltOrderKey;
-	int 			altOrderKeyNum;
+	bool 			scanWithAltOrderKeys;
 }	RumScanOpaqueData;
 
 typedef RumScanOpaqueData *RumScanOpaque;
