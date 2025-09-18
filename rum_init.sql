@@ -1723,6 +1723,10 @@ RETURNS float4
 AS 'MODULE_PATHNAME', 'rum_ts_score_td'
 LANGUAGE C IMMUTABLE STRICT;
 
+/*
+ * RUM version 1.4
+ */
+
 /*--------------------RUM debug functions-----------------------*/
 
 CREATE FUNCTION rum_metapage_info(

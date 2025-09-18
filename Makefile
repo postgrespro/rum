@@ -2,7 +2,7 @@
 
 MODULE_big = rum
 EXTENSION = rum
-EXTVERSION = 1.3
+EXTVERSION = 1.4
 PGFILEDESC = "RUM index access method"
 
 OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
@@ -12,7 +12,7 @@ OBJS = src/rumsort.o src/rum_ts_utils.o src/rumtsquery.o \
 	src/btree_rum.o src/rum_arr_utils.o src/rum_debug_funcs.o $(WIN32RES)
 
 DATA_updates = rum--1.0--1.1.sql rum--1.1--1.2.sql \
-			   rum--1.2--1.3.sql
+			   rum--1.2--1.3.sql rum--1.3--1.4.sql
 
 DATA_built = $(EXTENSION)--$(EXTVERSION).sql
 
