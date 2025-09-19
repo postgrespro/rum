@@ -150,7 +150,7 @@ do { \
  * This is necessary in order for the prepare_scan()
  * function to determine the type of the scanned page.
  */
-typedef enum 
+typedef enum
 {
 	LEAF_DATA_PAGE = 0,
 	INTERNAL_DATA_PAGE = 1,
@@ -158,9 +158,9 @@ typedef enum
 	INTERNAL_ENTRY_PAGE = 3
 } page_type_flags;
 
-/* 
- * The size of the result arrays (values 
- * and nulls, see rum_page_items_state 
+/*
+ * The size of the result arrays (values
+ * and nulls, see rum_page_items_state
  * structure) depends on the type of page.
  */
 typedef enum
@@ -171,99 +171,99 @@ typedef enum
 	INTERNAL_ENTRY_PAGE_RES_SIZE = 5,
 } page_type_res_size;
 
-/* 
- * A structure that stores information between 
- * calls to the rum_page_items_info() function. 
+/*
+ * A structure that stores information between
+ * calls to the rum_page_items_info() function.
  * This information is necessary to scan the page.
  */
 typedef struct rum_page_items_state
 {
 	/* Scanned page info  */
-	Page 			page;
-	uint32 			page_num;
+	Page			page;
+	uint32			page_num;
 
-	/* 
+	/*
 	 * The type of the scanned page, can be:
-	 * {} -- INTERNAL_ENTRY_PAGE 
+	 * {} -- INTERNAL_ENTRY_PAGE
 	 * {leaf} -- LEAF_ENTRY_PAGE
 	 * {data} -- INTERNAL_DATA_PAGE
 	 * {data, leaf} -- LEAF_DATA_PAGE
 	 */
-	page_type_flags page_type;
+	page_type_flags	page_type;
 
 	/*
 	 * The number of scanned items per page.
 	 *
-	 * On the {leaf, data} page, this is the number of 
+	 * On the {leaf, data} page, this is the number of
 	 * RumItem structures that are in the compressed posting list.
 	 *
 	 * On the {data} page, this is the number of PostingItem structures.
 	 *
-	 * On the {leaf} page, this is the number of IndexTuple, each of 
-	 * which contains a compressed posting list. In this case, the size 
+	 * On the {leaf} page, this is the number of IndexTuple, each of
+	 * which contains a compressed posting list. In this case, the size
 	 * of the Posting list is determined using RumGetNPosting(itup).
 	 *
 	 * On the {} page, this is the number of IndexTuple.
 	 */
-	int 			maxoff;
+	int				maxoff;
 
 	/* Pointer to the current scanning item */
-	Pointer 		item_ptr; 	
+	Pointer			item_ptr;
 
-	/* 
-	 * It is used where posting lists are scanned. 
+	/*
+	 * It is used where posting lists are scanned.
 	 * Sometimes only the RumItem it contains is used.
 	 */
-	PostingItem 	cur_pitem;
+	PostingItem		cur_pitem;
 
 	/* Current IndexTuple on the page */
-	IndexTuple 		cur_itup;
+	IndexTuple		cur_itup;
 
 	/* The number of the current IndexTuple on the page */
-	OffsetNumber 	cur_tuple_num;
+	OffsetNumber	cur_tuple_num;
 
 	/* The number of the current element in the current IndexTuple */
-	int 			cur_tuple_item_num;
+	int				cur_tuple_item_num;
 
-	/* 
-	 * The number of the child page that 
-	 * is stored in the current IndexTuple 
+	/*
+	 * The number of the child page that
+	 * is stored in the current IndexTuple
 	 */
-	BlockNumber 	cur_tuple_down_link;
+	BlockNumber		cur_tuple_down_link;
 
-	/* 
-	 * If the current IndexTuple is scanned, then 
+	/*
+	 * If the current IndexTuple is scanned, then
 	 * you need to move on to the next one.
 	 */
-	bool 			need_new_tuple;
+	bool			need_new_tuple;
 
-	/* 
-	 * Parameters of the current key in the IndexTuple 
+	/*
+	 * Parameters of the current key in the IndexTuple
 	 * or the key for which the posting tree was built.
 	 */
-	OffsetNumber 	cur_key_attnum;
-	Datum 			cur_key;
-	RumNullCategory cur_key_category;
-	Oid 			cur_key_oid;
+	OffsetNumber	cur_key_attnum;
+	Datum			cur_key;
+	RumNullCategory	cur_key_category;
+	Oid				cur_key_oid;
 
 	/* Information about the type of additional information */
-	bool 			cur_key_add_info_is_null;
-	Oid 			cur_key_add_info_oid;
-	bool 			cur_key_add_info_byval;
+	bool			cur_key_add_info_is_null;
+	Oid				cur_key_add_info_oid;
+	bool			cur_key_add_info_byval;
 
-	/* 
-	 * To generate the results of each 
-	 * function call rum_page_items_info() 
+	/*
+	 * To generate the results of each
+	 * function call rum_page_items_info()
 	 */
-	Datum 			result;
+	Datum			result;
 	HeapTuple		resultTuple;
-	Datum 			*values;
-	bool 			*nulls;
-	FuncCallContext *srf_fctx;
+	Datum			*values;
+	bool			*nulls;
+	FuncCallContext	*srf_fctx;
 
-	/* 
-	 * A pointer to the RumState structure 
-	 * that describes the scanned index. 
+	/*
+	 * A pointer to the RumState structure
+	 * that describes the scanned index.
 	 */
 	RumState		*rum_state_ptr;
 } rum_page_items_state;
@@ -282,8 +282,8 @@ static void check_page_is_leaf_data_page(RumPageOpaque opaq);
 static void check_page_is_internal_data_page(RumPageOpaque opaq);
 static void check_page_is_leaf_entry_page(RumPageOpaque opaq);
 static void check_page_is_internal_entry_page(RumPageOpaque opaq);
-static bool prepare_scan(text *relname, uint32 blkno, 
-	rum_page_items_state **inter_call_data, FuncCallContext *srf_fctx, 
+static bool prepare_scan(text *relname, uint32 blkno,
+	rum_page_items_state **inter_call_data, FuncCallContext *srf_fctx,
 	page_type_flags page_type);
 static void data_page_get_next_result(rum_page_items_state *inter_call_data);
 static void get_entry_index_tuple_values(rum_page_items_state *inter_call_data);
@@ -293,30 +293,30 @@ static void get_entry_leaf_posting_list_result(rum_page_items_state *inter_call_
 static void get_entry_leaf_posting_tree_result(rum_page_items_state *inter_call_data);
 static void prepare_new_entry_leaf_posting_list(rum_page_items_state *inter_call_data);
 static void write_res_cur_tuple_key_to_values(rum_page_items_state *inter_call_data);
-static bool find_page_in_posting_tree(BlockNumber target_page_num, 
+static bool find_page_in_posting_tree(BlockNumber target_page_num,
 	BlockNumber cur_page_num, RumState *rum_state_ptr);
-static bool find_posting_tree_root(BlockNumber *cur_page_num, 
-	OffsetNumber *cur_tuple_num, OffsetNumber *cur_key_attnum, 
+static bool find_posting_tree_root(BlockNumber *cur_page_num,
+	OffsetNumber *cur_tuple_num, OffsetNumber *cur_key_attnum,
 	BlockNumber *posting_root_num, RumState *rum_state_ptr);
 static BlockNumber find_min_entry_leaf_page(rum_page_items_state *inter_call_data);
 static OffsetNumber find_attnum_posting_tree_key(rum_page_items_state *inter_call_data);
 
 /*
- * The rum_metapage_info() function is used to retrieve 
+ * The rum_metapage_info() function is used to retrieve
  * information stored on the meta page of the rum index.
  * To scan, need the index name and the page number.
- * (for the meta page blkno = 0). 
+ * (for the meta page blkno = 0).
  */
 Datum
 rum_metapage_info(PG_FUNCTION_ARGS)
 {
 	/* Reading input arguments */
-	text	   			*relname = PG_GETARG_TEXT_PP(0);
+	text				*relname = PG_GETARG_TEXT_PP(0);
 	uint32				blkno = PG_GETARG_UINT32(1);
 
-	Relation 			rel;			/* needed to initialize the RumState structure */ 
+	Relation			rel;			/* needed to initialize the RumState structure */
 
-	RumPageOpaque 		opaq;			/* data from the opaque area of the page */
+	RumPageOpaque		opaq;			/* data from the opaque area of the page */
 	RumMetaPageData		*metadata;		/* data stored on the meta page */
 	Page				page;			/* the page to be scanned */
 
@@ -325,12 +325,12 @@ rum_metapage_info(PG_FUNCTION_ARGS)
 	Datum				values[10];		/* return values */
 	bool				nulls[10];		/* true if the corresponding value is NULL */
 
-	/* 
+	/*
 	 * To output the index version.
-	 * If you change the index version, you 
+	 * If you change the index version, you
 	 * may need to increase the buffer size.
 	 */
-	char 				version_buf[20];
+	char				version_buf[20];
 
 	/* Only the superuser can use this */
 	check_superuser();
@@ -362,10 +362,10 @@ rum_metapage_info(PG_FUNCTION_ARGS)
 
 	memset(nulls, 0, sizeof(nulls));
 
-	/* 
+	/*
 	 * Writing data from metadata to values.
 	 *
-	 * The first five values are obsolete because the 
+	 * The first five values are obsolete because the
 	 * pending list was removed from the rum index.
 	 */
 	values[0] = Int64GetDatum(metadata->head);
@@ -390,20 +390,20 @@ rum_metapage_info(PG_FUNCTION_ARGS)
 }
 
 /*
- * The rum_page_opaque_info() function is used to retrieve 
- * information stored in the opaque area of the index rum 
+ * The rum_page_opaque_info() function is used to retrieve
+ * information stored in the opaque area of the index rum
  * page. To scan, need the index name and the page number.
  */
 Datum
 rum_page_opaque_info(PG_FUNCTION_ARGS)
 {
 	/* Reading input arguments */
-	text	   			*relname = PG_GETARG_TEXT_PP(0);
+	text				*relname = PG_GETARG_TEXT_PP(0);
 	uint32				blkno = PG_GETARG_UINT32(1);
 
-	Relation 			rel;			/* needed to initialize the RumState structure */ 
+	Relation			rel;			/* needed to initialize the RumState structure */
 
-	RumPageOpaque 		opaq;			/* data from the opaque area of the page */
+	RumPageOpaque		opaq;			/* data from the opaque area of the page */
 	Page				page;			/* the page to be scanned */
 
 	HeapTuple			resultTuple;	/* for the results */
@@ -452,7 +452,7 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 	if (flagbits & RUM_LIST_FULLROW)
 		flags[nflags++] = CStringGetTextDatum("list_fullrow");
 	flagbits &= ~(RUM_DATA | RUM_LEAF | RUM_DELETED | RUM_META | RUM_LIST |
-				  RUM_LIST_FULLROW); 
+				RUM_LIST_FULLROW);
 	if (flagbits)
 	{
 		/* any flags we don't recognize are printed in hex */
@@ -472,8 +472,8 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 #if PG_VERSION_NUM >= 160000
 	values[4] = PointerGetDatum(construct_array_builtin(flags, nflags, TEXTOID));
 #else
-	values[4] = PointerGetDatum(construct_array(flags, nflags, 
-									TEXTOID, -1, false, TYPALIGN_INT));
+	values[4] = PointerGetDatum(construct_array(flags, nflags,
+								TEXTOID, -1, false, TYPALIGN_INT));
 #endif
 
 	pfree(page);
@@ -486,46 +486,46 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 }
 
 /*
- * The main universal function that is used to scan 
- * all types of pages (except for the meta page). 
- * There are four SQL wrappers made around this 
- * function, each of which scans a specific type 
- * of pages. page_type is used to select the type 
+ * The main universal function that is used to scan
+ * all types of pages (except for the meta page).
+ * There are four SQL wrappers made around this
+ * function, each of which scans a specific type
+ * of pages. page_type is used to select the type
  * of page to scan.
  */
 Datum
 rum_page_items_info(PG_FUNCTION_ARGS)
 {
 	/* Reading input arguments */
-	text	   			*relname = PG_GETARG_TEXT_PP(0);
+	text				*relname = PG_GETARG_TEXT_PP(0);
 	uint32				blkno = PG_GETARG_UINT32(1);
 	page_type_flags		page_type = PG_GETARG_UINT32(2);
 
-	int 				counter; 
+	int					counter;
 
-	/* 
-	 * The context of the function calls and the pointer 
+	/*
+	 * The context of the function calls and the pointer
 	 * to the long-lived inter_call_data structure.
 	 */
-	FuncCallContext 			*fctx;
-	rum_page_items_state 		*inter_call_data;
+	FuncCallContext				*fctx;
+	rum_page_items_state		*inter_call_data;
 
 	/* Only the superuser can use this */
 	check_superuser();
 
-	/* 
-	 * In the case of the first function call, it is necessary 
-	 * to get the page by its number and create a RumState 
+	/*
+	 * In the case of the first function call, it is necessary
+	 * to get the page by its number and create a RumState
 	 * structure for scanning the page.
 	 */
 	if (SRF_IS_FIRSTCALL())
 	{
-		TupleDesc 				tupdesc;	/* description of the result tuple */
-		MemoryContext 			oldmctx;	/* the old function memory context */
+		TupleDesc				tupdesc;	/* description of the result tuple */
+		MemoryContext			oldmctx;	/* the old function memory context */
 
-		/* 
-		 * Initializing the FuncCallContext structure and switching the memory 
-		 * context to the one needed for structures that must be saved during 
+		/*
+		 * Initializing the FuncCallContext structure and switching the memory
+		 * context to the one needed for structures that must be saved during
 		 * multiple calls.
 		 */
 		fctx = SRF_FIRSTCALL_INIT();
@@ -540,16 +540,16 @@ rum_page_items_info(PG_FUNCTION_ARGS)
 
 		Assert(is_data_page(inter_call_data) || is_entry_page(inter_call_data));
 
-		/* Build a tuple descriptor for our result type */ 
+		/* Build a tuple descriptor for our result type */
 		if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
 			elog(ERROR, "return type must be a row type");
 
 		/* Needed to for subsequent recording tupledesc in fctx */
 		BlessTupleDesc(tupdesc);
 
-		/* 
-		 * Save a pointer to a long-lived structure and 
-		 * tuple descriptor for our result type in fctx. 
+		/*
+		 * Save a pointer to a long-lived structure and
+		 * tuple descriptor for our result type in fctx.
 		 */
 		fctx->user_fctx = inter_call_data;
 		fctx->tuple_desc = tupdesc;
@@ -569,22 +569,22 @@ rum_page_items_info(PG_FUNCTION_ARGS)
 		counter = fctx->call_cntr;
 	else counter = inter_call_data->cur_tuple_num;
 
-	/* 
-	 * Go through the page. 
+	/*
+	 * Go through the page.
 	 *
-	 * In the case of scanning a Posting Tree page, the counter 
-	 * is fctx->call_cntr, which is 0 on the first call. The 
-	 * first call is special because it returns the high 
-	 * key from the pages of the Posting Tree (the high 
+	 * In the case of scanning a Posting Tree page, the counter
+	 * is fctx->call_cntr, which is 0 on the first call. The
+	 * first call is special because it returns the high
+	 * key from the pages of the Posting Tree (the high
 	 * key is not counted in maxoff).
 	 *
-	 * On Entry tree pages, the high key is stored in 
+	 * On Entry tree pages, the high key is stored in
 	 * the IndexTuple.
 	 */
 	if (counter <= inter_call_data->maxoff)
 	{
 		if (is_data_page(inter_call_data))
-			data_page_get_next_result(inter_call_data); 
+			data_page_get_next_result(inter_call_data);
 
 		else if (inter_call_data->page_type == LEAF_ENTRY_PAGE)
 			entry_leaf_page_get_next_result(inter_call_data);
@@ -600,22 +600,22 @@ rum_page_items_info(PG_FUNCTION_ARGS)
 }
 
 /*
- * An auxiliary function for preparing the scan. 
- * Depending on the type of page, it fills in 
+ * An auxiliary function for preparing the scan.
+ * Depending on the type of page, it fills in
  * inter_call_data and makes the necessary checks.
  */
-static bool 
-prepare_scan(text *relname, uint32 blkno, 
-			 rum_page_items_state **inter_call_data, 
+static bool
+prepare_scan(text *relname, uint32 blkno,
+			 rum_page_items_state **inter_call_data,
 			 FuncCallContext *srf_fctx,
 			 page_type_flags page_type)
 {
-	Relation 				rel;		/* needed to initialize the RumState structure */ 
+	Relation				rel;		/* needed to initialize the RumState structure */
 
-	Page 					page;		/* the page to be scanned */
-	RumPageOpaque 			opaq;		/* data from the opaque area of the page */
+	Page					page;		/* the page to be scanned */
+	RumPageOpaque			opaq;		/* data from the opaque area of the page */
 
-	int 					res_size;
+	int						res_size;
 
 	/* Getting rel by name and page by number */
 	rel = get_rel_from_name(relname);
@@ -646,7 +646,7 @@ prepare_scan(text *relname, uint32 blkno,
 	(*inter_call_data)->page_type = page_type;
 
 	/* The number of results returned depends on the type of page */
-	if ((*inter_call_data)->page_type == LEAF_DATA_PAGE) 
+	if ((*inter_call_data)->page_type == LEAF_DATA_PAGE)
 		res_size = LEAF_DATA_PAGE_RES_SIZE;
 
 	else if ((*inter_call_data)->page_type == INTERNAL_DATA_PAGE)
@@ -661,14 +661,14 @@ prepare_scan(text *relname, uint32 blkno,
 	(*inter_call_data)->values = (Datum*) palloc(res_size * sizeof(Datum));
 	(*inter_call_data)->nulls = (bool*) palloc(res_size * sizeof(bool));
 
-	/* 
-	 * Depending on the type of page, it performs the 
-	 * necessary checks and writes the necessary data 
+	/*
+	 * Depending on the type of page, it performs the
+	 * necessary checks and writes the necessary data
 	 * into a long-lived structure.
 	 */
-	if (is_data_page(*inter_call_data)) 
+	if (is_data_page(*inter_call_data))
 	{
-		if ((*inter_call_data)->page_type == LEAF_DATA_PAGE) 
+		if ((*inter_call_data)->page_type == LEAF_DATA_PAGE)
 			check_page_is_leaf_data_page(opaq);
 
 		else check_page_is_internal_data_page(opaq);
@@ -676,21 +676,21 @@ prepare_scan(text *relname, uint32 blkno,
 		(*inter_call_data)->maxoff = opaq->maxoff;
 		(*inter_call_data)->item_ptr = RumDataPageGetData(page);
 
-		/* 
-		 * If the scanned page belongs to a posting tree, 
-		 * we do not know which key this posting tree was 
-		 * built for. However, we need to know the attribute 
-		 * number of the key in order to correctly determine 
-		 * the type of additional information that can be 
+		/*
+		 * If the scanned page belongs to a posting tree,
+		 * we do not know which key this posting tree was
+		 * built for. However, we need to know the attribute
+		 * number of the key in order to correctly determine
+		 * the type of additional information that can be
 		 * associated with it.
 		 *
-		 * The find_attnum_posting_tree_key() function is used 
-		 * to find the key attribute number. The function scans 
-		 * the index and searches for the page we are scanning 
-		 * in the posting tree, while remembering which key 
+		 * The find_attnum_posting_tree_key() function is used
+		 * to find the key attribute number. The function scans
+		 * the index and searches for the page we are scanning
+		 * in the posting tree, while remembering which key
 		 * this posting tree was built for.
 		 */
-		(*inter_call_data)->cur_key_attnum = 
+		(*inter_call_data)->cur_key_attnum =
 			find_attnum_posting_tree_key(*inter_call_data);
 
 		/* Error handling find_attnum_posting_tree_key() */
@@ -717,7 +717,7 @@ prepare_scan(text *relname, uint32 blkno,
 
 		else check_page_is_internal_entry_page(opaq);
 
-		(*inter_call_data)->maxoff = PageGetMaxOffsetNumber(page); 
+		(*inter_call_data)->maxoff = PageGetMaxOffsetNumber(page);
 		(*inter_call_data)->cur_tuple_num = FirstOffsetNumber;
 	}
 
@@ -725,9 +725,9 @@ prepare_scan(text *relname, uint32 blkno,
 }
 
 /*
- * An auxiliary function for reading information from leaf 
- * and internal pages of the Posting Tree. For each call, 
- * it returns the next result to be returned from the 
+ * An auxiliary function for reading information from leaf
+ * and internal pages of the Posting Tree. For each call,
+ * it returns the next result to be returned from the
  * rum_page_items_info() function.
  */
 static void
@@ -737,9 +737,9 @@ data_page_get_next_result(rum_page_items_state *inter_call_data)
 
 	/* Before returning the result, need to reset the nulls array */
 	if (inter_call_data->page_type == LEAF_DATA_PAGE)
-		memset(inter_call_data->nulls, 0, 
+		memset(inter_call_data->nulls, 0,
 		 LEAF_DATA_PAGE_RES_SIZE * sizeof(bool));
-	else memset(inter_call_data->nulls, 0, 
+	else memset(inter_call_data->nulls, 0,
 			 INTERNAL_DATA_PAGE_RES_SIZE * sizeof(bool));
 
 	Assert(is_data_page(inter_call_data));
@@ -751,9 +751,9 @@ data_page_get_next_result(rum_page_items_state *inter_call_data)
 	/* Reading information from Posting List */
 	else if (inter_call_data->page_type == LEAF_DATA_PAGE)
 	{
-		/* 
-		 * it is necessary for the correct reading of the 
-		 * tid (see the function rumdatapageleafread()) 
+		/*
+		 * it is necessary for the correct reading of the
+		 * tid (see the function rumdatapageleafread())
 		 */
 		if (inter_call_data->srf_fctx->call_cntr == 1)
 			prepare_cur_pitem_to_posting_list(inter_call_data);
@@ -767,8 +767,8 @@ data_page_get_next_result(rum_page_items_state *inter_call_data)
 
 	/* Write the read information into arrays of results */
 
-	/* 
-	 * This means whether the result 
+	/*
+	 * This means whether the result
 	 * tuple is the high key or not
 	 */
 	if (inter_call_data->srf_fctx->call_cntr == 0)
@@ -779,7 +779,7 @@ data_page_get_next_result(rum_page_items_state *inter_call_data)
 			inter_call_data->nulls[counter++] = true;
 	}
 
-	else /* if the result is not the high key */ 
+	else /* if the result is not the high key */
 	{
 		inter_call_data->values[counter++] = BoolGetDatum(false);
 
@@ -790,11 +790,11 @@ data_page_get_next_result(rum_page_items_state *inter_call_data)
 	write_res_iptr_to_values(inter_call_data, counter++);
 	write_res_addinfo_is_null_to_values(inter_call_data, counter++);
 
-	/* 
-	 * Return of additional information depends on the 
-	 * type of page and the type of additional information 
+	/*
+	 * Return of additional information depends on the
+	 * type of page and the type of additional information
 	 */
-	if (cur_pitem_addinfo_is_normal(inter_call_data)) 
+	if (cur_pitem_addinfo_is_normal(inter_call_data))
 	{
 		if (inter_call_data->page_type == LEAF_DATA_PAGE &&
 			inter_call_data->srf_fctx->call_cntr != 0)
@@ -807,8 +807,8 @@ data_page_get_next_result(rum_page_items_state *inter_call_data)
 
 		else /* If the page is internal or result is high key */
 		{
-			if (inter_call_data->cur_key_add_info_byval == false) 
-				inter_call_data->values[counter] = 
+			if (inter_call_data->cur_key_add_info_byval == false)
+				inter_call_data->values[counter] =
 					CStringGetTextDatum(VARLENA_MSG);
 
 			else write_res_addinfo_to_values(inter_call_data, counter);
@@ -822,10 +822,10 @@ data_page_get_next_result(rum_page_items_state *inter_call_data)
 	prepare_result_tuple(inter_call_data);
 }
 
-/* 
- * IndexTuples are located on the internal pages of the Etnry Tree. 
- * Each IndexTuple contains a key and a link to a child page. This 
- * function reads these values and generates the result tuple. 
+/*
+ * IndexTuples are located on the internal pages of the Etnry Tree.
+ * Each IndexTuple contains a key and a link to a child page. This
+ * function reads these values and generates the result tuple.
  */
 static void
 entry_internal_page_get_next_result(rum_page_items_state *inter_call_data)
@@ -841,8 +841,8 @@ entry_internal_page_get_next_result(rum_page_items_state *inter_call_data)
 	/* Scanning the IndexTuple that we received earlier */
 	get_entry_index_tuple_values(inter_call_data);
 
-	/* 
-	 * On the rightmost page, in the last IndexTuple, there is a 
+	/*
+	 * On the rightmost page, in the last IndexTuple, there is a
 	 * high key, which is assumed to be equal to +inf.
 	 */
 	if (is_entry_internal_high_key(inter_call_data))
@@ -850,7 +850,7 @@ entry_internal_page_get_next_result(rum_page_items_state *inter_call_data)
 		inter_call_data->values[0] = CStringGetTextDatum("+inf");
 		inter_call_data->nulls[1] = true;
 		inter_call_data->nulls[2] = true;
-		inter_call_data->values[3] = 
+		inter_call_data->values[3] =
 		UInt32GetDatum(inter_call_data->cur_tuple_down_link);
 	}
 
@@ -864,13 +864,13 @@ entry_internal_page_get_next_result(rum_page_items_state *inter_call_data)
 	inter_call_data->cur_tuple_num++;
 }
 
-/* 
- * The function reads information from compressed Posting lists on 
- * Entry Tree leaf pages, each of which is located in the 
- * corresponding IndexTuple. Therefore, first, if the previous 
- * IndexTuple has ended, the new one is read. After that, the 
- * current IndexTuple is scanned until it runs out. The IndexTuple 
- * themselves are read until they end on the page. 
+/*
+ * The function reads information from compressed Posting lists on
+ * Entry Tree leaf pages, each of which is located in the
+ * corresponding IndexTuple. Therefore, first, if the previous
+ * IndexTuple has ended, the new one is read. After that, the
+ * current IndexTuple is scanned until it runs out. The IndexTuple
+ * themselves are read until they end on the page.
  */
 static void
 entry_leaf_page_get_next_result(rum_page_items_state *inter_call_data)
@@ -891,9 +891,9 @@ entry_leaf_page_get_next_result(rum_page_items_state *inter_call_data)
 		/* Getting the posting list */
 		prepare_new_entry_leaf_posting_list(inter_call_data);
 
-		/* 
-		 * The case when there is a posting tree 
-		 * instead of a compressed posting list 
+		/*
+		 * The case when there is a posting tree
+		 * instead of a compressed posting list
 		 */
 		if(RumIsPostingTree(inter_call_data->cur_itup))
 		{
@@ -905,17 +905,17 @@ entry_leaf_page_get_next_result(rum_page_items_state *inter_call_data)
 	get_entry_leaf_posting_list_result(inter_call_data);
 }
 
-/* 
- * The Entry Tree leaf pages contain IndexTuples that contain 
- * the key and either a compressed posting list or a link to 
- * the root page of the Posting Tree. This function reads all 
- * the values from posting list and generates the result tuple. 
+/*
+ * The Entry Tree leaf pages contain IndexTuples that contain
+ * the key and either a compressed posting list or a link to
+ * the root page of the Posting Tree. This function reads all
+ * the values from posting list and generates the result tuple.
  */
 static void
 get_entry_leaf_posting_list_result(rum_page_items_state *inter_call_data)
 {
-	/* 
-	 * Start writing from 3, because the previous 
+	/*
+	 * Start writing from 3, because the previous
 	 * ones are occupied by a cur_tuple_key
 	 */
 	int						counter = 3;
@@ -937,21 +937,21 @@ get_entry_leaf_posting_list_result(rum_page_items_state *inter_call_data)
 
 		else write_res_addinfo_to_values(inter_call_data, counter++);
 	}
-	
+
 	else inter_call_data->nulls[counter++] = true;
 
 	/* The current IndexTuple does not contain a posting tree */
 	inter_call_data->values[counter++] = BoolGetDatum(false);
 	inter_call_data->nulls[counter] = true;
 
-	/* 
-	 * If the current IndexTuple has ended, i.e. we have scanned all 
-	 * its RumItems, then we need to enable the need_new_tuple flag 
-	 * so that the next time the function is called, we can read 
-	 * a new IndexTuple from the page. 
+	/*
+	 * If the current IndexTuple has ended, i.e. we have scanned all
+	 * its RumItems, then we need to enable the need_new_tuple flag
+	 * so that the next time the function is called, we can read
+	 * a new IndexTuple from the page.
 	 */
 	inter_call_data->cur_tuple_item_num++;
-	if(inter_call_data->cur_tuple_item_num > 
+	if(inter_call_data->cur_tuple_item_num >
 		RumGetNPosting(inter_call_data->cur_itup))
 		inter_call_data->need_new_tuple = true;
 
@@ -960,7 +960,7 @@ get_entry_leaf_posting_list_result(rum_page_items_state *inter_call_data)
 }
 
 /*
- * This function is used to prepare for scanning 
+ * This function is used to prepare for scanning
  * the posting list on Entry Tree leaf pages.
  */
 static void
@@ -969,30 +969,30 @@ prepare_new_entry_leaf_posting_list(rum_page_items_state *inter_call_data)
 	Assert(inter_call_data->page_type == LEAF_ENTRY_PAGE);
 
 	/* Getting the posting list */
-	inter_call_data->item_ptr = 
+	inter_call_data->item_ptr =
 		RumGetPosting(inter_call_data->cur_itup);
 	inter_call_data->cur_tuple_item_num = 1;
 	inter_call_data->need_new_tuple = false;
 	inter_call_data->cur_tuple_num++;
 
-	/* 
-	 * Every time you read a new IndexTuple, you need to reset the 
+	/*
+	 * Every time you read a new IndexTuple, you need to reset the
 	 * tid for the rumDataPageLeafRead() function to work correctly.
 	 */
 	prepare_cur_pitem_to_posting_list(inter_call_data);
 }
 
-/* 
- * The Entry Tree leaf pages contain IndexTuples that contain 
- * the key and either a compressed posting list or a link to 
- * the root page of the Posting Tree. This function reads all 
- * the values from Posting Tree and generates the result tuple. 
+/*
+ * The Entry Tree leaf pages contain IndexTuples that contain
+ * the key and either a compressed posting list or a link to
+ * the root page of the Posting Tree. This function reads all
+ * the values from Posting Tree and generates the result tuple.
  */
 static void
 get_entry_leaf_posting_tree_result(rum_page_items_state *inter_call_data)
 {
-	/* 
-	 * Start writing from 3, because the previous 
+	/*
+	 * Start writing from 3, because the previous
 	 * ones are occupied by a cur_tuple_key
 	 */
 	int						counter = 3;
@@ -1009,7 +1009,7 @@ get_entry_leaf_posting_tree_result(rum_page_items_state *inter_call_data)
 
 	/* Returning the root of the posting tree */
 	inter_call_data->values[counter++] = true;
-	inter_call_data->values[counter++] = 
+	inter_call_data->values[counter++] =
 		UInt32GetDatum(RumGetPostingTree(inter_call_data->cur_itup));
 
 	/* Forming the returned tuple */
@@ -1020,12 +1020,12 @@ get_entry_leaf_posting_tree_result(rum_page_items_state *inter_call_data)
 }
 
 /*
- * The leaf and internal pages of the Entry Tree contain IndexTuples. 
- * On leaf pages, IndexTuples contain the key and the posting list 
- * (or a link to the posting tree) that relates to it. On internal 
- * pages, IndexTuples contain a key and a link to a child page. 
+ * The leaf and internal pages of the Entry Tree contain IndexTuples.
+ * On leaf pages, IndexTuples contain the key and the posting list
+ * (or a link to the posting tree) that relates to it. On internal
+ * pages, IndexTuples contain a key and a link to a child page.
  *
- * This function is used to put the key values in the result arrays 
+ * This function is used to put the key values in the result arrays
  * values and nulls.
  */
 static void
@@ -1046,32 +1046,32 @@ write_res_cur_tuple_key_to_values(rum_page_items_state *inter_call_data)
 		category_get_datum_text(inter_call_data->cur_key_category);
 
 	if (inter_call_data->page_type == INTERNAL_ENTRY_PAGE)
-		inter_call_data->values[counter] = 
+		inter_call_data->values[counter] =
 			UInt32GetDatum(inter_call_data->cur_tuple_down_link);
 }
 
-/* 
- * This function gets the attribute number of the 
+/*
+ * This function gets the attribute number of the
  * current tuple key from the RumState structure.
  */
 static Oid
 get_cur_tuple_key_oid(rum_page_items_state *inter_call_data)
 {
-	Oid result;
-	TupleDesc orig_tuple_desc;
-	OffsetNumber attnum;
-	FormData_pg_attribute *attrs;
+	Oid						result;
+	TupleDesc				orig_tuple_desc;
+	OffsetNumber			attnum;
+	FormData_pg_attribute	*attrs;
 
 	attnum = inter_call_data->cur_key_attnum;
 	orig_tuple_desc = inter_call_data->rum_state_ptr->origTupdesc;
-	attrs = orig_tuple_desc->attrs; 
+	attrs = orig_tuple_desc->attrs;
 	result = (attrs[attnum - 1]).atttypid;
 
 	return result;
 }
 
 /*
- * The function is used to extract values 
+ * The function is used to extract values
  * from a previously read IndexTuple.
  */
 static void
@@ -1080,20 +1080,20 @@ get_entry_index_tuple_values(rum_page_items_state *inter_call_data)
 	RumState *rum_state_ptr = inter_call_data->rum_state_ptr;
 
 	/* Scanning the IndexTuple */
-	inter_call_data->cur_key_attnum = 
-		rumtuple_get_attrnum(rum_state_ptr, 
+	inter_call_data->cur_key_attnum =
+		rumtuple_get_attrnum(rum_state_ptr,
 							inter_call_data->cur_itup);
 
-	inter_call_data->cur_key = 
-		rumtuple_get_key(rum_state_ptr, 
-						inter_call_data->cur_itup, 
+	inter_call_data->cur_key =
+		rumtuple_get_key(rum_state_ptr,
+						inter_call_data->cur_itup,
 						&(inter_call_data->cur_key_category));
 
-	inter_call_data->cur_key_oid = 
+	inter_call_data->cur_key_oid =
 		get_cur_tuple_key_oid(inter_call_data);
 
 	if (inter_call_data->page_type == INTERNAL_ENTRY_PAGE)
-		inter_call_data->cur_tuple_down_link = 
+		inter_call_data->cur_tuple_down_link =
 			RumGetDownlink(inter_call_data->cur_itup);
 
 	if (inter_call_data->page_type == LEAF_ENTRY_PAGE &&
@@ -1107,19 +1107,19 @@ get_entry_index_tuple_values(rum_page_items_state *inter_call_data)
 }
 
 /*
- * This function and get_rel_raw_page() are derived 
- * from the separation of the get_raw_page_internal() 
- * function, which was copied from the pageinspect code. 
- * It is needed in order to call the initRumState() 
+ * This function and get_rel_raw_page() are derived
+ * from the separation of the get_raw_page_internal()
+ * function, which was copied from the pageinspect code.
+ * It is needed in order to call the initRumState()
  * function if necessary.
  */
 static Relation
 get_rel_from_name(text *relname)
 {
-	RangeVar   			*relrv;
+	RangeVar			*relrv;
 	Relation			rel;
 
-	relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname)); 
+	relrv = makeRangeVarFromNameList(textToQualifiedNameList(relname));
 	rel = relation_openrv(relrv, AccessShareLock);
 
 #if PG_VERSION_NUM >= 150000
@@ -1172,14 +1172,14 @@ get_rel_from_name(text *relname)
 }
 
 /*
- * This function is used to get 
+ * This function is used to get
  * a copy of the relation page.
  */
 static Page
 get_rel_page(Relation rel, BlockNumber blkno)
 {
-	bytea	   			*raw_page;
-	char	   			*raw_page_data;
+	bytea				*raw_page;
+	char				*raw_page_data;
 	int					raw_page_size;
 	Buffer				buf;
 	Page				page;
@@ -1230,49 +1230,49 @@ get_rel_page(Relation rel, BlockNumber blkno)
  * This function finds the attribute number of the
  * key for which the posting tree was built.
  *
- * First, the function descends to the leftmost 
- * leaf page of the entry tree, after which it 
- * searches for links to the posting tree there and 
- * searches in each posting tree for the number of 
- * the page we are scanning. If the page you are 
- * looking for is found, then you need to return 
- * the key attribute number that was contained in 
- * the IndexTuple along with the link to the posting 
- * tree. If nothing is found, the function returns 
+ * First, the function descends to the leftmost
+ * leaf page of the entry tree, after which it
+ * searches for links to the posting tree there and
+ * searches in each posting tree for the number of
+ * the page we are scanning. If the page you are
+ * looking for is found, then you need to return
+ * the key attribute number that was contained in
+ * the IndexTuple along with the link to the posting
+ * tree. If nothing is found, the function returns
  * InvalidOffsetNumber.
  */
 static OffsetNumber
 find_attnum_posting_tree_key(rum_page_items_state *inter_call_data)
 {
-	BlockNumber 		target_page_num = inter_call_data->page_num;
-	RumState 			*rum_state_ptr = inter_call_data->rum_state_ptr;
+	BlockNumber			target_page_num = inter_call_data->page_num;
+	RumState			*rum_state_ptr = inter_call_data->rum_state_ptr;
 
 	/* Returned result*/
-	OffsetNumber 		key_attnum = InvalidOffsetNumber;
+	OffsetNumber		key_attnum = InvalidOffsetNumber;
 
-	/* 
+	/*
 	 * The page search starts from the first
 	 * internal page of the entry tree.
 	 */
-	BlockNumber 		cur_page_num = 1;
-	OffsetNumber 		cur_tuple_num = FirstOffsetNumber; 
-	BlockNumber 		posting_root_num = InvalidBlockNumber;
+	BlockNumber			cur_page_num = 1;
+	OffsetNumber		cur_tuple_num = FirstOffsetNumber;
+	BlockNumber			posting_root_num = InvalidBlockNumber;
 
 	/* Search for the leftmost leaf page of the entry tree */
 	cur_page_num = find_min_entry_leaf_page(inter_call_data);
 
-	/* 
-	 * At each iteration of the loop, we find the 
-	 * root of the posting tree, then we search for 
-	 * the desired page in this posting tree. The 
-	 * loop ends when a page is found, or when 
+	/*
+	 * At each iteration of the loop, we find the
+	 * root of the posting tree, then we search for
+	 * the desired page in this posting tree. The
+	 * loop ends when a page is found, or when
 	 * there is no longer a posting tree.
 	 */
-	while (find_posting_tree_root(&cur_page_num, &cur_tuple_num, 
-			&key_attnum, &posting_root_num, rum_state_ptr)) 
+	while (find_posting_tree_root(&cur_page_num, &cur_tuple_num,
+			&key_attnum, &posting_root_num, rum_state_ptr))
 	{
 		if (posting_root_num == target_page_num ||
-			find_page_in_posting_tree(target_page_num, 
+			find_page_in_posting_tree(target_page_num,
 					posting_root_num, rum_state_ptr))
 			break;
 	}
@@ -1280,25 +1280,25 @@ find_attnum_posting_tree_key(rum_page_items_state *inter_call_data)
 	return key_attnum;
 }
 
-/* 
- * The function is used to find the number 
+/*
+ * The function is used to find the number
  * of the leftmost leaf page of the entry tree.
- */ 
+ */
 static BlockNumber
 find_min_entry_leaf_page(rum_page_items_state *inter_call_data)
 {
-	RumState 			*rum_state_ptr = inter_call_data->rum_state_ptr;
+	RumState			*rum_state_ptr = inter_call_data->rum_state_ptr;
 
-	/* 
+	/*
 	 * The page search starts from the first
 	 * internal page of the entry tree.
 	 */
-	BlockNumber 		cur_page_num = 1;
-	Page 				cur_page;
-	RumPageOpaque 		cur_opaq;
+	BlockNumber			cur_page_num = 1;
+	Page				cur_page;
+	RumPageOpaque		cur_opaq;
 	IndexTuple			cur_itup;
 
-	for (;;) 
+	for (;;)
 	{
 		/* Getting page by number */
 		cur_page = get_rel_page(rum_state_ptr->index, cur_page_num);
@@ -1320,7 +1320,7 @@ find_min_entry_leaf_page(rum_page_items_state *inter_call_data)
 		else if (cur_opaq->flags == 0)
 		{
 			/* Read the first IndexTuple */
-			cur_itup = (IndexTuple) PageGetItem(cur_page, 
+			cur_itup = (IndexTuple) PageGetItem(cur_page,
 								PageGetItemId(cur_page, 1));
 
 			/* Step onto the child page */
@@ -1336,7 +1336,7 @@ find_min_entry_leaf_page(rum_page_items_state *inter_call_data)
 	}
 }
 
-/* 
+/*
  * This function is used to sequentially find
  * the roots of the posting tree. In the first
  * call, *cur_page_num should be the leftmost
@@ -1346,14 +1346,14 @@ find_min_entry_leaf_page(rum_page_items_state *inter_call_data)
  * number of the posting tree until they exhaust.
  */
 static bool
-find_posting_tree_root(BlockNumber *cur_page_num, 
-					   OffsetNumber *cur_tuple_num, 
-					   OffsetNumber *cur_key_attnum, 
+find_posting_tree_root(BlockNumber *cur_page_num,
+					   OffsetNumber *cur_tuple_num,
+					   OffsetNumber *cur_key_attnum,
 					   BlockNumber *posting_root_num,
 					   RumState *rum_state_ptr)
 {
-	Page 				cur_page;
-	RumPageOpaque 		cur_opaq;
+	Page				cur_page;
+	RumPageOpaque		cur_opaq;
 	IndexTuple			cur_itup;
 
 	for (;;)
@@ -1372,12 +1372,12 @@ find_posting_tree_root(BlockNumber *cur_page_num,
 		/* Scanning current page */
 		while (*cur_tuple_num <= PageGetMaxOffsetNumber(cur_page))
 		{
-			cur_itup = (IndexTuple) 
+			cur_itup = (IndexTuple)
 				PageGetItem(cur_page, PageGetItemId(cur_page, (*cur_tuple_num)++));
 
 			*cur_key_attnum = rumtuple_get_attrnum(rum_state_ptr, cur_itup);
 
-			if (RumIsPostingTree(cur_itup)) 
+			if (RumIsPostingTree(cur_itup))
 			{
 				*posting_root_num = RumGetPostingTree(cur_itup);
 				pfree(cur_page);
@@ -1385,8 +1385,8 @@ find_posting_tree_root(BlockNumber *cur_page_num,
 			}
 		}
 
-		/* 
-		 * If haven't found anything, need to move on 
+		/*
+		 * If haven't found anything, need to move on
 		 * or terminate the function if the pages are over.
 		 */
 		if (cur_opaq->rightlink == InvalidBlockNumber) break;
@@ -1395,7 +1395,7 @@ find_posting_tree_root(BlockNumber *cur_page_num,
 			*cur_page_num = cur_opaq->rightlink;
 			*cur_tuple_num = FirstOffsetNumber;
 			pfree(cur_page);
-		} 
+		}
 	}
 
 	/* Error case */
@@ -1409,29 +1409,29 @@ find_posting_tree_root(BlockNumber *cur_page_num,
 
 /*
  * This function is designed to search for a
- * link to a target page on the pages of the 
+ * link to a target page on the pages of the
  * posting tree. It sequentially scans each
  * level of the posting tree and returns true
  * if a link to the target page was found on
  * any of the pages of the posting tree.
  */
 static bool
-find_page_in_posting_tree(BlockNumber target_page_num, 
-						  BlockNumber cur_page_num, 
+find_page_in_posting_tree(BlockNumber target_page_num,
+						  BlockNumber cur_page_num,
 						  RumState *rum_state_ptr)
 {
-	Page 				cur_page;
-	RumPageOpaque 		cur_opaq;
+	Page				cur_page;
+	RumPageOpaque		cur_opaq;
 	PostingItem			cur_pitem;
-	BlockNumber  		next_page_num;
+	BlockNumber			next_page_num;
 
 	/* Page loop */
-	for (;;) 
+	for (;;)
 	{
 		cur_page = get_rel_page(rum_state_ptr->index, cur_page_num);
 
 		/* The page cannot be new */
-		if (PageIsNew(cur_page)) 
+		if (PageIsNew(cur_page))
 		{
 			pfree(cur_page);
 			return false;
@@ -1447,12 +1447,12 @@ find_page_in_posting_tree(BlockNumber target_page_num,
 			return false;
 		}
 
-		/* 
+		/*
 		 * Reading the first PostingItem from
 		 * the current page. This is necessary
 		 * to remember the link down.
 		 */
-		memcpy(&cur_pitem, 
+		memcpy(&cur_pitem,
 			RumDataPageGetItem(cur_page, 1), sizeof(PostingItem));
 		next_page_num = PostingItemGetBlockNumber(&cur_pitem);
 
@@ -1460,7 +1460,7 @@ find_page_in_posting_tree(BlockNumber target_page_num,
 		for (int i = 1; i <= cur_opaq->maxoff; i++)
 		{
 			/* Reading the PostingItem from the current page */
-			memcpy(&cur_pitem, 
+			memcpy(&cur_pitem,
 				RumDataPageGetItem(cur_page, i), sizeof(PostingItem));
 
 			if (target_page_num == PostingItemGetBlockNumber(&cur_pitem))
@@ -1476,7 +1476,7 @@ find_page_in_posting_tree(BlockNumber target_page_num,
 		if (cur_opaq->rightlink == InvalidBlockNumber)
 			cur_page_num = next_page_num;
 
-		/* Step to the right */ 
+		/* Step to the right */
 		else cur_page_num = cur_opaq->rightlink;
 
 		pfree(cur_page);
@@ -1484,22 +1484,22 @@ find_page_in_posting_tree(BlockNumber target_page_num,
 }
 
 /*
- * A function for extracting the positions of lexemes 
- * from additional information. Returns a string in 
- * which the positions of the lexemes are recorded. 
+ * A function for extracting the positions of lexemes
+ * from additional information. Returns a string in
+ * which the positions of the lexemes are recorded.
  */
 static Datum
 get_positions_to_text_datum(Datum add_info)
 {
-	bytea	   		*positions;
-	char	   		*ptrt;
-	WordEntryPos 	position = 0;
+	bytea			*positions;
+	char			*ptrt;
+	WordEntryPos	position = 0;
 	int32			npos;
 
-	Datum 			res;
-	char 			*positions_str;
-	char 			*positions_str_cur_ptr;
-	int 			cur_max_str_lenght;
+	Datum			res;
+	char			*positions_str;
+	char			*positions_str_cur_ptr;
+	int				cur_max_str_lenght;
 
 	positions = DatumGetByteaP(add_info);
 	ptrt = (char *) VARDATA_ANY(positions);
@@ -1520,29 +1520,32 @@ get_positions_to_text_datum(Datum add_info)
 
 		/* Write this position and weight in the string */
 		if(pos_get_weight(position) == 'D')
-			sprintf(positions_str_cur_ptr, "%d,", WEP_GETPOS(position));
-		else sprintf(positions_str_cur_ptr, "%d%c,", 
-			   WEP_GETPOS(position), pos_get_weight(position));
+				sprintf(positions_str_cur_ptr, "%d,", WEP_GETPOS(position));
+		else sprintf(positions_str_cur_ptr, "%d%c,",
+				WEP_GETPOS(position), pos_get_weight(position));
 
 		/* Moving the pointer forward */
 		positions_str_cur_ptr += strlen(positions_str_cur_ptr);
 
-		/* 
-		 * Check that there is not too little left to the 
-		 * end of the line and, if necessary, overspend 
-		 * the memory. 
+		/*
+		 * Check that there is not too little left to the
+		 * end of the line and, if necessary, overspend
+		 * the memory.
 		 */
-		if (cur_max_str_lenght - 
+		if (cur_max_str_lenght -
 			(positions_str_cur_ptr - positions_str) <= POS_MAX_VAL_LENGHT)
 		{
 			cur_max_str_lenght +=  POS_STR_BUF_LENGHT;
-			positions_str = (char*) repalloc(positions_str, 
+			positions_str = (char*) repalloc(positions_str,
 									cur_max_str_lenght * sizeof(char));
 			positions_str_cur_ptr = positions_str + strlen(positions_str);
 		}
 	}
 
-	/* Delete the last comma if there has been at least one iteration of the loop */
+	/*
+	 * Delete the last comma if there has
+	 * been at least one iteration of the loop
+	 */
 	if (npos > 0)
 		positions_str[strlen(positions_str) - 1] = '\0';
 
@@ -1552,7 +1555,7 @@ get_positions_to_text_datum(Datum add_info)
 }
 
 /*
- * The function extracts the weight and 
+ * The function extracts the weight and
  * returns the corresponding letter.
  */
 static char
@@ -1574,15 +1577,15 @@ pos_get_weight(WordEntryPos position)
 }
 
 /*
- * The function is used to output 
+ * The function is used to output
  * information stored in Datum as text.
  */
 static Datum
 get_datum_text_by_oid(Datum info, Oid info_id)
 {
-	Oid func_id;
-	bool is_varlena = false;
-	char *info_str;
+	Oid		func_id;
+	bool	is_varlena = false;
+	char	*info_str;
 
 	Assert(OidIsValid(info_id));
 
@@ -1599,13 +1602,13 @@ get_datum_text_by_oid(Datum info, Oid info_id)
 static Datum
 category_get_datum_text(RumNullCategory category)
 {
-	char category_arr[][20] = {"RUM_CAT_NORM_KEY", 
-							   "RUM_CAT_NULL_KEY", 
-							   "RUM_CAT_EMPTY_ITEM", 
-							   "RUM_CAT_NULL_ITEM", 
-							   "RUM_CAT_EMPTY_QUERY"};
+	char category_arr[][20] = {"RUM_CAT_NORM_KEY",
+							"RUM_CAT_NULL_KEY",
+							"RUM_CAT_EMPTY_ITEM",
+							"RUM_CAT_NULL_ITEM",
+							"RUM_CAT_EMPTY_QUERY"};
 
-	switch(category) 
+	switch(category)
 	{
 		case RUM_CAT_NORM_KEY:
 			return CStringGetTextDatum(category_arr[0]);

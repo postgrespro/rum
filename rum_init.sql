@@ -1763,63 +1763,63 @@ AS 'MODULE_PATHNAME', 'rum_page_items_info'
 LANGUAGE C STRICT;
 
 CREATE FUNCTION rum_leaf_data_page_items(
-    rel_name text, 
+    rel_name text,
     blk_num int4
 )
 RETURNS TABLE(
-  is_high_key bool, 
-  tuple_id tid, 
-  add_info_is_null bool, 
+  is_high_key bool,
+  tuple_id tid,
+  add_info_is_null bool,
   add_info varchar
-) 
+)
 AS $$
-    SELECT * 
+    SELECT *
     FROM rum_page_items_info(rel_name, blk_num, 0)
         AS rum_page_items_info(
-            is_high_key bool, 
-            tuple_id tid, 
-            add_info_is_null bool, 
+            is_high_key bool,
+            tuple_id tid,
+            add_info_is_null bool,
             add_info varchar
         );
 $$ LANGUAGE sql;
 
 CREATE FUNCTION rum_internal_data_page_items(
-    rel_name text, 
+    rel_name text,
     blk_num int4
 )
 RETURNS TABLE(
-    is_high_key bool, 
-    block_number int4, 
-    tuple_id tid, 
-    add_info_is_null bool, 
+    is_high_key bool,
+    block_number int4,
+    tuple_id tid,
+    add_info_is_null bool,
     add_info varchar
-) 
+)
 AS $$
-    SELECT * 
+    SELECT *
     FROM rum_page_items_info(rel_name, blk_num, 1)
         AS rum_page_items_info(
-            is_high_key bool, 
-            block_number int4, 
-            tuple_id tid, 
-            add_info_is_null bool, 
+            is_high_key bool,
+            block_number int4,
+            tuple_id tid,
+            add_info_is_null bool,
             add_info varchar
         );
 $$ LANGUAGE sql;
 
 CREATE FUNCTION rum_leaf_entry_page_items(
-    rel_name text, 
+    rel_name text,
     blk_num int4
 )
 RETURNS TABLE(
-    key varchar, 
-    attrnum int4, 
-    category varchar, 
-    tuple_id tid, 
-    add_info_is_null bool, 
-    add_info varchar, 
-    is_postring_tree bool, 
+    key varchar,
+    attrnum int4,
+    category varchar,
+    tuple_id tid,
+    add_info_is_null bool,
+    add_info varchar,
+    is_postring_tree bool,
     postring_tree_root int4
-) 
+)
 AS $$
   SELECT *
   FROM rum_page_items_info(rel_name, blk_num, 2)
@@ -1836,21 +1836,21 @@ AS $$
 $$ LANGUAGE sql;
 
 CREATE FUNCTION rum_internal_entry_page_items(
-    rel_name text, 
+    rel_name text,
     blk_num int4
 )
 RETURNS TABLE(
-    key varchar, 
-    attrnum int4, 
-    category varchar, 
-    down_link int4) 
+    key varchar,
+    attrnum int4,
+    category varchar,
+    down_link int4)
 AS $$
   SELECT *
   FROM rum_page_items_info(rel_name, blk_num, 3)
       AS rum_page_items_info(
-          key varchar, 
-          attrnum int4, 
-          category varchar, 
+          key varchar,
+          attrnum int4,
+          category varchar,
           down_link int4
       );
 $$ LANGUAGE sql;

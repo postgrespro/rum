@@ -10,7 +10,7 @@ CREATE TABLE test_debug_table (id int, t tsvector, d timestamp);
 DO $$
 BEGIN
     FOR i IN 1..5000 LOOP
-      INSERT INTO test_debug_table(id, t, d) 
+      INSERT INTO test_debug_table(id, t, d)
       VALUES(i, 'b9', '2016-05-02 00:21:22.326724');
     END LOOP;
 END;
@@ -35,8 +35,8 @@ SELECT * FROM rum_page_opaque_info('test_without_addinfo_idx', 9);
 SELECT * FROM rum_leaf_data_page_items('test_without_addinfo_idx', 9);
 
 -- Testing on the index with additional information (order_by_attach = false)
-CREATE INDEX test_with_addinfo_idx_false ON test_debug_table 
-USING rum (t rum_tsvector_addon_ops, d) 
+CREATE INDEX test_with_addinfo_idx_false ON test_debug_table
+USING rum (t rum_tsvector_addon_ops, d)
 WITH (attach = 'd', to = 't', order_by_attach='f');
 
 SELECT * FROM rum_metapage_info('test_with_addinfo_idx_false', 0) \gx
@@ -65,8 +65,8 @@ SELECT * FROM rum_page_opaque_info('test_with_addinfo_idx_false', 27);
 SELECT * FROM rum_leaf_data_page_items('test_with_addinfo_idx_false', 27);
 
 -- Testing on 32-bit and 64-bit on the index with additional information (order_by_attach = true)
-CREATE INDEX test_with_addinfo_idx_true ON test_debug_table 
-USING rum (t rum_tsvector_addon_ops, id) 
+CREATE INDEX test_with_addinfo_idx_true ON test_debug_table
+USING rum (t rum_tsvector_addon_ops, id)
 WITH (attach = 'id', to = 't', order_by_attach='t');
 
 SELECT * FROM rum_metapage_info('test_with_addinfo_idx_true', 0) \gx
@@ -110,13 +110,13 @@ FOR EACH ROW EXECUTE PROCEDURE fill_test_debug_weight_trigger();
 DO $$
 BEGIN
     FOR i IN 1..5000 LOOP
-      INSERT INTO test_debug_table_with_weight(t,r) 
+      INSERT INTO test_debug_table_with_weight(t,r)
       VALUES('As a reward for your reformation I write to you on this precious sheet.', 'write');
     END LOOP;
 END;
 $$;
 
-CREATE INDEX test_with_weight_idx ON test_debug_table_with_weight 
+CREATE INDEX test_with_weight_idx ON test_debug_table_with_weight
 USING rum (a rum_tsvector_ops);
 
 SELECT * FROM rum_metapage_info('test_with_weight_idx', 0) \gx
