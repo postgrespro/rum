@@ -24,6 +24,7 @@
 #include "rum.h"
 #include "tsearch/ts_type.h"
 #include "utils/lsyscache.h"
+#include "catalog/pg_type_d.h"
 
 PG_FUNCTION_INFO_V1(rum_metapage_info);
 PG_FUNCTION_INFO_V1(rum_page_opaque_info);
@@ -471,9 +472,12 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 
 #if PG_VERSION_NUM >= 160000
 	values[4] = PointerGetDatum(construct_array_builtin(flags, nflags, TEXTOID));
-#else
+#elif PG_VERSION_NUM >= 130000
 	values[4] = PointerGetDatum(construct_array(flags, nflags,
 								TEXTOID, -1, false, TYPALIGN_INT));
+#else
+	values[4] = PointerGetDatum(construct_array(flags, nflags,
+								TEXTOID, -1, false, 'i'));
 #endif
 
 	pfree(page);
@@ -1373,7 +1377,9 @@ find_posting_tree_root(BlockNumber *cur_page_num,
 		while (*cur_tuple_num <= PageGetMaxOffsetNumber(cur_page))
 		{
 			cur_itup = (IndexTuple)
-				PageGetItem(cur_page, PageGetItemId(cur_page, (*cur_tuple_num)++));
+				PageGetItem(cur_page, PageGetItemId(cur_page, *cur_tuple_num));
+
+			(*cur_tuple_num)++;
 
 			*cur_key_attnum = rumtuple_get_attrnum(rum_state_ptr, cur_itup);
 
