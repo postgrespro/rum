@@ -2,7 +2,7 @@
 [![PGXN version](https://badge.fury.io/pg/rum.svg)](https://badge.fury.io/pg/rum)
 [![GitHub license](https://img.shields.io/badge/license-PostgreSQL-blue.svg)](https://raw.githubusercontent.com/postgrespro/rum/master/LICENSE)
 
-[![Postgres Professional](img/PGpro-logo.png)](https://postgrespro.com/)
+[![Postgres Professional](img/PGpro-logo.svg)](https://postgrespro.com/)
 
 # RUM - RUM access method
 
@@ -26,7 +26,7 @@ in the index with lexemes. So it is necessary to perform an additional heap scan
 For example, positional information of lexemes or timestamps. You can get an
 idea of `RUM` with the following diagram:
 
-![How RUM stores additional information](img/gin_rum.png)
+[![How RUM stores additional information](img/gin_rum.svg)](https://postgrespro.ru/docs/enterprise/current/rum?lang=en)
 
 A drawback of `RUM` is that it has slower build and insert times than `GIN`.
 This is because we need to store additional information besides keys and because
