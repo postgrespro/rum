@@ -13,6 +13,7 @@
 
 #include "postgres.h"
 #include "rumsort.h"
+#include "rumtidbitmap.h"
 
 #include "access/relscan.h"
 #include "storage/predicate.h"
@@ -759,6 +760,53 @@ scan_entry_cmp(const void *p1, const void *p2, void *arg)
 	return -cmpEntries(arg, e1, e2);
 }
 
+/*
+ * The entryGetItem() function from rumget.c write the results to curItem
+ * in a specific order. The functions below allow you to understand the order
+ * in which the results will be returned. This is important in a multi-column
+ * RUM index, when the results will be returned in different order for
+ * different subquery conditions.
+ */
+static bool
+isEntryOrderedByAddInfo(RumState *rumstate, RumScanEntry entry)
+{
+	if (rumstate->useAlternativeOrder)
+		return (rumstate->attrnAddToColumn == entry->attnumOrig);
+	else
+		return false;
+}
+
+static bool
+isKeyOrderedByAddInfo(RumState *rumstate, RumScanKey key)
+{
+	if (rumstate->useAlternativeOrder)
+		return (rumstate->attrnAddToColumn == key->attnumOrig);
+	else
+		return false;
+}
+
+static bool
+isScanWithAltOrderKeys(RumScanOpaque so)
+{
+	RumState *rumstate = &so->rumstate;
+
+	bool withAltKeys = false;
+	bool withUsualKeys = false;
+
+	if (so->nkeys == 1)
+		return false;
+
+	for (int i = 0; i < so->nkeys; i++)
+	{
+		if (isKeyOrderedByAddInfo(rumstate, so->keys[i]))
+			withAltKeys = true;
+		else
+			withUsualKeys = true;
+	}
+
+	return (withUsualKeys && withAltKeys);
+}
+
 static void
 startScan(IndexScanDesc scan)
 {
@@ -805,6 +853,17 @@ startScan(IndexScanDesc scan)
 
 	for (i = 0; i < so->nkeys; i++)
 		startScanKey(rumstate, so->keys[i]);
+
+	/*
+	 * If there are several keys in the scan and its are ordered differently,
+	 * need to set the scanWithAltOrderKeys flag and create a bitmap for
+	 * TIDs that are suitable for regular keys (which are ordered by tid).
+	 */
+	if (isScanWithAltOrderKeys(so))
+	{
+		so->scanWithAltOrderKeys= true;
+		so->tbm = rum_tbm_create(work_mem * 1024L, NULL);
+	}
 
 	/*
 	 * Check if we can use a fast scan.
@@ -1361,6 +1420,16 @@ compareCurRumItemScanDirection(RumState *rumstate, RumScanEntry entry,
 						&entry->curItem, minItem);
 }
 
+static int
+rumCompareItemPointersScanDirection(ScanDirection scanDirection,
+									const ItemPointerData *a,
+									const ItemPointerData *b)
+{
+	int res = rumCompareItemPointers(a, b);
+
+	return  (ScanDirectionIsForward(scanDirection)) ? res : -res;
+}
+
 static void
 keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 {
@@ -1446,6 +1515,63 @@ keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
 }
 
 /*
+ * The function puts all the suitable tids for
+ * the passed RumScanKey into the RumTIDBitmap.
+ */
+static void
+collectAllCurItemsToBitmap(RumScanKey key, RumTIDBitmap *tbm,
+						   IndexScanDesc scan)
+{
+	RumScanOpaque		so = (RumScanOpaque) scan->opaque;
+	RumState			*rumstate = &so->rumstate;
+	ItemPointerData		advancePast;
+
+	ItemPointerSetInvalid(&advancePast);
+
+	for (;;)
+	{
+		/*
+		 * Set the curItem for all the RumScanEntry
+		 * of our RumScanKey after advancePast.
+		 */
+		for (int i = 0; i < key->nentries; i++)
+		{
+			RumScanEntry entry = key->scanEntry[i];
+
+			while (entry->isFinished == false &&
+				(!ItemPointerIsValid(&advancePast) ||
+				rumCompareItemPointersScanDirection(entry->scanDirection,
+								&entry->curItem.iptr, &advancePast) <= 0))
+			{
+				entryGetItem(rumstate, entry, NULL, scan->xs_snapshot);
+
+				/*
+				 * On the first iteration of the loop,
+				 * RumScanEntry->curItem is the first available.
+				 */
+				if (!ItemPointerIsValid(&advancePast))
+					break;
+			}
+		}
+
+		/*
+		 * For RumScanKey, we set the minimum
+		 * curItem from its RumScanEntry.
+		 */
+		keyGetItem(rumstate, so->tempCtx, key);
+
+		if (key->isFinished)
+			return;
+
+		/* If curItem is suitable, put it in the RumTIDBitmap */
+		if (key->curItemMatches)
+			rum_tbm_add_tuples(tbm, &key->curItem.iptr, 1, false);
+
+		advancePast = key->curItem.iptr;
+	}
+}
+
+/*
  * Get next heap item pointer (after advancePast) from scan.
  * Returns true if anything found.
  * On success, *item and *recheck are set.
@@ -1453,6 +1579,11 @@ keyGetItem(RumState * rumstate, MemoryContext tempCtx, RumScanKey key)
  * Note: this is very nearly the same logic as in keyGetItem(), except
  * that we know the keys are to be combined with AND logic, whereas in
  * keyGetItem() the combination logic is known only to the consistentFn.
+ *
+ * Note: In the case of a scan that contains several keys ordered in different
+ * ways, you need to prepare. To do this, for all keys ordered by tid,
+ * the appropriate TIDs are placed in the RumTIDBitmap. After that, all
+ * these bitmaps intersect (because the RumScanKeys are connected via AND).
  */
 static bool
 scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
@@ -1464,6 +1595,43 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 	uint32		i;
 	bool		allFinished;
 	bool		match, itemSet;
+
+	RumTIDBitmap *cur_key_tbm = NULL;
+	bool		soBitmapSet = false;
+	bool		bitmapRecheck = false;
+
+	/*
+	 * Preparation to scan with altOrderKeys. This preparation
+	 * needs to be done only in the first call to scanGetItemRegular().
+	 */
+	if (so->scanWithAltOrderKeys &&
+		ItemPointerIsValid(&advancePast->iptr) == false)
+	{
+		/* For each key, put all the appropriate tids into the bitmap */
+		for (int i = 0; i < so->nkeys; i++)
+		{
+			if (so->keys[i]->orderBy ||
+				isKeyOrderedByAddInfo(rumstate, so->keys[i]))
+				continue;
+
+			cur_key_tbm = rum_tbm_create(work_mem * 1024L, NULL);
+			collectAllCurItemsToBitmap(so->keys[i], cur_key_tbm, scan);
+
+			/*
+			 * so->tbm contains matching tids for
+			 * all keys that are ordered by tid.
+			 */
+			if (soBitmapSet == false)
+			{
+				soBitmapSet = true;
+				rum_tbm_union(so->tbm, cur_key_tbm);
+			}
+			else
+				rum_tbm_intersect(so->tbm, cur_key_tbm);
+
+			rum_tbm_free(cur_key_tbm);
+		}
+	}
 
 	for (;;)
 	{
@@ -1477,6 +1645,11 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 		for (i = 0; i < so->totalentries; i++)
 		{
 			RumScanEntry entry = so->entries[i];
+
+			/* In the case of scanning with altOrderKeys, skip the usual keys */
+			if (so->scanWithAltOrderKeys &&
+				isEntryOrderedByAddInfo(rumstate, entry) == false)
+				continue;
 
 			while (entry->isFinished == false &&
 				   (!ItemPointerIsValid(&myAdvancePast.iptr) ||
@@ -1512,7 +1685,9 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 			RumScanKey	key = so->keys[i];
 			int			cmp;
 
-			if (key->orderBy)
+			/* In the case of scanning with altOrderKeys, skip the usual keys */
+			if (key->orderBy || (so->scanWithAltOrderKeys &&
+				isKeyOrderedByAddInfo(rumstate, key) == false))
 				continue;
 
 			keyGetItem(&so->rumstate, so->tempCtx, key);
@@ -1541,7 +1716,9 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 		{
 			RumScanKey	key = so->keys[i];
 
-			if (key->orderBy)
+			/* In the case of scanning with altOrderKeys, skip the usual keys */
+			if (key->orderBy || (so->scanWithAltOrderKeys &&
+				isKeyOrderedByAddInfo(rumstate, key) == false))
 				continue;
 
 			if (key->curItemMatches)
@@ -1552,6 +1729,17 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 			match = false;
 			break;
 		}
+
+		/*
+		 * Now (if scan with altOrderKeys), if an *item is suitable for all
+		 * altOrderKeys, you need to find it in the bitmap. If it's there,
+		 * then it fits.
+		 *
+		 * Due to the fact that there may be lossy pages in the bitmap,
+		 * you may need to recheck the *item.
+		 */
+		if (so->scanWithAltOrderKeys && match)
+			match = rum_tbm_contains_tid(so->tbm, &item->iptr, &bitmapRecheck);
 
 		if (match)
 			break;
@@ -1594,6 +1782,10 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 			break;
 		}
 	}
+
+	/* If there was a lossy page in the bitmap, need to recheck */
+	if (so->scanWithAltOrderKeys && bitmapRecheck)
+		*recheck = true;
 
 	return true;
 }

@@ -23,6 +23,7 @@
 #include "utils/memutils.h"
 
 #include "rumsort.h"
+#include "rumtidbitmap.h"
 
 /* RUM distance strategies */
 #define RUM_DISTANCE			20
@@ -758,8 +759,24 @@ typedef struct RumScanOpaqueData
 	bool		willSort;		/* is there any columns in ordering */
 	RumScanType	scanType;
 
-	ScanDirection	naturalOrder;
-	bool			secondPass;
+	ScanDirection naturalOrder;
+	bool		secondPass;
+
+	/*
+	 * scanWithAltOrderKeys = true if there are several keys in the query
+	 * that are sorted in different order (the entryGetItem() function for
+	 * different RumScanEntry will return the results to curItem in
+	 * different order).
+	 *
+	 * This happens when a multi-column RUM index is scanned and one of its
+	 * keys is ordered by additional information.
+	 *
+	 * In this case, all matching tids for keys that are ordered by tid will
+	 * be placed in the tbm. Keys ordered by additional information will be
+	 * scanned as usual.
+	 */
+	bool		scanWithAltOrderKeys;
+	RumTIDBitmap *tbm;
 }	RumScanOpaqueData;
 
 typedef RumScanOpaqueData *RumScanOpaque;
