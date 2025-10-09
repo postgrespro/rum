@@ -8,7 +8,7 @@
  * src/backend/utils/sort/tuplesort.c.
  *
  *
- * Portions Copyright (c) 2015-2024, Postgres Professional
+ * Portions Copyright (c) 2015-2025, Postgres Professional
  * Portions Copyright (c) 1996-2022, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *

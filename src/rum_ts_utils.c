@@ -3,7 +3,7 @@
  * rum_ts_utils.c
  *		various text-search functions
  *
- * Portions Copyright (c) 2015-2024, Postgres Professional
+ * Portions Copyright (c) 2015-2025, Postgres Professional
  * Portions Copyright (c) 1996-2020, PostgreSQL Global Development Group
  *
  *-------------------------------------------------------------------------
