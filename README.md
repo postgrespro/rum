@@ -8,29 +8,33 @@
 
 ## Introduction
 
-The **rum** module provides an access method to work with a `RUM` index. It is based
-on the `GIN` access method's code.
+The **rum** module provides access method to work with the `RUM` indexes. It is based
+on the `GIN` access method code.
 
-A `GIN` index allows performing fast full-text search using `tsvector` and
-`tsquery` types. But full-text search with a GIN index has several problems:
+`GIN` index allows you to perform fast full-text search using `tsvector` and
+`tsquery` types. However, full-text search with `GIN` index has some performance
+issues because positional and other additional information is not stored.
 
-- Slow ranking. It needs positional information about lexemes to do ranking. A `GIN`
-index doesn't store positions of lexemes. So after index scanning, we need an
-additional heap scan to retrieve lexeme positions.
-- Slow phrase search with a `GIN` index. This problem relates to the previous
-problem. It needs positional information to perform phrase search.
-- Slow ordering by timestamp. A `GIN` index can't store some related information
-in the index with lexemes. So it is necessary to perform an additional heap scan.
+`RUM` solves these issues by storing additional information in a posting tree.
+As compared to `GIN`, `RUM` index has the following benefits:
 
-`RUM` solves these problems by storing additional information in a posting tree.
-For example, positional information of lexemes or timestamps. You can get an
-idea of `RUM` with the following diagram:
+- Faster ranking. Ranking requires positional information. And after the
+index scan we do not need an additional heap scan to retrieve lexeme positions
+because `RUM` index stores them. 
+- Faster phrase search. This improvement is related to the previous one as
+phrase search also needs positional information.
+- Faster ordering by timestamp. `RUM` index stores additional information together
+with lexemes, so it is not necessary to perform a heap scan. 
+- A possibility to perform depth-first search and therefore return first
+results immediately. 
+
+You can get an idea of `RUM` with the following diagram:
 
 [![How RUM stores additional information](img/gin_rum.svg)](https://postgrespro.ru/docs/enterprise/current/rum?lang=en)
 
-A drawback of `RUM` is that it has slower build and insert times than `GIN`.
+The drawback of `RUM` is that it has slower build and insert time as compared to `GIN`
 This is because we need to store additional information besides keys and because
-`RUM` uses generic Write-Ahead Log (WAL) records.
+because `RUM` stores additional information together with keys and uses generic WAL records.
 
 ## License
 

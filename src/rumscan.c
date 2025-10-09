@@ -124,7 +124,7 @@ rumFillScanEntry(RumScanOpaque so, OffsetNumber attnum,
 	scanEntry->reduceResult = false;
 	scanEntry->useMarkAddInfo = false;
 	scanEntry->scanDirection = ForwardScanDirection;
-	ItemPointerSetMin(&scanEntry->markAddInfo.iptr);
+	RumItemPointerSetMin(&scanEntry->markAddInfo.iptr);
 
 	return scanEntry;
 }

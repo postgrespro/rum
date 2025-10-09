@@ -102,7 +102,7 @@ rumReFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 		 * item pointer is less than item pointer previous to rightmost.
 		 */
 		if (compareRumItem(btree->rumstate, btree->entryAttnum,
-			  &(((PostingItem *) RumDataPageGetItem(page, maxoff - 1))->item),
+			  &(((RumPostingItem *) RumDataPageGetItem(page, maxoff - 1))->item),
 								   &btree->items[btree->curitem]) >= 0)
 		{
 			break;

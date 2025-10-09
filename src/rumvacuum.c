@@ -54,7 +54,7 @@ rumVacuumPostingList(RumVacuumState * gvs, OffsetNumber attnum, Pointer src,
 				ptr = src;
 
 	*newSize = 0;
-	ItemPointerSetMin(&item.iptr);
+	RumItemPointerSetMin(&item.iptr);
 
 	/*
 	 * just scan over ItemPointer array
@@ -279,10 +279,11 @@ rumVacuumPostingTreeLeaves(RumVacuumState * gvs, OffsetNumber attnum,
 
 		for (i = FirstOffsetNumber; i <= RumPageGetOpaque(page)->maxoff; i++)
 		{
-			PostingItem *pitem = (PostingItem *) RumDataPageGetItem(page, i);
+			RumPostingItem *pitem = (RumPostingItem *) RumDataPageGetItem(page, i);
 
 			if (rumVacuumPostingTreeLeaves(gvs, attnum,
-							  PostingItemGetBlockNumber(pitem), false, NULL))
+										   RumPostingItemGetBlockNumber(pitem),
+										   false, NULL))
 				isChildHasVoid = true;
 		}
 
@@ -418,9 +419,9 @@ restart:
 #ifdef USE_ASSERT_CHECKING
 	do
 	{
-		PostingItem *tod = (PostingItem *) RumDataPageGetItem(parentPage, myoff);
+		RumPostingItem *tod = (RumPostingItem *) RumDataPageGetItem(parentPage, myoff);
 
-		Assert(PostingItemGetBlockNumber(tod) == deleteBlkno);
+		Assert(RumPostingItemGetBlockNumber(tod) == deleteBlkno);
 	} while (0);
 #endif
 	RumPageDeletePostingItem(parentPage, myoff);
@@ -495,9 +496,11 @@ rumScanToDelete(RumVacuumState * gvs, BlockNumber blkno, bool isRoot,
 		me->blkno = blkno;
 		for (i = FirstOffsetNumber; i <= RumPageGetOpaque(page)->maxoff; i++)
 		{
-			PostingItem *pitem = (PostingItem *) RumDataPageGetItem(page, i);
+			RumPostingItem *pitem = (RumPostingItem *) RumDataPageGetItem(page, i);
 
-			if (rumScanToDelete(gvs, PostingItemGetBlockNumber(pitem), false, me, i))
+			if (rumScanToDelete(gvs,
+								RumPostingItemGetBlockNumber(pitem),
+								false, me, i))
 				i--;
 		}
 	}
@@ -534,7 +537,11 @@ rumVacuumPostingTree(RumVacuumState * gvs, OffsetNumber attnum, BlockNumber root
 	memset(&root, 0, sizeof(DataPageDeleteStack));
 	root.isRoot = true;
 
+#if PG_VERSION_NUM >= 180000
+	vacuum_delay_point(false);
+#else
 	vacuum_delay_point();
+#endif
 
 	rumScanToDelete(gvs, rootBlkno, true, &root, InvalidOffsetNumber);
 
@@ -731,12 +738,21 @@ rumbulkdelete(IndexVacuumInfo *info,
 			UnlockReleaseBuffer(buffer);
 		}
 
+#if PG_VERSION_NUM >= 180000
+		vacuum_delay_point(false);
+#else
 		vacuum_delay_point();
+#endif
 
 		for (i = 0; i < nRoot; i++)
 		{
 			rumVacuumPostingTree(&gvs, attnumOfPostingTree[i], rootOfPostingTree[i]);
+
+#if PG_VERSION_NUM >= 180000
+			vacuum_delay_point(false);
+#else
 			vacuum_delay_point();
+#endif
 		}
 
 		if (blkno == InvalidBlockNumber)		/* rightmost page */
@@ -802,7 +818,11 @@ rumvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 		Buffer		buffer;
 		Page		page;
 
+#if PG_VERSION_NUM >= 180000
+		vacuum_delay_point(false);
+#else
 		vacuum_delay_point();
+#endif
 
 		buffer = ReadBufferExtended(index, MAIN_FORKNUM, blkno,
 									RBM_NORMAL, info->strategy);

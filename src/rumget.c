@@ -255,7 +255,7 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 			Pointer		ptr;
 
 			MemSet(&item, 0, sizeof(item));
-			ItemPointerSetMin(&item.item.iptr);
+			RumItemPointerSetMin(&item.item.iptr);
 
 			ptr = RumDataPageGetData(page);
 			for (i = FirstOffsetNumber; i <= maxoff; i++)
@@ -468,7 +468,7 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 			RumScanItem item;
 
 			MemSet(&item, 0, sizeof(item));
-			ItemPointerSetMin(&item.item.iptr);
+			RumItemPointerSetMin(&item.item.iptr);
 			for (i = 0; i < RumGetNPosting(itup); i++)
 			{
 				ptr = rumDataPageLeafRead(ptr, scanEntry->attnum, &item.item,
@@ -608,7 +608,7 @@ restartScanEntry:
 		if (entry->matchSortstate)
 		{
 			rum_tuplesort_performsort(entry->matchSortstate);
-			ItemPointerSetMin(&entry->collectRumItem.item.iptr);
+			RumItemPointerSetMin(&entry->collectRumItem.item.iptr);
 			entry->isFinished = false;
 		}
 	}
@@ -637,7 +637,7 @@ restartScanEntry:
 			Pointer		ptr;
 			RumItem		item;
 
-			ItemPointerSetMin(&item.iptr);
+			RumItemPointerSetMin(&item.iptr);
 
 			/*
 			 * We should unlock entry page before touching posting tree to
@@ -941,7 +941,7 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 			entry->offset = -1;
 			maxoff = RumPageGetOpaque(page)->maxoff;
 			entry->nlist = maxoff;
-			ItemPointerSetMin(&item.iptr);
+			RumItemPointerSetMin(&item.iptr);
 			ptr = RumDataPageGetData(page);
 
 			for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
@@ -1062,7 +1062,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 		Pointer		ptr;
 		RumItem		item;
 
-		ItemPointerSetMin(&item.iptr);
+		RumItemPointerSetMin(&item.iptr);
 
 		/*
 		 * We should unlock entry page before touching posting tree to
@@ -1170,7 +1170,7 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
 			RumScanItem *current_collected;
 
 			/* We are finished, but should return last result */
-			if (ItemPointerIsMax(&entry->collectRumItem.item.iptr))
+			if (RumItemPointerIsMax(&entry->collectRumItem.item.iptr))
 			{
 				entry->isFinished = true;
 				rum_tuplesort_end(entry->matchSortstate);
@@ -1179,12 +1179,12 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
 			}
 
 			/* collectRumItem could store the begining of current result */
-			if (!ItemPointerIsMin(&entry->collectRumItem.item.iptr))
+			if (!RumItemPointerIsMin(&entry->collectRumItem.item.iptr))
 				collected = entry->collectRumItem;
 			else
 				MemSet(&collected, 0, sizeof(collected));
 
-			ItemPointerSetMin(&entry->curItem.iptr);
+			RumItemPointerSetMin(&entry->curItem.iptr);
 
 			for(;;)
 			{
@@ -1206,14 +1206,14 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
 					break;
 				}
 
-				if (ItemPointerIsMin(&collected.item.iptr) ||
+				if (RumItemPointerIsMin(&collected.item.iptr) ||
 					rumCompareItemPointers(&collected.item.iptr,
 										   &current_collected->item.iptr) == 0)
 				{
 					Datum	joinedAddInfo = (Datum)0;
 					bool	joinedAddInfoIsNull;
 
-					if (ItemPointerIsMin(&collected.item.iptr))
+					if (RumItemPointerIsMin(&collected.item.iptr))
 					{
 						joinedAddInfoIsNull = true; /* will change later */
 						collected.item.addInfoIsNull = true;
@@ -1276,10 +1276,10 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
 			if (current_collected == NULL)
 			{
 				/* mark next call as last */
-				ItemPointerSetMax(&entry->collectRumItem.item.iptr);
+				RumItemPointerSetMax(&entry->collectRumItem.item.iptr);
 
 				/* even current call is last */
-				if (ItemPointerIsMin(&entry->curItem.iptr))
+				if (RumItemPointerIsMin(&entry->curItem.iptr))
 				{
 					entry->isFinished = true;
 					rum_tuplesort_end(entry->matchSortstate);
@@ -1616,7 +1616,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumItem *item, bool equalOk)
 	int			cmp;
 	Page		page = BufferGetPage(entry->buffer);
 
-	ItemPointerSetMin(&iter_item.iptr);
+	RumItemPointerSetMin(&iter_item.iptr);
 
 	if (ScanDirectionIsForward(entry->scanDirection) && !RumPageRightMost(page))
 	{
@@ -1668,7 +1668,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumItem *item, bool equalOk)
 	if (ScanDirectionIsBackward(entry->scanDirection) && first >= maxoff)
 	{
 		first = FirstOffsetNumber;
-		ItemPointerSetMin(&iter_item.iptr);
+		RumItemPointerSetMin(&iter_item.iptr);
 		ptr = RumDataPageGetData(page);
 	}
 

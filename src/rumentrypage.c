@@ -28,7 +28,7 @@ rumReadTuple(RumState * rumstate, OffsetNumber attnum,
 	int			nipd = RumGetNPosting(itup),
 				i;
 
-	ItemPointerSetMin(&item.iptr);
+	RumItemPointerSetMin(&item.iptr);
 	for (i = 0; i < nipd; i++)
 	{
 		ptr = rumDataPageLeafRead(ptr, attnum, &item, copyAddInfo, rumstate);
@@ -49,7 +49,7 @@ rumReadTuplePointers(RumState * rumstate, OffsetNumber attnum,
 				i;
 	RumItem		item;
 
-	ItemPointerSetMin(&item.iptr);
+	RumItemPointerSetMin(&item.iptr);
 	for (i = 0; i < nipd; i++)
 	{
 		ptr = rumDataPageLeafReadPointer(ptr, attnum, &item, rumstate);
