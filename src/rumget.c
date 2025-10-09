@@ -760,31 +760,6 @@ scan_entry_cmp(const void *p1, const void *p2, void *arg)
 	return -cmpEntries(arg, e1, e2);
 }
 
-/*
- * The entryGetItem() function from rumget.c write the results to curItem
- * in a specific order. The functions below allow you to understand the order
- * in which the results will be returned. This is important in a multi-column
- * RUM index, when the results will be returned in different order for
- * different subquery conditions.
- */
-static bool
-isEntryOrderedByAddInfo(RumState *rumstate, RumScanEntry entry)
-{
-	if (rumstate->useAlternativeOrder)
-		return (rumstate->attrnAddToColumn == entry->attnumOrig);
-	else
-		return false;
-}
-
-static bool
-isKeyOrderedByAddInfo(RumState *rumstate, RumScanKey key)
-{
-	if (rumstate->useAlternativeOrder)
-		return (rumstate->attrnAddToColumn == key->attnumOrig);
-	else
-		return false;
-}
-
 static bool
 isScanWithAltOrderKeys(RumScanOpaque so)
 {
@@ -798,7 +773,8 @@ isScanWithAltOrderKeys(RumScanOpaque so)
 
 	for (int i = 0; i < so->nkeys; i++)
 	{
-		if (isKeyOrderedByAddInfo(rumstate, so->keys[i]))
+		if (rumstate->useAlternativeOrder &&
+			rumstate->attrnAddToColumn == so->keys[i]->attnumOrig)
 			withAltKeys = true;
 		else
 			withUsualKeys = true;
@@ -861,7 +837,7 @@ startScan(IndexScanDesc scan)
 	 */
 	if (isScanWithAltOrderKeys(so))
 	{
-		so->scanWithAltOrderKeys= true;
+		so->scanWithAltOrderKeys = true;
 		so->tbm = rum_tbm_create(work_mem * 1024L, NULL);
 	}
 
@@ -1611,7 +1587,7 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 		for (int i = 0; i < so->nkeys; i++)
 		{
 			if (so->keys[i]->orderBy ||
-				isKeyOrderedByAddInfo(rumstate, so->keys[i]))
+				rumstate->attrnAddToColumn == so->keys[i]->attnumOrig)
 				continue;
 
 			cur_key_tbm = rum_tbm_create(work_mem * 1024L, NULL);
@@ -1648,7 +1624,7 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 
 			/* In the case of scanning with altOrderKeys, skip the usual keys */
 			if (so->scanWithAltOrderKeys &&
-				isEntryOrderedByAddInfo(rumstate, entry) == false)
+				rumstate->attrnAddToColumn != entry->attnumOrig)
 				continue;
 
 			while (entry->isFinished == false &&
@@ -1687,7 +1663,7 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 
 			/* In the case of scanning with altOrderKeys, skip the usual keys */
 			if (key->orderBy || (so->scanWithAltOrderKeys &&
-				isKeyOrderedByAddInfo(rumstate, key) == false))
+				rumstate->attrnAddToColumn != so->keys[i]->attnumOrig))
 				continue;
 
 			keyGetItem(&so->rumstate, so->tempCtx, key);
@@ -1718,7 +1694,7 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 
 			/* In the case of scanning with altOrderKeys, skip the usual keys */
 			if (key->orderBy || (so->scanWithAltOrderKeys &&
-				isKeyOrderedByAddInfo(rumstate, key) == false))
+				rumstate->attrnAddToColumn != so->keys[i]->attnumOrig))
 				continue;
 
 			if (key->curItemMatches)
