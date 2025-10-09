@@ -102,14 +102,15 @@ SELECT id, d FROM atsts WHERE  t @@ 'wr&q:*' AND d >= '2016-05-16 14:21:25' ORDE
 CREATE TABLE test_table (id bigint, folder bigint, time bigint, tsv tsvector);
 CREATE INDEX test_idx ON test_table USING rum(folder, tsv rum_tsvector_addon_ops, time) with (attach = 'time', to = 'tsv', order_by_attach=TRUE);
 
-INSERT INTO test_table (id, folder, time, tsv) VALUES (1, 10, 100, to_tsvector('wordA'));
-INSERT INTO test_table (id, folder, time, tsv) VALUES (2, 20, 200, to_tsvector('wordB'));
-INSERT INTO test_table (id, folder, time, tsv) VALUES (3, 10, 300, to_tsvector('wordA'));
-INSERT INTO test_table (id, folder, time, tsv) VALUES (4, 20, 400, to_tsvector('wordB'));
-INSERT INTO test_table (id, folder, time, tsv) VALUES (5, 20, 60, to_tsvector('wordB'));
-INSERT INTO test_table (id, folder, time, tsv) VALUES (6, 10, 40, to_tsvector('wordA'));
-INSERT INTO test_table (id, folder, time, tsv) VALUES (7, 20, 50, to_tsvector('wordB'));
-INSERT INTO test_table (id, folder, time, tsv) VALUES (8, 10, 30, to_tsvector('wordA'));
+INSERT INTO test_table (id, folder, time, tsv) VALUES
+	(1, 10, 100, to_tsvector('wordA')),
+	(2, 20, 200, to_tsvector('wordB')),
+	(3, 10, 300, to_tsvector('wordA')),
+	(4, 20, 400, to_tsvector('wordB')),
+	(5, 20, 60,  to_tsvector('wordB')),
+	(6, 10, 40,  to_tsvector('wordA')),
+	(7, 20, 50,  to_tsvector('wordB')),
+	(8, 10, 30,  to_tsvector('wordA'));
 
 EXPLAIN (costs off)
 SELECT * FROM test_table WHERE tsv @@ (to_tsquery('wordA')) AND (folder = 10::bigint);
