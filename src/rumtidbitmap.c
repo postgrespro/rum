@@ -14,18 +14,23 @@
 
 #include "rumtidbitmap.h"
 
+/*
+ * NOTE: For compatibility with PostgreSQL versions less than 12,
+ * you need to transfer the src/backend/nodes/tidbitmap.c of the
+ * required version to the RUM and include it here.
+ */
 #if PG_VERSION_NUM >= 170000
-#include "tidbitmap17.c"
+#include "tidbitmap/tidbitmap17.c"
 #elif PG_VERSION_NUM >= 160000
-#include "tidbitmap16.c"
+#include "tidbitmap/tidbitmap16.c"
 #elif PG_VERSION_NUM >= 150000
-#include "tidbitmap15.c"
+#include "tidbitmap/tidbitmap15.c"
 #elif PG_VERSION_NUM >= 140000
-#include "tidbitmap14.c"
+#include "tidbitmap/tidbitmap14.c"
 #elif PG_VERSION_NUM >= 130000
-#include "tidbitmap13.c"
+#include "tidbitmap/tidbitmap13.c"
 #elif PG_VERSION_NUM >= 120000
-#include "tidbitmap12.c"
+#include "tidbitmap/tidbitmap12.c"
 #endif
 
 RumTIDBitmap *
