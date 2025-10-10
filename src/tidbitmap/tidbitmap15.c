@@ -733,9 +733,23 @@ tbm_begin_iterate(TIDBitmap *tbm)
 		while ((page = pagetable_iterate(tbm->pagetable, &i)) != NULL)
 		{
 			if (page->ischunk)
+			{
+				/*
+				 * NOTE: This is different from the original tidbitmap.c.
+				 * This check is necessary to avoid warnings from scan-build.
+				 */
+				Assert(tbm->schunks);
 				tbm->schunks[nchunks++] = page;
+			}
 			else
+			{
+				/*
+				 * NOTE: This is different from the original tidbitmap.c.
+				 * This check is necessary to avoid warnings from scan-build.
+				 */
+				Assert(tbm->spages);
 				tbm->spages[npages++] = page;
+			}
 		}
 		Assert(npages == tbm->npages);
 		Assert(nchunks == tbm->nchunks);
