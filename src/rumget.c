@@ -760,6 +760,13 @@ scan_entry_cmp(const void *p1, const void *p2, void *arg)
 	return -cmpEntries(arg, e1, e2);
 }
 
+/*
+ * The entryGetItem() function write the results to curItem in a specific
+ * order. The function below allow you to understand the order in which the
+ * results will be returned. This is important in a multi-column RUM index,
+ * when the results will be returned in different order for different subquery
+ * conditions.
+ */
 static bool
 isScanWithAltOrderKeys(RumScanOpaque so)
 {
@@ -1622,7 +1629,12 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 		{
 			RumScanEntry entry = so->entries[i];
 
-			/* In the case of scanning with altOrderKeys, skip the usual keys */
+			/*
+			 * In the case of scanning with altOrderKeys, skip the usual keys.
+			 *
+			 * Note: so->scanWithAltOrderKeys can only be true if
+			 * rumstate->useAlternativeOrder is true
+			 */
 			if (so->scanWithAltOrderKeys &&
 				rumstate->attrnAddToColumn != entry->attnumOrig)
 				continue;
@@ -1661,7 +1673,13 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 			RumScanKey	key = so->keys[i];
 			int			cmp;
 
-			/* In the case of scanning with altOrderKeys, skip the usual keys */
+			/*
+			 * Skip orderBy keys or in the case of scanning with altOrderKeys,
+			 * skip the usual keys.
+			 *
+			 * Note: so->scanWithAltOrderKeys can only be true if
+			 * rumstate->useAlternativeOrder is true
+			 */
 			if (key->orderBy || (so->scanWithAltOrderKeys &&
 				rumstate->attrnAddToColumn != so->keys[i]->attnumOrig))
 				continue;
@@ -1692,7 +1710,13 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 		{
 			RumScanKey	key = so->keys[i];
 
-			/* In the case of scanning with altOrderKeys, skip the usual keys */
+			/*
+			 * Skip orderBy keys or in the case of scanning with altOrderKeys,
+			 * skip the usual keys.
+			 *
+			 * Note: so->scanWithAltOrderKeys can only be true if
+			 * rumstate->useAlternativeOrder is true
+			 */
 			if (key->orderBy || (so->scanWithAltOrderKeys &&
 				rumstate->attrnAddToColumn != so->keys[i]->attnumOrig))
 				continue;
