@@ -3,7 +3,7 @@
  * disable_core_macro.h
  *	  Support including tuplesort.c from postgresql core code.
  *
- * Copyright (c) 2022-2024, Postgres Professional
+ * Copyright (c) 2022-2025, Postgres Professional
  *
  *-------------------------------------------------------------------------
  */

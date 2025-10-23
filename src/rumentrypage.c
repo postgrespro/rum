@@ -4,7 +4,7 @@
  *	  page utilities routines for the postgres inverted index access method.
  *
  *
- * Portions Copyright (c) 2015-2024, Postgres Professional
+ * Portions Copyright (c) 2015-2025, Postgres Professional
  * Portions Copyright (c) 1996-2013, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -28,7 +28,7 @@ rumReadTuple(RumState * rumstate, OffsetNumber attnum,
 	int			nipd = RumGetNPosting(itup),
 				i;
 
-	ItemPointerSetMin(&item.iptr);
+	RumItemPointerSetMin(&item.iptr);
 	for (i = 0; i < nipd; i++)
 	{
 		ptr = rumDataPageLeafRead(ptr, attnum, &item, copyAddInfo, rumstate);
@@ -49,7 +49,7 @@ rumReadTuplePointers(RumState * rumstate, OffsetNumber attnum,
 				i;
 	RumItem		item;
 
-	ItemPointerSetMin(&item.iptr);
+	RumItemPointerSetMin(&item.iptr);
 	for (i = 0; i < nipd; i++)
 	{
 		ptr = rumDataPageLeafReadPointer(ptr, attnum, &item, rumstate);

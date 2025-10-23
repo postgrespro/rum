@@ -4,7 +4,7 @@
  *	  page utilities routines for the postgres inverted index access method.
  *
  *
- * Portions Copyright (c) 2015-2024, Postgres Professional
+ * Portions Copyright (c) 2015-2025, Postgres Professional
  * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -102,7 +102,7 @@ rumReFindLeafPage(RumBtree btree, RumBtreeStack * stack)
 		 * item pointer is less than item pointer previous to rightmost.
 		 */
 		if (compareRumItem(btree->rumstate, btree->entryAttnum,
-			  &(((PostingItem *) RumDataPageGetItem(page, maxoff - 1))->item),
+			  &(((RumPostingItem *) RumDataPageGetItem(page, maxoff - 1))->item),
 								   &btree->items[btree->curitem]) >= 0)
 		{
 			break;

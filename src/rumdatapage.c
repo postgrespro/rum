@@ -4,7 +4,7 @@
  *	  page utilities routines for the postgres inverted index access method.
  *
  *
- * Portions Copyright (c) 2015-2024, Postgres Professional
+ * Portions Copyright (c) 2015-2025, Postgres Professional
  * Portions Copyright (c) 1996-2016, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  *
@@ -428,18 +428,18 @@ dataIsMoveRight(RumBtree btree, Page page)
 }
 
 /*
- * Find correct PostingItem in non-leaf page. It supposed that page
+ * Find correct RumPostingItem in non-leaf page. It supposed that page
  * correctly chosen and searching value SHOULD be on page
  */
 static BlockNumber
 dataLocateItem(RumBtree btree, RumBtreeStack * stack)
 {
 	OffsetNumber low,
-				high,
-				maxoff;
-	PostingItem *pitem = NULL;
-	int			result;
-	Page		page = BufferGetPage(stack->buffer);
+				 high,
+				 maxoff;
+	RumPostingItem *pitem = NULL;
+	int				result;
+	Page			page = BufferGetPage(stack->buffer);
 
 	Assert(!RumPageIsLeaf(page));
 	Assert(RumPageIsData(page));
@@ -464,7 +464,7 @@ dataLocateItem(RumBtree btree, RumBtreeStack * stack)
 	{
 		OffsetNumber mid = low + ((high - low) / 2);
 
-		pitem = (PostingItem *) RumDataPageGetItem(page, mid);
+		pitem = (RumPostingItem *) RumDataPageGetItem(page, mid);
 
 		if (mid == maxoff)
 		{
@@ -486,8 +486,8 @@ dataLocateItem(RumBtree btree, RumBtreeStack * stack)
 		{
 			stack->off = mid;
 			stack->predictNumber *= RumPageGetOpaque(page)->maxoff - mid;
-			Assert(PostingItemGetBlockNumber(pitem) != 0);
-			return PostingItemGetBlockNumber(pitem);
+			Assert(RumPostingItemGetBlockNumber(pitem) != 0);
+			return RumPostingItemGetBlockNumber(pitem);
 		}
 		else if (result > 0)
 			low = mid + 1;
@@ -499,9 +499,9 @@ dataLocateItem(RumBtree btree, RumBtreeStack * stack)
 
 	stack->predictNumber *= RumPageGetOpaque(page)->maxoff - high;
 	stack->off = high;
-	pitem = (PostingItem *) RumDataPageGetItem(page, high);
-	Assert(PostingItemGetBlockNumber(pitem) != 0);
-	return PostingItemGetBlockNumber(pitem);
+	pitem = (RumPostingItem *) RumDataPageGetItem(page, high);
+	Assert(RumPostingItemGetBlockNumber(pitem) != 0);
+	return RumPostingItemGetBlockNumber(pitem);
 }
 
 void
@@ -640,14 +640,14 @@ dataLocateLeafItem(RumBtree btree, RumBtreeStack * stack)
 
 /*
  * Finds links to blkno on non-leaf page, returns
- * offset of PostingItem
+ * offset of RumPostingItem
  */
 static OffsetNumber
 dataFindChildPtr(RumBtree btree, Page page, BlockNumber blkno, OffsetNumber storedOff)
 {
-	OffsetNumber i,
-				maxoff = RumPageGetOpaque(page)->maxoff;
-	PostingItem *pitem;
+	OffsetNumber	i,
+					maxoff = RumPageGetOpaque(page)->maxoff;
+	RumPostingItem	*pitem;
 
 	Assert(!RumPageIsLeaf(page));
 	Assert(RumPageIsData(page));
@@ -655,8 +655,8 @@ dataFindChildPtr(RumBtree btree, Page page, BlockNumber blkno, OffsetNumber stor
 	/* if page isn't changed, we return storedOff */
 	if (storedOff >= FirstOffsetNumber && storedOff <= maxoff)
 	{
-		pitem = (PostingItem *) RumDataPageGetItem(page, storedOff);
-		if (PostingItemGetBlockNumber(pitem) == blkno)
+		pitem = (RumPostingItem *) RumDataPageGetItem(page, storedOff);
+		if (RumPostingItemGetBlockNumber(pitem) == blkno)
 			return storedOff;
 
 		/*
@@ -665,8 +665,8 @@ dataFindChildPtr(RumBtree btree, Page page, BlockNumber blkno, OffsetNumber stor
 		 */
 		for (i = storedOff + 1; i <= maxoff; i++)
 		{
-			pitem = (PostingItem *) RumDataPageGetItem(page, i);
-			if (PostingItemGetBlockNumber(pitem) == blkno)
+			pitem = (RumPostingItem *) RumDataPageGetItem(page, i);
+			if (RumPostingItemGetBlockNumber(pitem) == blkno)
 				return i;
 		}
 
@@ -676,8 +676,8 @@ dataFindChildPtr(RumBtree btree, Page page, BlockNumber blkno, OffsetNumber stor
 	/* last chance */
 	for (i = FirstOffsetNumber; i <= maxoff; i++)
 	{
-		pitem = (PostingItem *) RumDataPageGetItem(page, i);
-		if (PostingItemGetBlockNumber(pitem) == blkno)
+		pitem = (RumPostingItem *) RumDataPageGetItem(page, i);
+		if (RumPostingItemGetBlockNumber(pitem) == blkno)
 			return i;
 	}
 
@@ -690,39 +690,39 @@ dataFindChildPtr(RumBtree btree, Page page, BlockNumber blkno, OffsetNumber stor
 static BlockNumber
 dataGetLeftMostPage(RumBtree btree, Page page)
 {
-	PostingItem *pitem;
+	RumPostingItem *pitem;
 
 	Assert(!RumPageIsLeaf(page));
 	Assert(RumPageIsData(page));
 	Assert(RumPageGetOpaque(page)->maxoff >= FirstOffsetNumber);
 
-	pitem = (PostingItem *) RumDataPageGetItem(page, FirstOffsetNumber);
-	return PostingItemGetBlockNumber(pitem);
+	pitem = (RumPostingItem *) RumDataPageGetItem(page, FirstOffsetNumber);
+	return RumPostingItemGetBlockNumber(pitem);
 }
 
 static BlockNumber
 dataGetRightMostPage(RumBtree btree, Page page)
 {
-	PostingItem *pitem;
+	RumPostingItem *pitem;
 
 	Assert(!RumPageIsLeaf(page));
 	Assert(RumPageIsData(page));
 	Assert(RumPageGetOpaque(page)->maxoff >= FirstOffsetNumber);
 
-	pitem = (PostingItem *)
+	pitem = (RumPostingItem *)
 			RumDataPageGetItem(page, RumPageGetOpaque(page)->maxoff);
-	return PostingItemGetBlockNumber(pitem);
+	return RumPostingItemGetBlockNumber(pitem);
 }
 
 /*
- * add ItemPointer or PostingItem to page. data should point to
+ * add ItemPointer or RumPostingItem to page. data should point to
  * correct value! depending on leaf or non-leaf page
  */
 void
 RumDataPageAddItem(Page page, void *data, OffsetNumber offset)
 {
 	OffsetNumber maxoff = RumPageGetOpaque(page)->maxoff;
-	char	   *ptr;
+	char		*ptr;
 
 	Assert(!RumPageIsLeaf(page));
 
@@ -734,11 +734,11 @@ RumDataPageAddItem(Page page, void *data, OffsetNumber offset)
 	{
 		ptr = RumDataPageGetItem(page, offset);
 		if (offset <= maxoff)
-			memmove(ptr + sizeof(PostingItem),
+			memmove(ptr + sizeof(RumPostingItem),
 					ptr,
-				    ((uint16)(maxoff - offset + 1)) * sizeof(PostingItem));
+				    ((uint16)(maxoff - offset + 1)) * sizeof(RumPostingItem));
 	}
-	memcpy(ptr, data, sizeof(PostingItem));
+	memcpy(ptr, data, sizeof(RumPostingItem));
 	RumPageGetOpaque(page)->maxoff++;
 
 	/* Adjust pd_lower */
@@ -763,7 +763,7 @@ RumPageDeletePostingItem(Page page, OffsetNumber offset)
 		char	   *dstptr = RumDataPageGetItem(page, offset),
 				   *sourceptr = RumDataPageGetItem(page, offset + 1);
 
-		memmove(dstptr, sourceptr, sizeof(PostingItem) * (uint16)(maxoff - offset));
+		memmove(dstptr, sourceptr, sizeof(RumPostingItem) * (uint16)(maxoff - offset));
 	}
 
 	RumPageGetOpaque(page)->maxoff--;
@@ -804,7 +804,7 @@ dataIsEnoughSpace(RumBtree btree, Buffer buf, OffsetNumber off)
 			return true;
 
 	}
-	else if (sizeof(PostingItem) <= RumDataPageGetFreeSpace(page))
+	else if (sizeof(RumPostingItem) <= RumDataPageGetFreeSpace(page))
 		return true;
 
 	return false;
@@ -824,9 +824,9 @@ dataPrepareData(RumBtree btree, Page page, OffsetNumber off)
 
 	if (!RumPageIsLeaf(page) && btree->rightblkno != InvalidBlockNumber)
 	{
-		PostingItem *pitem = (PostingItem *) RumDataPageGetItem(page, off);
+		RumPostingItem *pitem = (RumPostingItem *) RumDataPageGetItem(page, off);
 
-		PostingItemSetBlockNumber(pitem, btree->rightblkno);
+		RumPostingItemSetBlockNumber(pitem, btree->rightblkno);
 		ret = btree->rightblkno;
 	}
 
@@ -1021,7 +1021,7 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 			totalsize / 2 && page == newlPage)		\
 		{											\
 			maxLeftItem = curItem;					\
-			ItemPointerSetMin(&prevIptr);			\
+			RumItemPointerSetMin(&prevIptr);			\
 			RumPageGetOpaque(newlPage)->maxoff = j; \
 			page = rPage;							\
 			ptr = RumDataPageGetData(rPage);		\
@@ -1068,7 +1068,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	 * inside rumDataPageLeafRead() etc.
 	 */
 	static char lpageCopyStorage[BLCKSZ + MAXIMUM_ALIGNOF];
-	char 	   *lpageCopy = (char *) MAXALIGN(lpageCopyStorage);
+	char	   *lpageCopy = (char *) MAXALIGN(lpageCopyStorage);
 
 	memset(&item, 0, sizeof(item));
 	dataPrepareData(btree, newlPage, off);
@@ -1155,7 +1155,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	page = newlPage;
 	j = FirstOffsetNumber;
 
-	ItemPointerSetMin(&item.iptr);
+	RumItemPointerSetMin(&item.iptr);
 	prevIptr = item.iptr;
 	copyPtr = RumDataPageGetData(lpageCopy);
 	for (i = FirstOffsetNumber; i <= maxoff; i++)
@@ -1208,7 +1208,7 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 
 	RumPageGetOpaque(rPage)->maxoff = j - 1;
 
-	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
+	RumPostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
 	btree->pitem.item = maxLeftItem;
 	btree->rightblkno = BufferGetBlockNumber(rbuf);
 
@@ -1237,7 +1237,7 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 	RumItem	   *bound;
 	Page		newlPage = PageGetTempPageCopy(BufferGetPage(lbuf));
 	RumItem		oldbound = *RumDataPageGetRightBound(newlPage);
-	unsigned int	sizeofitem = sizeof(PostingItem);
+	unsigned int	sizeofitem = sizeof(RumPostingItem);
 	OffsetNumber maxoff = RumPageGetOpaque(newlPage)->maxoff;
 	Size		pageSize = PageGetPageSize(newlPage);
 	Size		freeSpace;
@@ -1294,12 +1294,12 @@ dataSplitPageInternal(RumBtree btree, Buffer lbuf, Buffer rbuf,
 									  (maxoff - separator) * sizeofitem) -
 									  rPage;
 
-	PostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
+	RumPostingItemSetBlockNumber(&(btree->pitem), BufferGetBlockNumber(lbuf));
 	if (RumPageIsLeaf(newlPage))
-		btree->pitem.item.iptr = ((PostingItem *) RumDataPageGetItem(newlPage,
+		btree->pitem.item.iptr = ((RumPostingItem *) RumDataPageGetItem(newlPage,
 								   RumPageGetOpaque(newlPage)->maxoff))->item.iptr;
 	else
-		btree->pitem.item = ((PostingItem *) RumDataPageGetItem(newlPage,
+		btree->pitem.item = ((RumPostingItem *) RumDataPageGetItem(newlPage,
 								   RumPageGetOpaque(newlPage)->maxoff))->item;
 	btree->rightblkno = BufferGetBlockNumber(rbuf);
 
@@ -1402,7 +1402,7 @@ checkLeafDataPage(RumState * rumstate, AttrNumber attnum, Page page)
 
 	maxoff = RumPageGetOpaque(page)->maxoff;
 	ptr = RumDataPageGetData(page);
-	ItemPointerSetMin(&item.iptr);
+	RumItemPointerSetMin(&item.iptr);
 
 	Assert(RumPageGetOpaque(page)->flags & RUM_LEAF);
 
@@ -1446,17 +1446,17 @@ void
 rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
 				Page page, Page lpage, Page rpage)
 {
-	PostingItem li,
-				ri;
+	RumPostingItem	li,
+					ri;
 
-	memset(&li, 0, sizeof(PostingItem));
+	memset(&li, 0, sizeof(RumPostingItem));
 	li.item = *RumDataPageGetRightBound(lpage);
-	PostingItemSetBlockNumber(&li, BufferGetBlockNumber(lbuf));
+	RumPostingItemSetBlockNumber(&li, BufferGetBlockNumber(lbuf));
 	RumDataPageAddItem(page, &li, InvalidOffsetNumber);
 
-	memset(&ri, 0, sizeof(PostingItem));
+	memset(&ri, 0, sizeof(RumPostingItem));
 	ri.item = *RumDataPageGetRightBound(rpage);
-	PostingItemSetBlockNumber(&ri, BufferGetBlockNumber(rbuf));
+	RumPostingItemSetBlockNumber(&ri, BufferGetBlockNumber(rbuf));
 	RumDataPageAddItem(page, &ri, InvalidOffsetNumber);
 }
 

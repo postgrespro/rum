@@ -3,7 +3,7 @@
  * rum.h
  *	  Exported definitions for RUM index.
  *
- * Portions Copyright (c) 2015-2024, Postgres Professional
+ * Portions Copyright (c) 2015-2025, Postgres Professional
  * Portions Copyright (c) 2006-2022, PostgreSQL Global Development Group
  *
  *-------------------------------------------------------------------------
@@ -46,7 +46,7 @@ typedef struct RumPageOpaqueData
 	BlockNumber rightlink;		/* next page if any */
 	OffsetNumber maxoff;		/* number entries on RUM_DATA page: number of
 								 * heap ItemPointers on RUM_DATA|RUM_LEAF page
-								 * or number of PostingItems on RUM_DATA &
+								 * or number of RumPostingItems on RUM_DATA &
 								 * ~RUM_LEAF page. On RUM_LIST page, number of
 								 * heap tuples. */
 	OffsetNumber freespace;
@@ -150,19 +150,19 @@ typedef struct RumMetaPageData
  * (which is InvalidBlockNumber/0) as well as from all normal item
  * pointers (which have item numbers in the range 1..MaxHeapTuplesPerPage).
  */
-#define ItemPointerSetMin(p)  \
+#define RumItemPointerSetMin(p)  \
 	ItemPointerSet((p), (BlockNumber)0, (OffsetNumber)0)
-#define ItemPointerIsMin(p)  \
+#define RumItemPointerIsMin(p)  \
 	(RumItemPointerGetOffsetNumber(p) == (OffsetNumber)0 && \
 	 RumItemPointerGetBlockNumber(p) == (BlockNumber)0)
-#define ItemPointerSetMax(p)  \
+#define RumItemPointerSetMax(p)  \
 	ItemPointerSet((p), InvalidBlockNumber, (OffsetNumber)0xfffe)
-#define ItemPointerIsMax(p)  \
+#define RumItemPointerIsMax(p)  \
 	(RumItemPointerGetOffsetNumber(p) == (OffsetNumber)0xfffe && \
 	 RumItemPointerGetBlockNumber(p) == InvalidBlockNumber)
 #define ItemPointerSetLossyPage(p, b)  \
 	ItemPointerSet((p), (b), (OffsetNumber)0xffff)
-#define ItemPointerIsLossyPage(p)  \
+#define RumItemPointerIsLossyPage(p)  \
 	(RumItemPointerGetOffsetNumber(p) == (OffsetNumber)0xffff && \
 	 RumItemPointerGetBlockNumber(p) != InvalidBlockNumber)
 
@@ -175,7 +175,7 @@ typedef struct RumItem
 
 #define RumItemSetMin(item)  \
 do { \
-	ItemPointerSetMin(&((item)->iptr)); \
+	RumItemPointerSetMin(&((item)->iptr)); \
 	(item)->addInfoIsNull = true; \
 	(item)->addInfo = (Datum) 0; \
 } while (0)
@@ -188,12 +188,12 @@ typedef struct
 	/* We use BlockIdData not BlockNumber to avoid padding space wastage */
 	BlockIdData child_blkno;
 	RumItem		item;
-} PostingItem;
+} RumPostingItem;
 
-#define PostingItemGetBlockNumber(pointer) \
+#define RumPostingItemGetBlockNumber(pointer) \
 	BlockIdGetBlockNumber(&(pointer)->child_blkno)
 
-#define PostingItemSetBlockNumber(pointer, blockNumber) \
+#define RumPostingItemSetBlockNumber(pointer, blockNumber) \
 	BlockIdSet(&((pointer)->child_blkno), (blockNumber))
 
 /*
@@ -265,8 +265,8 @@ typedef signed char RumNullCategory;
  * Data (posting tree) pages
  */
 /*
- * FIXME -- Currently RumItem is placed as a pages right bound and PostingItem
- * is placed as a non-leaf pages item. Both RumItem and PostingItem stores
+ * FIXME -- Currently RumItem is placed as a pages right bound and RumPostingItem
+ * is placed as a non-leaf pages item. Both RumItem and RumPostingItem stores
  * AddInfo as a raw Datum, which is bogus. It is fine for pass-by-value
  * attributes, but it isn't for pass-by-reference, which may have variable
  * length of data. This AddInfo is used only by order_by_attach indexes, so it
@@ -278,12 +278,12 @@ typedef signed char RumNullCategory;
 #define RumDataPageGetData(page)	\
 	(PageGetContents(page) + MAXALIGN(sizeof(RumItem)))
 #define RumDataPageGetItem(page,i)	\
-	(RumDataPageGetData(page) + ((i)-1) * sizeof(PostingItem))
+	(RumDataPageGetData(page) + ((i)-1) * sizeof(RumPostingItem))
 
 #define RumDataPageGetFreeSpace(page)	\
 	(BLCKSZ - MAXALIGN(SizeOfPageHeaderData) \
 	 - MAXALIGN(sizeof(RumItem)) /* right bound */ \
-	 - RumPageGetOpaque(page)->maxoff * sizeof(PostingItem) \
+	 - RumPageGetOpaque(page)->maxoff * sizeof(RumPostingItem) \
 	 - MAXALIGN(sizeof(RumPageOpaqueData)))
 
 #define RumMaxLeafDataItems \
@@ -513,7 +513,7 @@ typedef struct RumBtreeData
 	uint32		nitem;
 	uint32		curitem;
 
-	PostingItem pitem;
+	RumPostingItem pitem;
 }	RumBtreeData;
 
 extern RumBtreeStack *rumPrepareFindLeafPage(RumBtree btree, BlockNumber blkno);
