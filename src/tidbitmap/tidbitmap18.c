@@ -1091,8 +1091,15 @@ tbm_shared_iterate(TBMSharedIterator *iterator, TBMIterateResult *tbmres)
 	 */
 	while (istate->schunkptr < istate->nchunks)
 	{
-		PagetableEntry *chunk = &ptbase[idxchunks[istate->schunkptr]];
+		PagetableEntry *chunk;
 		int			schunkbit = istate->schunkbit;
+
+		/*
+		 * NOTE: This is different from the original tidbitmap.c.
+		 * This check is necessary to avoid warnings from scan-build.
+		 */
+		Assert(idxchunks);
+		chunk = &ptbase[idxchunks[istate->schunkptr]];
 
 		tbm_advance_schunkbit(chunk, &schunkbit);
 		if (schunkbit < PAGES_PER_CHUNK)
@@ -1116,6 +1123,12 @@ tbm_shared_iterate(TBMSharedIterator *iterator, TBMIterateResult *tbmres)
 
 		chunk_blockno = chunk->blockno + istate->schunkbit;
 
+		/*
+		 * NOTE: This is different from the original tidbitmap.c.
+		 * This check is necessary to avoid warnings from scan-build.
+		 */
+		Assert(idxpages);
+
 		if (istate->spageptr >= istate->npages ||
 			chunk_blockno < ptbase[idxpages[istate->spageptr]].blockno)
 		{
@@ -1133,7 +1146,14 @@ tbm_shared_iterate(TBMSharedIterator *iterator, TBMIterateResult *tbmres)
 
 	if (istate->spageptr < istate->npages)
 	{
-		PagetableEntry *page = &ptbase[idxpages[istate->spageptr]];
+		PagetableEntry *page;
+
+		/*
+		 * NOTE: This is different from the original tidbitmap.c.
+		 * This check is necessary to avoid warnings from scan-build.
+		 */
+		Assert(idxpages);
+		page = &ptbase[idxpages[istate->spageptr]];
 
 		tbmres->internal_page = page;
 		tbmres->blockno = page->blockno;
