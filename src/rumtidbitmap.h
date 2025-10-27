@@ -40,8 +40,15 @@ extern void rum_tbm_intersect(RumTIDBitmap *a, const RumTIDBitmap *b);
 
 extern bool rum_tbm_is_empty(const RumTIDBitmap *tbm);
 
-extern RumTBMIterator *rum_tbm_begin_iterate(RumTIDBitmap *tbm);
+#if PG_VERSION_NUM >= 180000
+extern RumTBMIterator rum_tbm_begin_iterate(RumTIDBitmap *tbm,
+											dsa_area *dsa, dsa_pointer dsp);
+extern bool rum_tbm_iterate(RumTBMIterator *iterator, RumTBMIterateResult *tbmres);
+#else
 extern RumTBMIterateResult *rum_tbm_iterate(RumTBMIterator *iterator);
+extern RumTBMIterator *rum_tbm_begin_iterate(RumTIDBitmap *tbm);
+#endif
+
 extern void rum_tbm_end_iterate(RumTBMIterator *iterator);
 
 extern long rum_tbm_calculate_entries(double maxbytes);

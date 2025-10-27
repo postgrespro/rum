@@ -19,7 +19,9 @@
  * you need to transfer the src/backend/nodes/tidbitmap.c of the
  * required version to the RUM and include it here.
  */
-#if PG_VERSION_NUM >= 170000
+#if PG_VERSION_NUM >= 180000
+#include "tidbitmap/tidbitmap18.c"
+#elif PG_VERSION_NUM >= 170000
 #include "tidbitmap/tidbitmap17.c"
 #elif PG_VERSION_NUM >= 160000
 #include "tidbitmap/tidbitmap16.c"
@@ -76,17 +78,33 @@ rum_tbm_is_empty(const RumTIDBitmap *tbm)
 	return tbm_is_empty(tbm);
 }
 
+#if PG_VERSION_NUM >= 180000
+RumTBMIterator
+rum_tbm_begin_iterate(RumTIDBitmap *tbm, dsa_area *dsa, dsa_pointer dsp)
+{
+	return tbm_begin_iterate(tbm, dsa, dsp);
+}
+#else
 RumTBMIterator *
 rum_tbm_begin_iterate(RumTIDBitmap *tbm)
 {
 	return tbm_begin_iterate(tbm);
 }
+#endif
 
+#if PG_VERSION_NUM >= 180000
+bool
+rum_tbm_iterate(RumTBMIterator *iterator, RumTBMIterateResult *tbmres)
+{
+	return tbm_iterate(iterator, tbmres);
+}
+#else
 RumTBMIterateResult *
 rum_tbm_iterate(RumTBMIterator *iterator)
 {
 	return tbm_iterate(iterator);
 }
+#endif
 
 void
 rum_tbm_end_iterate(RumTBMIterator *iterator)
