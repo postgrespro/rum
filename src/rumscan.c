@@ -38,6 +38,8 @@ rumbeginscan(Relation rel, int nkeys, int norderbys)
 								   "Rum scan temporary context");
 	so->keyCtx = RumContextCreate(CurrentMemoryContext,
 								  "Rum scan key context");
+	so->scanWithAltOrderKeys = false;
+	so->tbm = NULL;
 
 	initRumState(&so->rumstate, scan->indexRelation);
 
@@ -759,6 +761,12 @@ rumendscan(IndexScanDesc scan)
 	RumScanOpaque so = (RumScanOpaque) scan->opaque;
 
 	freeScanKeys(so);
+
+	if (so->tbm)
+	{
+		rum_tbm_free(so->tbm);
+		so->tbm = NULL;
+	}
 
 	MemoryContextDelete(so->tempCtx);
 	MemoryContextDelete(so->keyCtx);
