@@ -573,3 +573,49 @@ SELECT id, d FROM atsts WHERE  t @@ 'wr&q:*' AND d >= '2016-05-16 14:21:25' ORDE
  506 | Sun May 22 21:21:22.326724 2016
 (112 rows)
 
+CREATE TABLE test_table (id bigint, folder bigint, time bigint, tsv tsvector);
+CREATE INDEX test_idx ON test_table USING rum(folder, tsv rum_tsvector_addon_ops, time) with (attach = 'time', to = 'tsv', order_by_attach=TRUE);
+INSERT INTO test_table (id, folder, time, tsv) VALUES
+	(1, 10, 100, to_tsvector('wordA')),
+	(2, 20, 200, to_tsvector('wordB')),
+	(3, 10, 300, to_tsvector('wordA')),
+	(4, 20, 400, to_tsvector('wordB')),
+	(5, 20, 60,  to_tsvector('wordB')),
+	(6, 10, 40,  to_tsvector('wordA')),
+	(7, 20, 50,  to_tsvector('wordB')),
+	(8, 10, 30,  to_tsvector('wordA'));
+EXPLAIN (costs off)
+SELECT * FROM test_table WHERE tsv @@ (to_tsquery('wordA')) AND (folder = 10::bigint);
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Index Scan using test_idx on test_table
+   Index Cond: ((folder = '10'::bigint) AND (tsv @@ to_tsquery('wordA'::text)))
+(2 rows)
+
+SELECT * FROM test_table WHERE tsv @@ (to_tsquery('wordA')) AND (folder = 10::bigint);
+ id | folder | time |    tsv    
+----+--------+------+-----------
+  8 |     10 |   30 | 'worda':1
+  6 |     10 |   40 | 'worda':1
+  1 |     10 |  100 | 'worda':1
+  3 |     10 |  300 | 'worda':1
+(4 rows)
+
+EXPLAIN (costs off)
+SELECT * FROM test_table WHERE tsv @@ (to_tsquery('wordA')) AND (folder = 10::bigint) ORDER BY time <=| 500::bigint;
+                                   QUERY PLAN                                   
+--------------------------------------------------------------------------------
+ Index Scan using test_idx on test_table
+   Index Cond: ((folder = '10'::bigint) AND (tsv @@ to_tsquery('wordA'::text)))
+   Order By: ("time" <=| '500'::bigint)
+(3 rows)
+
+SELECT * FROM test_table WHERE tsv @@ (to_tsquery('wordA')) AND (folder = 10::bigint) ORDER BY time <=| 500::bigint;
+ id | folder | time |    tsv    
+----+--------+------+-----------
+  3 |     10 |  300 | 'worda':1
+  1 |     10 |  100 | 'worda':1
+  6 |     10 |   40 | 'worda':1
+  8 |     10 |   30 | 'worda':1
+(4 rows)
+

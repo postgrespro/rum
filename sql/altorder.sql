@@ -98,3 +98,25 @@ SELECT id, d FROM atsts WHERE  t @@ 'wr&qh' AND d >= '2016-05-16 14:21:25' ORDER
 EXPLAIN (costs off)
 SELECT id, d FROM atsts WHERE  t @@ 'wr&q:*' AND d >= '2016-05-16 14:21:25' ORDER BY d;
 SELECT id, d FROM atsts WHERE  t @@ 'wr&q:*' AND d >= '2016-05-16 14:21:25' ORDER BY d;
+
+CREATE TABLE test_table (id bigint, folder bigint, time bigint, tsv tsvector);
+CREATE INDEX test_idx ON test_table USING rum(folder, tsv rum_tsvector_addon_ops, time) with (attach = 'time', to = 'tsv', order_by_attach=TRUE);
+
+INSERT INTO test_table (id, folder, time, tsv) VALUES
+	(1, 10, 100, to_tsvector('wordA')),
+	(2, 20, 200, to_tsvector('wordB')),
+	(3, 10, 300, to_tsvector('wordA')),
+	(4, 20, 400, to_tsvector('wordB')),
+	(5, 20, 60,  to_tsvector('wordB')),
+	(6, 10, 40,  to_tsvector('wordA')),
+	(7, 20, 50,  to_tsvector('wordB')),
+	(8, 10, 30,  to_tsvector('wordA'));
+
+EXPLAIN (costs off)
+SELECT * FROM test_table WHERE tsv @@ (to_tsquery('wordA')) AND (folder = 10::bigint);
+SELECT * FROM test_table WHERE tsv @@ (to_tsquery('wordA')) AND (folder = 10::bigint);
+
+EXPLAIN (costs off)
+SELECT * FROM test_table WHERE tsv @@ (to_tsquery('wordA')) AND (folder = 10::bigint) ORDER BY time <=| 500::bigint;
+SELECT * FROM test_table WHERE tsv @@ (to_tsquery('wordA')) AND (folder = 10::bigint) ORDER BY time <=| 500::bigint;
+

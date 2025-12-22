@@ -45,7 +45,9 @@ This module is available under the [license](LICENSE) similar to
 
 Before building and installing **rum**, you should ensure following are installed:
 
-* PostgreSQL version is 9.6+.
+* PostgreSQL version is 12+.
+
+* PostgreSQL 9.6 - 11  (but you need to transfer the `src/backend/nodes/tidbitmap.c` of the required version to the `contrib/rum/src/tidbitmap/tidbitmapXX.c` and include it to `contrib/rum/src/rumtidbitmap.c`)
 
 Typical installation procedure may look like this:
 
