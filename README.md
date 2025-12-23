@@ -308,6 +308,134 @@ For type: `anyarray`
 This operator class stores `anyarray` elements with any supported by module
 field.
 
+## Functions for low-level inspect of the RUM index pages
+
+The RUM index provides several functions for low-level inspect of all types of its pages:
+
+### `rum_metapage_info(rel_name text, blk_num int4) returns record`
+
+`rum_metapage_info` returns information about a RUM index metapage. For example:
+
+```SQL
+SELECT * FROM rum_metapage_info('rum_index', 0);
+-[ RECORD 1 ]----+-----------
+pending_head     | 4294967295
+pending_tail     | 4294967295
+tail_free_size   | 0
+n_pending_pages  | 0
+n_pending_tuples | 0
+n_total_pages    | 87
+n_entry_pages    | 80
+n_data_pages     | 6
+n_entries        | 1650
+version          | 0xC0DE0002
+```
+
+### `rum_page_opaque_info(rel_name text, blk_num int4) returns record`
+
+`rum_page_opaque_info` returns information about a RUM index opaque area: `left` and `right` links, `maxoff` -- the number of elements that are stored on the page (this parameter is used differently for different types of pages), `freespace` -- free space on the page.
+
+For example:
+
+```SQL
+SELECT * FROM rum_page_opaque_info('rum_index', 10);
+ leftlink | rightlink | maxoff | freespace | flags
+----------+-----------+--------+-----------+--------
+        6 |        11 |      0 |         0 | {leaf}
+```
+
+### `rum_internal_entry_page_items(rel_name text, blk_num int4) returns set of record`
+
+`rum_internal_entry_page_items` returns information that is stored on the internal pages of the entry tree (it is extracted from `IndexTuples`). For example:
+
+```SQL
+SELECT * FROM rum_internal_entry_page_items('rum_index', 1);
+               key               | attrnum |     category     | down_link
+---------------------------------+---------+------------------+-----------
+ 3d                              |       1 | RUM_CAT_NORM_KEY |         3
+ 6k                              |       1 | RUM_CAT_NORM_KEY |         2
+ a8                              |       1 | RUM_CAT_NORM_KEY |         4
+...
+ Tue May 10 21:21:22.326724 2016 |       2 | RUM_CAT_NORM_KEY |        83
+ Sat May 14 19:21:22.326724 2016 |       2 | RUM_CAT_NORM_KEY |        84
+ Wed May 18 17:21:22.326724 2016 |       2 | RUM_CAT_NORM_KEY |        85
+ +inf                            |         |                  |        86
+(79 rows)
+```
+
+RUM (like GIN) on the internal pages of the entry tree packs the downward link and the key in pairs of the following type: `(P_n, K_{n+1})`. It turns out that there is no key for `P_0` (it is assumed to be equal to `-inf`), and for the last key `K_{n+1}` there is no downward link (it is assumed that it is the largest key (or high key) in the subtree to which the `P_n` link leads). For this reason (the key is `+inf` because it is the rightmost page at the current level of the tree), in the example above, the last line contains the key `+inf` (this key does not have a downward link).
+
+### `rum_leaf_entry_page_items(rel_name text, blk_num int4) returns set of record`
+
+`rum_leaf_entry_page_items` returns information that is stored on the entry tree leaf pages (it is extracted from compressed posting lists). For example:
+
+```SQL
+SELECT * FROM rum_leaf_entry_page_items('rum_index', 10);
+ key | attrnum |     category     | tuple_id | add_info_is_null | add_info | is_posting_tree | posting_tree_root
+-----+---------+------------------+----------+------------------+----------+------------------+--------------------
+ ay  |       1 | RUM_CAT_NORM_KEY | (0,16)   | t                |          | f                |
+ ay  |       1 | RUM_CAT_NORM_KEY | (0,23)   | t                |          | f                |
+ ay  |       1 | RUM_CAT_NORM_KEY | (2,1)    | t                |          | f                |
+...
+ az  |       1 | RUM_CAT_NORM_KEY | (0,15)   | t                |          | f                |
+ az  |       1 | RUM_CAT_NORM_KEY | (0,22)   | t                |          | f                |
+ az  |       1 | RUM_CAT_NORM_KEY | (1,4)    | t                |          | f                |
+...
+ b9  |       1 | RUM_CAT_NORM_KEY |          |                  |          | t                |                  7
+...
+(1602 rows)
+```
+
+Each posting list is an `IndexTuple` that stores the key value and a compressed list of `tids`. In the function `rum_leaf_entry_page_items()`, the key value is attached to each `tid` for convenience, but on the page it is stored in a single instance.
+
+If the number of `tids` is too large, then instead of a posting list, a posting tree will be used for storage. In the example above, a posting tree was created (the key in the posting tree is the `tid`) for the key with the value `b9`. In this case, instead of the posting list, the magic number and the page number, which is the root of the posting tree, are stored inside the `IndexTuple`.
+
+### `rum_internal_data_page_items(rel_name text, blk_num int4) returns set of record`
+
+`rum_internal_data_page_items` returns information that is stored on the internal pages of the posting tree (it is extracted from arrays of `RumPostingItem` structures). For example:
+
+```SQL
+SELECT * FROM rum_internal_data_page_items('rum_index', 7);
+ is_high_key | block_number | tuple_id | add_info_is_null | add_info
+-------------+--------------+----------+------------------+----------
+ t           |              | (0,0)    | t                |
+ f           |            9 | (138,79) | t                |
+ f           |            8 | (0,0)    | t                |
+(3 rows)
+```
+
+Each element on the internal pages of the posting tree contains the high key (`tid`) value for the child page and a link to this child page (as well as additional information if it was added when creating the index).
+
+At the beginning of the internal pages of the posting tree, the high key of this page is always stored (if it has the value `(0,0)`, this is equivalent to `+inf`; this is always performed if the page is the rightmost).
+
+At the moment, RUM does not support storing (as additional information) the data type that is pass by reference on the internal pages of the posting tree. Therefore, this output is possible:
+
+```SQL
+ is_high_key | block_number | tuple_id | add_info_is_null |                    add_info
+-------------+--------------+----------+------------------+------------------------------------------------
+...
+ f           |           23 | (39,43)  | f                | varlena types in posting tree is not supported
+ f           |           22 | (74,9)   | f                | varlena types in posting tree is not supported
+...
+```
+
+### `rum_leaf_data_page_items(rel_name text, blk_num int4) returns set of record`
+
+`rum_leaf_data_page_items` the function returns information that is stored on the leaf pages of the postnig tree (it is extracted from compressed posting lists). For example:
+
+```SQL
+SELECT * FROM rum_leaf_data_page_items('rum_idx', 9);
+ is_high_key | tuple_id  | add_info_is_null | add_info
+-------------+-----------+------------------+----------
+ t           | (138,79)  | t                |
+ f           | (0,9)     | t                |
+ f           | (1,23)    | t                |
+ f           | (3,5)     | t                |
+ f           | (3,22)    | t                |
+```
+
+Unlike entry tree leaf pages, on posting tree leaf pages, compressed posting lists are not stored in an `IndexTuple`. The high key is the largest key on the page.
+
 ## Todo
 
 - Allow multiple additional information (lexemes positions + timestamp).
