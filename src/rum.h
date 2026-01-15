@@ -21,6 +21,7 @@
 #include "storage/bufmgr.h"
 #include "utils/datum.h"
 #include "utils/memutils.h"
+#include "tsearch/ts_type.h"
 
 #include "rumsort.h"
 #include "rumtidbitmap.h"
@@ -853,6 +854,8 @@ extern RumItem *rumGetBAEntry(BuildAccumulator *accum,
 #define RUM_ADDINFO_JOIN			10
 #define RUMNProcs					10
 
+#define LOWERMASK 0x1F
+
 extern PGDLLEXPORT Datum rum_extract_tsvector(PG_FUNCTION_ARGS);
 extern PGDLLEXPORT Datum rum_extract_tsquery(PG_FUNCTION_ARGS);
 extern PGDLLEXPORT Datum rum_tsvector_config(PG_FUNCTION_ARGS);
@@ -863,6 +866,9 @@ extern PGDLLEXPORT Datum rum_ts_distance_ttf(PG_FUNCTION_ARGS);
 extern PGDLLEXPORT Datum rum_ts_distance_td(PG_FUNCTION_ARGS);
 
 extern PGDLLEXPORT Datum tsquery_to_distance_query(PG_FUNCTION_ARGS);
+
+extern char* decompress_pos(char *ptr, WordEntryPos *pos);
+extern unsigned int count_pos(char *ptr, int len);
 
 /* rum_arr_utils.c */
 typedef enum SimilarityType
