@@ -67,7 +67,7 @@ if [ "$LEVEL" = "hardcore" ]; then
 	-disable-checker core.UndefinedBinaryOperatorResult \
 	-disable-checker core.DivideZero \
 	-disable-checker deadcode.DeadStores \
-	make USE_PGXS=1 || status=$?
+	make USE_PGXS=1 CLANG=clang || status=$?
 
 	# something's wrong, exit now!
 	if [ $status -ne 0 ]; then exit 1; fi
