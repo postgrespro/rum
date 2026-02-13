@@ -476,6 +476,7 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 	int			i,
 				lastIndex = 0;
 	TmpNode		nodes[256];
+	bool leafHit = false;
 
 	*recheck = false;
 
@@ -543,6 +544,8 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 					nodes[index].sum--;
 				else
 					nodes[index].sum++;
+
+				leafHit = true;
 			}
 
 			if (index == 0)
@@ -579,6 +582,12 @@ ruminv_tsvector_consistent(PG_FUNCTION_ARGS)
 				}
 			}
 		}
+	}
+
+	if (!res && leafHit)
+	{
+		res = true;
+		*recheck = true;
 	}
 
 	PG_RETURN_BOOL(res);
