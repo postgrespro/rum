@@ -473,7 +473,7 @@ lookupScanDirection(RumState *state, AttrNumber attno, StrategyNumber strategy)
 
 	for(i = 0; i < MAX_STRATEGIES; i++)
 	{
-		if (rumConfig->strategyInfo[i].strategy != InvalidStrategy)
+		if (rumConfig->strategyInfo[i].strategy == InvalidStrategy)
 			break;
 		if (rumConfig->strategyInfo[i].strategy == strategy)
 			return rumConfig->strategyInfo[i].direction;
