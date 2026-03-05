@@ -9,6 +9,7 @@ extversion = '1.4'
 rum_sources = files(
   'src/btree_rum.c',
   'src/rum_arr_utils.c',
+  'src/rum_debug_funcs.c',
   'src/rum_ts_utils.c',
   'src/rumbtree.c',
   'src/rumbulk.c',
@@ -18,6 +19,7 @@ rum_sources = files(
   'src/ruminsert.c',
   'src/rumscan.c',
   'src/rumsort.c',
+  'src/rumtidbitmap.c',
   'src/rumtsquery.c',
   'src/rumutil.c',
   'src/rumvacuum.c',
