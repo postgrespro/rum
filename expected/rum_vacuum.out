@@ -1,0 +1,154 @@
+-- Test RUM index scan correctness after concurrent VACUUM removes all
+-- posting tree entry items.
+SET enable_seqscan TO off;
+SET enable_indexscan TO off;
+SET enable_bitmapscan TO on;
+CREATE TABLE test_rum_vacuum (id int, body tsvector);
+ALTER TABLE test_rum_vacuum SET (autovacuum_enabled = false);
+INSERT INTO test_rum_vacuum SELECT i, to_tsvector('great ann') FROM generate_series(1, 6) i;
+INSERT INTO test_rum_vacuum SELECT i, to_tsvector('great john') FROM generate_series(7, 10000) i;
+INSERT INTO test_rum_vacuum SELECT i, to_tsvector('great james') FROM generate_series(10001, 10003) i;
+CREATE INDEX ON test_rum_vacuum USING rum (body rum_tsvector_ops);
+DELETE FROM test_rum_vacuum WHERE body @@ 'ann'::tsquery AND id <= 5;
+DELETE FROM test_rum_vacuum WHERE body @@ 'john'::tsquery AND id <= 9999;
+-- test normal result
+SELECT * FROM test_rum_vacuum WHERE body @@ to_tsquery('ann');
+ id |       body        
+----+-------------------
+  6 | 'ann':2 'great':1
+(1 row)
+
+SELECT * FROM test_rum_vacuum WHERE body @@ to_tsquery('john');
+  id   |        body        
+-------+--------------------
+ 10000 | 'great':1 'john':2
+(1 row)
+
+SELECT id, body FROM (SELECT id, body, body <=> to_tsquery('ann') AS distance FROM test_rum_vacuum ORDER BY body <=> to_tsquery('ann')) AS sub ORDER BY distance ASC, id ASC;
+  id   |        body        
+-------+--------------------
+     6 | 'ann':2 'great':1
+ 10000 | 'great':1 'john':2
+ 10001 | 'great':1 'jame':2
+ 10002 | 'great':1 'jame':2
+ 10003 | 'great':1 'jame':2
+(5 rows)
+
+SELECT id, body FROM (SELECT id, body, body <=> to_tsquery('john') AS distance FROM test_rum_vacuum ORDER BY body <=> to_tsquery('john')) AS sub ORDER BY distance ASC, id ASC;
+  id   |        body        
+-------+--------------------
+ 10000 | 'great':1 'john':2
+     6 | 'ann':2 'great':1
+ 10001 | 'great':1 'jame':2
+ 10002 | 'great':1 'jame':2
+ 10003 | 'great':1 'jame':2
+(5 rows)
+
+VACUUM test_rum_vacuum;
+-- this shouldn't cause a core dump
+SELECT * FROM test_rum_vacuum WHERE body @@ to_tsquery('ann');
+ id |       body        
+----+-------------------
+  6 | 'ann':2 'great':1
+(1 row)
+
+SELECT * FROM test_rum_vacuum WHERE body @@ to_tsquery('john');
+  id   |        body        
+-------+--------------------
+ 10000 | 'great':1 'john':2
+(1 row)
+
+SELECT id, body FROM (SELECT id, body, body <=> to_tsquery('ann') AS distance FROM test_rum_vacuum ORDER BY body <=> to_tsquery('ann')) AS sub ORDER BY distance ASC, id ASC;
+  id   |        body        
+-------+--------------------
+     6 | 'ann':2 'great':1
+ 10000 | 'great':1 'john':2
+ 10001 | 'great':1 'jame':2
+ 10002 | 'great':1 'jame':2
+ 10003 | 'great':1 'jame':2
+(5 rows)
+
+SELECT id, body FROM (SELECT id, body, body <=> to_tsquery('john') AS distance FROM test_rum_vacuum ORDER BY body <=> to_tsquery('john')) AS sub ORDER BY distance ASC, id ASC;
+  id   |        body        
+-------+--------------------
+ 10000 | 'great':1 'john':2
+     6 | 'ann':2 'great':1
+ 10001 | 'great':1 'jame':2
+ 10002 | 'great':1 'jame':2
+ 10003 | 'great':1 'jame':2
+(5 rows)
+
+-- test that data can still be found after reinsertion
+INSERT INTO test_rum_vacuum SELECT i, to_tsvector('great john') FROM generate_series(10004, 20000) i;
+SELECT count(*) FROM test_rum_vacuum WHERE body @@ to_tsquery('john');
+ count 
+-------
+  9998
+(1 row)
+
+DELETE FROM test_rum_vacuum WHERE body @@ 'john'::tsquery AND id <= 19999;
+VACUUM test_rum_vacuum;
+SELECT * FROM test_rum_vacuum WHERE body @@ to_tsquery('ann');
+ id |       body        
+----+-------------------
+  6 | 'ann':2 'great':1
+(1 row)
+
+SELECT * FROM test_rum_vacuum WHERE body @@ to_tsquery('john');
+  id   |        body        
+-------+--------------------
+ 20000 | 'great':1 'john':2
+(1 row)
+
+SELECT id, body FROM (SELECT id, body, body <=> to_tsquery('ann') AS distance FROM test_rum_vacuum ORDER BY body <=> to_tsquery('ann')) AS sub ORDER BY distance ASC, id ASC;
+  id   |        body        
+-------+--------------------
+     6 | 'ann':2 'great':1
+ 10001 | 'great':1 'jame':2
+ 10002 | 'great':1 'jame':2
+ 10003 | 'great':1 'jame':2
+ 20000 | 'great':1 'john':2
+(5 rows)
+
+SELECT id, body FROM (SELECT id, body, body <=> to_tsquery('john') AS distance FROM test_rum_vacuum ORDER BY body <=> to_tsquery('john')) AS sub ORDER BY distance ASC, id ASC;
+  id   |        body        
+-------+--------------------
+ 20000 | 'great':1 'john':2
+     6 | 'ann':2 'great':1
+ 10001 | 'great':1 'jame':2
+ 10002 | 'great':1 'jame':2
+ 10003 | 'great':1 'jame':2
+(5 rows)
+
+-- test if do while loop works when an entry has no non-empty posting tree pages
+INSERT INTO test_rum_vacuum SELECT i, to_tsvector('great john') FROM generate_series(7, 10000) i;
+DELETE FROM test_rum_vacuum WHERE body @@ 'john'::tsquery;
+VACUUM test_rum_vacuum;
+SELECT * FROM test_rum_vacuum WHERE body @@ to_tsquery('ann');
+ id |       body        
+----+-------------------
+  6 | 'ann':2 'great':1
+(1 row)
+
+SELECT * FROM test_rum_vacuum WHERE body @@ to_tsquery('john');
+ id | body 
+----+------
+(0 rows)
+
+SELECT id, body FROM (SELECT id, body, body <=> to_tsquery('ann') AS distance FROM test_rum_vacuum ORDER BY body <=> to_tsquery('ann')) AS sub ORDER BY distance ASC, id ASC;
+  id   |        body        
+-------+--------------------
+     6 | 'ann':2 'great':1
+ 10001 | 'great':1 'jame':2
+ 10002 | 'great':1 'jame':2
+ 10003 | 'great':1 'jame':2
+(4 rows)
+
+SELECT id, body FROM (SELECT id, body, body <=> to_tsquery('john') AS distance FROM test_rum_vacuum ORDER BY body <=> to_tsquery('john')) AS sub ORDER BY distance ASC, id ASC;
+  id   |        body        
+-------+--------------------
+     6 | 'ann':2 'great':1
+ 10001 | 'great':1 'jame':2
+ 10002 | 'great':1 'jame':2
+ 10003 | 'great':1 'jame':2
+(4 rows)
