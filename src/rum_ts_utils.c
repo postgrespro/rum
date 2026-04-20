@@ -29,6 +29,12 @@
 
 #include <math.h>
 
+/* GUC variables for bm25 */
+bool RumCollectBm25Stats;
+int RumBm25StatsSamplePercent;
+float8 RumBm25K1;
+float8 RumBm25B;
+
 /* Use TS_EXEC_PHRASE_AS_AND when TS_EXEC_PHRASE_NO_POS is not defined */
 #ifndef TS_EXEC_PHRASE_NO_POS
 #define TS_EXEC_PHRASE_NO_POS TS_EXEC_PHRASE_AS_AND
@@ -63,13 +69,16 @@ typedef RumTernaryValue (*RumExecuteCallbackTernary) (void *arg, QueryOperand *v
 
 PG_FUNCTION_INFO_V1(rum_extract_tsvector);
 PG_FUNCTION_INFO_V1(rum_extract_tsvector_hash);
+PG_FUNCTION_INFO_V1(rum_extract_tsvector_bm25);
 PG_FUNCTION_INFO_V1(rum_extract_tsquery);
 PG_FUNCTION_INFO_V1(rum_extract_tsquery_hash);
 PG_FUNCTION_INFO_V1(rum_tsvector_config);
 PG_FUNCTION_INFO_V1(rum_tsquery_pre_consistent);
 PG_FUNCTION_INFO_V1(rum_tsquery_consistent);
+PG_FUNCTION_INFO_V1(rum_tsquery_consistent_bm25);
 PG_FUNCTION_INFO_V1(rum_tsquery_timestamp_consistent);
 PG_FUNCTION_INFO_V1(rum_tsquery_distance);
+PG_FUNCTION_INFO_V1(rum_tsquery_distance_bm25);
 PG_FUNCTION_INFO_V1(rum_ts_distance_tt);
 PG_FUNCTION_INFO_V1(rum_ts_distance_ttf);
 PG_FUNCTION_INFO_V1(rum_ts_distance_td);
@@ -77,6 +86,7 @@ PG_FUNCTION_INFO_V1(rum_ts_score_tt);
 PG_FUNCTION_INFO_V1(rum_ts_score_ttf);
 PG_FUNCTION_INFO_V1(rum_ts_score_td);
 PG_FUNCTION_INFO_V1(rum_ts_join_pos);
+PG_FUNCTION_INFO_V1(rum_ts_join_pos_bm25);
 
 PG_FUNCTION_INFO_V1(tsquery_to_distance_query);
 
@@ -294,7 +304,7 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 		positions = DatumGetByteaP(gcv->addInfo[j]);
 		ptrt = (char *) VARDATA_ANY(positions);
 		npos = count_pos(VARDATA_ANY(positions),
-						 VARSIZE_ANY_EXHDR(positions));
+						 VARSIZE_ANY_EXHDR(positions), false);
 
 		/* caller wants an array of positions (phrase search) */
 		if (data)
@@ -305,7 +315,7 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 			/* Fill positions that has right weight to return to a caller */
 			for (i = 0; i < npos; i++)
 			{
-				ptrt = decompress_pos(ptrt, &post);
+				ptrt = decompress_pos(ptrt, &post, NULL, NULL);
 
 				/*
 				 * Weight mark is stored as 2 bits inside position mark in RUM
@@ -340,7 +350,105 @@ checkcondition_rum(void *checkval, QueryOperand *val, ExecPhraseData *data)
 			/* Fill KeyWeightMask contains with weights from all positions */
 			for (i = 0; i < npos; i++)
 			{
-				ptrt = decompress_pos(ptrt, &post);
+				ptrt = decompress_pos(ptrt, &post, NULL, NULL);
+				KeyWeightsMask |= 1 << WEP_GETWEIGHT(post);
+			}
+			return ((KeyWeightsMask & val->weight) ? TS_YES : TS_NO);
+		}
+	}
+/* Should never come here */
+	return TS_MAYBE;
+}
+
+static RumTernaryValue
+checkcondition_rum_bm25(void *checkval, QueryOperand *val, ExecPhraseData *data)
+{
+	RumChkVal  *gcv = (RumChkVal *) checkval;
+	int			j;
+
+	/* convert item's number to corresponding entry's (operand's) number */
+	j = gcv->map_item_operand[((QueryItem *) val) - gcv->first_item];
+
+	if (!gcv->check[j])
+		/* lexeme not present in indexed value */
+		return TS_NO;
+
+	else if (gcv->addInfo && gcv->addInfoIsNull[j] == false)
+	{
+		bytea	   *positions;
+		int32		i;
+		char	   *ptrt;
+		WordEntryPos post = 0;
+		int32		npos;
+		int32		k = 0;
+
+		bool isbm25_firstcall = true;
+		uint32 vlen;
+
+		/*
+		 * we don't have positions in index because we store a timestamp in
+		 * addInfo
+		 */
+		if (gcv->recheckPhrase)
+		{
+			/*
+			 * We cannot return TS_YES here (if "val->weight > 0"), because
+			 * data->npos = 0 and we have incorrect porocessing of this result
+			 * at the upper levels. So return TS_MAYBE.
+			 */
+			return TS_MAYBE;
+		}
+
+		positions = DatumGetByteaP(gcv->addInfo[j]);
+		ptrt = (char *) VARDATA_ANY(positions);
+		npos = count_pos(VARDATA_ANY(positions),
+						 VARSIZE_ANY_EXHDR(positions), true);
+
+		/* caller wants an array of positions (phrase search) */
+		if (data)
+		{
+			data->pos = palloc(sizeof(*data->pos) * npos);
+			data->allocated = true;
+
+			/* Fill positions that has right weight to return to a caller */
+			for (i = 0; i < npos; i++)
+			{
+				ptrt = decompress_pos(ptrt, &post, &isbm25_firstcall, &vlen);
+
+				/*
+				 * Weight mark is stored as 2 bits inside position mark in RUM
+				 * index. We compare it to a list of requested positions in
+				 * query operand (4 bits one for each weight mark).
+				 */
+				if ((val->weight == 0) || (val->weight >> WEP_GETWEIGHT(post)) & 1)
+				{
+					data->pos[k] = post;
+					k++;
+				}
+			}
+			data->npos = k;
+			data->pos = repalloc(data->pos, sizeof(*data->pos) * k);
+			return (k ? TS_YES : TS_NO);
+		}
+
+		/*
+		 * Not phrase search. We only need to know if there's at least one
+		 * position with right weight then return TS_YES, otherwise return
+		 * TS_NO. For this search work without recheck we need that any
+		 * negation in recursion will give TS_MAYBE and initiate recheck as
+		 * "!word:A" can mean both: "word:BCВ" or "!word"
+		 */
+		else if (val->weight == 0)
+			/* Query without weights */
+			return TS_YES;
+		else
+		{
+			char		KeyWeightsMask = 0;
+
+			/* Fill KeyWeightMask contains with weights from all positions */
+			for (i = 0; i < npos; i++)
+			{
+				ptrt = decompress_pos(ptrt, &post, &isbm25_firstcall, &vlen);
 				KeyWeightsMask |= 1 << WEP_GETWEIGHT(post);
 			}
 			return ((KeyWeightsMask & val->weight) ? TS_YES : TS_NO);
@@ -916,8 +1024,52 @@ rum_tsquery_consistent(PG_FUNCTION_ARGS)
 			*recheck = true;
 	}
 	PG_RETURN_BOOL(res);
-
 }
+
+Datum
+rum_tsquery_consistent_bm25(PG_FUNCTION_ARGS)
+{
+	bool	   *check = (bool *) PG_GETARG_POINTER(0);
+	/* StrategyNumber strategy = PG_GETARG_UINT16(1); */
+	TSQuery		query = PG_GETARG_TSQUERY(2);
+	/* int32	nkeys = PG_GETARG_INT32(3); */
+	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
+	bool	   *recheck = (bool *) PG_GETARG_POINTER(5);
+	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
+	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
+
+	RumTernaryValue res = TS_NO;
+
+	/*
+	 * The query doesn't require recheck by default
+	 */
+	*recheck = false;
+
+	if (query->size > 0)
+	{
+		RumChkVal	gcv;
+
+		/*
+		 * check-parameter array has one entry for each value (operand) in the
+		 * query.
+		 */
+		gcv.first_item = GETQUERY(query);
+		gcv.check = check;
+		gcv.map_item_operand = (int *) (extra_data[0]);
+		gcv.need_recheck = recheck;
+		gcv.addInfo = addInfo;
+		gcv.addInfoIsNull = addInfoIsNull;
+		gcv.recheckPhrase = false;
+
+		res = rum_TS_execute(GETQUERY(query), &gcv,
+							 TS_EXEC_CALC_NOT,
+							 checkcondition_rum_bm25);
+		if (res == TS_MAYBE)
+			*recheck = true;
+	}
+	PG_RETURN_BOOL(res);
+}
+
 Datum
 rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 {
@@ -964,14 +1116,22 @@ rum_tsquery_timestamp_consistent(PG_FUNCTION_ARGS)
 #define SIXTHBIT 0x20
 
 static unsigned int
-compress_pos(char *target, WordEntryPos *pos, int npos)
+compress_pos(char *target, WordEntryPos *pos, int npos,
+			 bool isbm25, uint32 *vlen)
 {
 	int			i;
 	uint16		prev = 0,
 				delta;
 	char	   *ptr;
 
-	ptr = target;
+	if (isbm25)
+	{
+		memcpy(target, vlen, sizeof(uint32));
+		ptr = target + sizeof(uint32);
+	}
+	else
+		ptr = target;
+
 	for (i = 0; i < npos; i++)
 	{
 		delta = WEP_GETPOS(pos[i]) - WEP_GETPOS(prev);
@@ -997,11 +1157,19 @@ compress_pos(char *target, WordEntryPos *pos, int npos)
 }
 
 extern char *
-decompress_pos(char *ptr, WordEntryPos *pos)
+decompress_pos(char *ptr, WordEntryPos *pos,
+			   bool *isbm25_firstcall, uint32 *vlen)
 {
 	int			i;
 	uint8		v;
 	uint16		delta = 0;
+
+	if (isbm25_firstcall != NULL && *isbm25_firstcall == true)
+	{
+		memcpy(vlen, ptr, sizeof(uint32));
+		*isbm25_firstcall = false;
+		ptr += sizeof(uint32);
+	}
 
 	i = 0;
 	while (true)
@@ -1025,10 +1193,16 @@ decompress_pos(char *ptr, WordEntryPos *pos)
 }
 
 extern unsigned int
-count_pos(char *ptr, int len)
+count_pos(char *ptr, int len, bool isbm25)
 {
 	int			count = 0,
 				i;
+
+	if (isbm25)
+	{
+		ptr += sizeof(uint32);
+		len -= sizeof(uint32);
+	}
 
 	for (i = 0; i < len; i++)
 	{
@@ -1039,8 +1213,7 @@ count_pos(char *ptr, int len)
 	return count;
 }
 
-static uint32
-count_length(TSVector t)
+uint32 count_length(TSVector t)
 {
 	WordEntry  *ptr = ARRPTR(t),
 			   *end = (WordEntry *) STRPTR(t);
@@ -1176,7 +1349,8 @@ rum_extract_tsvector_internal(TSVector	vector,
 				posDataSize = VARHDRSZ + 2 * posVec->npos * sizeof(WordEntryPos);
 				posData = (bytea *) palloc(posDataSize);
 
-				posDataSize = compress_pos(posData->vl_dat, posVec->pos, posVec->npos) + VARHDRSZ;
+				posDataSize = compress_pos(posData->vl_dat, posVec->pos, posVec->npos,
+										   false, NULL) + VARHDRSZ;
 				SET_VARSIZE(posData, posDataSize);
 
 				(*addInfo)[i] = PointerGetDatum(posData);
@@ -1186,6 +1360,80 @@ rum_extract_tsvector_internal(TSVector	vector,
 			{
 				(*addInfo)[i] = (Datum) 0;
 				(*addInfoIsNull)[i] = true;
+			}
+			we++;
+		}
+	}
+
+	return entries;
+}
+
+/*
+ * rum_extract_tsvector_internal_bm25() is an internal implementation for
+ * rum_extract_tsvector_bm25()
+ */
+static Datum *
+rum_extract_tsvector_internal_bm25(TSVector	vector,
+								   int32 *nentries,
+								   Datum **addInfo,
+								   bool **addInfoIsNull,
+								   TSVectorEntryBuilder build_tsvector_entry)
+{
+	Datum	   *entries = NULL;
+
+	*nentries = vector->size;
+	if (vector->size > 0)
+	{
+		int			i;
+		WordEntry  *we = ARRPTR(vector);
+		WordEntryPosVector *posVec;
+		uint32 vector_len = count_length(vector);
+
+		entries = (Datum *) palloc(sizeof(Datum) * vector->size);
+		*addInfo = (Datum *) palloc(sizeof(Datum) * vector->size);
+		*addInfoIsNull = (bool *) palloc(sizeof(bool) * vector->size);
+
+		for (i = 0; i < vector->size; i++)
+		{
+			bytea	   *bm25DataPtr;
+			int			bm25DataSize;
+
+			/* Extract entry using specified method */
+			entries[i] = build_tsvector_entry(vector, we);
+
+			if (we->haspos)
+			{
+				posVec = _POSVECPTR(vector, we);
+
+				/*
+				 * In some cases compressed positions may take more memory than
+				 * uncompressed positions. So allocate memory with a margin. The
+				 * uint32 memory will be used to store the length of the tsvector.
+				 */
+				bm25DataSize = VARHDRSZ + sizeof(uint32) +
+							   2 * posVec->npos * sizeof(WordEntryPos);
+				bm25DataPtr = (bytea *) palloc(bm25DataSize);
+
+				/* Compressing tsvector positions and length */
+				bm25DataSize = compress_pos(bm25DataPtr->vl_dat, posVec->pos,
+									posVec->npos, true, &vector_len) + VARHDRSZ;
+				SET_VARSIZE(bm25DataPtr, bm25DataSize);
+
+				(*addInfo)[i] = PointerGetDatum(bm25DataPtr);
+				(*addInfoIsNull)[i] = false;
+			}
+			else /* Case when there are no positions */
+			{
+				bm25DataSize = VARHDRSZ + sizeof(uint32);
+				bm25DataPtr = (bytea *) palloc(bm25DataSize);
+
+				/* Only save the length of the tsvector */
+				memcpy(bm25DataPtr->vl_dat, &vector_len, sizeof(uint32));
+
+				SET_VARSIZE(bm25DataPtr, bm25DataSize);
+
+				(*addInfo)[i] = PointerGetDatum(bm25DataPtr);
+				(*addInfoIsNull)[i] = false;
 			}
 			we++;
 		}
@@ -1256,6 +1504,27 @@ rum_extract_tsvector_hash(PG_FUNCTION_ARGS)
 											addInfoIsNull,
 											build_tsvector_hash_entry);
 
+	PG_FREE_IF_COPY(vector, 0);
+	PG_RETURN_POINTER(entries);
+}
+
+/*
+ * rum_extract_tsvector_bm25() is one of the functions of the operator class
+ * rum_tsvector_bm25_ops. It extracts indexed values and additional information
+ * in the form of lengths and positions from the tsvector.
+ */
+Datum
+rum_extract_tsvector_bm25(PG_FUNCTION_ARGS)
+{
+	TSVector	vector = PG_GETARG_TSVECTOR(0);
+	int32	   *nentries = (int32 *) PG_GETARG_POINTER(1);
+	Datum	  **addInfo = (Datum **) PG_GETARG_POINTER(3);
+	bool	  **addInfoIsNull = (bool **) PG_GETARG_POINTER(4);
+	Datum	   *entries = NULL;
+
+	entries = rum_extract_tsvector_internal_bm25(vector, nentries, addInfo,
+												 addInfoIsNull,
+												 build_tsvector_entry);
 	PG_FREE_IF_COPY(vector, 0);
 	PG_RETURN_POINTER(entries);
 }
@@ -1638,7 +1907,7 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr,
 		if (!addInfoIsNull[keyN])
 		{
 			dimt = count_pos(VARDATA_ANY(addInfo[keyN]),
-							 VARSIZE_ANY_EXHDR(addInfo[keyN]));
+							 VARSIZE_ANY_EXHDR(addInfo[keyN]), false);
 			ptrt = (char *) VARDATA_ANY(addInfo[keyN]);
 		}
 		else
@@ -1652,7 +1921,7 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr,
 
 		for (j = 0; j < dimt; j++)
 		{
-			ptrt = decompress_pos(ptrt, &post);
+			ptrt = decompress_pos(ptrt, &post, NULL, NULL);
 
 			doc[cur].data.key.item_first = item + i;
 			doc[cur].data.key.keyn = keyN;
@@ -2069,6 +2338,131 @@ rum_tsquery_distance(PG_FUNCTION_ARGS)
 }
 
 /*
+ * calc_bm25_score_addinfo() calculates the rank using bm25 inside the index.
+ * In case of any errors, the function returns 0.0.
+ *
+ * To calculate the rank, the function uses the following parameters:
+ *
+ * *entryRes - is an array of flags, each element corresponding to the
+ * RumScanEntry inside the index. The flag indicates whether the condition of
+ * the corresponding RumScanEntry is met for the current document or not. When
+ * calculating the rank, the elements for which the condition is not met give a
+ * zero increase in the total rank.
+ *
+ * query - is the initial query relative to which the rank for each document is
+ * calculated.
+ *
+ * *map_item_operand - is an array of size query->size. Each element corresponds
+ * to an element of the original query and is equal to the index of the
+ * corresponding element from the array RumScanKey->scanEntry. This is used as a
+ * link between the elements of the original query and RumScanEntry.
+ *
+ * numDocs and avgDocLength - numDocs and avgDocLength are estimated statistics
+ * for a collection of documents. These values are obtained from the meta page
+ * of the index.
+ *
+ * *addInfo and *addInfoIsNull - are arrays, each element of which corresponds
+ * to a RumScanEntry. Additional information includes the length of the document
+ * and the positions.
+ *
+ * *predictNumberResult - an array, each element of which corresponds to a
+ * RumScanEntry and contains an estimate of the number of unique documents in
+ * the collection that contain this RumScanEntry.
+ *
+ * k1 and b - are the parameters from the bm25 formula.
+ */
+static float8
+calc_bm25_score_addinfo(bool *entryRes, TSQuery query, int *map_item_operand,
+						int64 numDocs, float8 avgDocLength,
+						Datum *addInfo, bool *addInfoIsNull,
+						uint32 *predictNumberResult, float8 k1, float8 b)
+{
+	QueryItem  *item = GETQUERY(query);
+	float8		bm25_score = 0.0;
+	float8		idf = 0.0;
+	float8		tf_norm = 0.0;
+
+	if (avgDocLength == 0.0 || numDocs == 0)
+		return 0.0;
+
+	/* Query cycle */
+	for (int i = 0; i < query->size; i++)
+	{
+		int		num_pos = 0;
+		int64	docLen = 0;
+		float8	q_i_frec = 0.0;
+		uint32	n_q_i = 0;
+		Datum	cur_addInfo;
+		bool	cur_addInfoIsNull = true;
+
+		/* Skipping operators */
+		if (item[i].type != QI_VAL)
+			continue;
+
+		/*
+		 * Geting the values that correspond to the current query element
+		 * using map_item_operand.
+		 */
+		n_q_i = predictNumberResult[map_item_operand[i]];
+		cur_addInfo = addInfo[map_item_operand[i]];
+		cur_addInfoIsNull = addInfoIsNull[map_item_operand[i]];
+
+		/* Skipping the query elements for which the condition is not met */
+		if(entryRes[map_item_operand[i]] == false || cur_addInfoIsNull)
+			continue;
+
+		/* Getting the length of the current doc and the number of positions */
+		memcpy(&docLen, VARDATA_ANY(cur_addInfo), sizeof(uint32));
+		num_pos = count_pos(VARDATA_ANY(cur_addInfo),
+							VARSIZE_ANY_EXHDR(cur_addInfo), true);
+
+		/* Calculating the bm25 rank */
+		q_i_frec = ((float8) num_pos) / docLen;
+		idf = log((numDocs - n_q_i + 0.5) / (n_q_i + 0.5) + 1.0);
+		tf_norm = (q_i_frec * (k1 + 1.0)) /
+			(q_i_frec + k1 * (1.0 - b + b * (docLen / avgDocLength)));
+		bm25_score += idf * tf_norm;
+	}
+
+	return bm25_score;
+}
+
+/*
+ * rum_tsquery_distance_bm25() is one of the functions of the operator class
+ * rum_tsvector_bm25_ops. This function calculates the distance using the bm25
+ * inside the index.
+ */
+Datum
+rum_tsquery_distance_bm25(PG_FUNCTION_ARGS)
+{
+	bool	   *check = (bool *) PG_GETARG_POINTER(0);
+
+	TSQuery		query = PG_GETARG_TSQUERY(2);
+	Pointer	   *extra_data = (Pointer *) PG_GETARG_POINTER(4);
+	Datum	   *addInfo = (Datum *) PG_GETARG_POINTER(8);
+	bool	   *addInfoIsNull = (bool *) PG_GETARG_POINTER(9);
+	uint32	   *predictNumberResult = (uint32 *) PG_GETARG_POINTER(10);
+	int64 		numDocs = PG_GETARG_INT64(11);
+	float8 		avgDocLength = PG_GETARG_FLOAT8(12);
+
+	float8		bm25_score;
+	int		   *map_item_operand = (int *) (extra_data[0]);
+
+	bm25_score = calc_bm25_score_addinfo(check, query, map_item_operand,
+										 numDocs, avgDocLength,
+										 addInfo, addInfoIsNull,
+										 predictNumberResult,
+										 RumBm25K1, RumBm25B);
+
+	PG_FREE_IF_COPY(query, 2);
+
+	if (bm25_score == 0.0)
+		PG_RETURN_FLOAT8(get_float8_infinity());
+	else
+		PG_RETURN_FLOAT8(1.0 / bm25_score);
+}
+
+/*
  * Implementation of <=> operator. Uses default normalization method.
  */
 Datum
@@ -2271,8 +2665,8 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 	char	   *in1 = VARDATA_ANY(addInfo1),
 			   *in2 = VARDATA_ANY(addInfo2);
 	bytea	   *result;
-	int			count1 = count_pos(in1, VARSIZE_ANY_EXHDR(addInfo1)),
-				count2 = count_pos(in2, VARSIZE_ANY_EXHDR(addInfo2)),
+	int			count1 = count_pos(in1, VARSIZE_ANY_EXHDR(addInfo1), false),
+				count2 = count_pos(in2, VARSIZE_ANY_EXHDR(addInfo2), false),
 				countRes = 0;
 	int			i1 = 0, i2 = 0;
 	Size		size,
@@ -2285,8 +2679,8 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 
 	Assert(count1 > 0 && count2 > 0);
 
-	in1 = decompress_pos(in1, &pos1);
-	in2 = decompress_pos(in2, &pos2);
+	in1 = decompress_pos(in1, &pos1, NULL, NULL);
+	in2 = decompress_pos(in2, &pos2, NULL, NULL);
 
 	for(;;)
 	{
@@ -2296,7 +2690,7 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 			i2++;
 			if (i2 >= count2)
 				break;
-			in2 = decompress_pos(in2, &pos2);
+			in2 = decompress_pos(in2, &pos2, NULL, NULL);
 		}
 		else if (WEP_GETPOS(pos1) < WEP_GETPOS(pos2))
 		{
@@ -2304,7 +2698,7 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 			i1++;
 			if (i1 >= count1)
 				break;
-			in1 = decompress_pos(in1, &pos1);
+			in1 = decompress_pos(in1, &pos1, NULL, NULL);
 		}
 		else
 		{
@@ -2312,9 +2706,9 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 			i1++;
 			i2++;
 			if (i1 < count1)
-				in1 = decompress_pos(in1, &pos1);
+				in1 = decompress_pos(in1, &pos1, NULL, NULL);
 			if (i2 < count2)
-				in2 = decompress_pos(in2, &pos2);
+				in2 = decompress_pos(in2, &pos2, NULL, NULL);
 			if (i2 >= count2 || i1 >= count1)
 				break;
 		}
@@ -2327,7 +2721,7 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 			i1++;
 			if (i1 >= count1)
 				break;
-			in1 = decompress_pos(in1, &pos1);
+			in1 = decompress_pos(in1, &pos1, NULL, NULL);
 		}
 	else if (i2 < count2)
 	{
@@ -2337,7 +2731,7 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 			i2++;
 			if (i2 >= count2)
 				break;
-			in2 = decompress_pos(in2, &pos2);
+			in2 = decompress_pos(in2, &pos2, NULL, NULL);
 		}
 	}
 
@@ -2350,7 +2744,107 @@ rum_ts_join_pos(PG_FUNCTION_ARGS)
 	size = VARHDRSZ + 2 * sizeof(WordEntryPos) * countRes;
 	result = palloc0(size);
 
-	size_compressed = compress_pos(result->vl_dat, pos, countRes) + VARHDRSZ;
+	size_compressed = compress_pos(result->vl_dat, pos, countRes,
+								   false, NULL) + VARHDRSZ;
+	Assert(size >= size_compressed);
+	SET_VARSIZE(result, size_compressed);
+
+	PG_RETURN_BYTEA_P(result);
+}
+
+Datum
+rum_ts_join_pos_bm25(PG_FUNCTION_ARGS)
+{
+	Datum		addInfo1 = PG_GETARG_DATUM(0);
+	Datum		addInfo2 = PG_GETARG_DATUM(1);
+	char	   *in1 = VARDATA_ANY(addInfo1),
+			   *in2 = VARDATA_ANY(addInfo2);
+	bytea	   *result;
+	int			count1 = count_pos(in1, VARSIZE_ANY_EXHDR(addInfo1), true),
+				count2 = count_pos(in2, VARSIZE_ANY_EXHDR(addInfo2), true),
+				countRes = 0;
+	int			i1 = 0, i2 = 0;
+	Size		size,
+				size_compressed;
+	WordEntryPos pos1 = 0,
+				pos2 = 0,
+			   *pos;
+	bool		isbm25_firstcall1 = true,
+				isbm25_firstcall2 = true;
+	uint32		vlen1, vlen2, newvlen;
+
+	pos = palloc(sizeof(WordEntryPos) * (count1 + count2));
+
+	Assert(count1 > 0 && count2 > 0);
+
+	in1 = decompress_pos(in1, &pos1, &isbm25_firstcall1, &vlen1);
+	in2 = decompress_pos(in2, &pos2, &isbm25_firstcall2, &vlen2);
+
+	for(;;)
+	{
+		if (WEP_GETPOS(pos1) > WEP_GETPOS(pos2))
+		{
+			pos[countRes++] = pos2;
+			i2++;
+			if (i2 >= count2)
+				break;
+			in2 = decompress_pos(in2, &pos2, &isbm25_firstcall2, &vlen2);
+		}
+		else if (WEP_GETPOS(pos1) < WEP_GETPOS(pos2))
+		{
+			pos[countRes++] = pos1;
+			i1++;
+			if (i1 >= count1)
+				break;
+			in1 = decompress_pos(in1, &pos1, &isbm25_firstcall1, &vlen1);
+		}
+		else
+		{
+			pos[countRes++] = pos1;
+			i1++;
+			i2++;
+			if (i1 < count1)
+				in1 = decompress_pos(in1, &pos1, &isbm25_firstcall1, &vlen1);
+			if (i2 < count2)
+				in2 = decompress_pos(in2, &pos2, &isbm25_firstcall2, &vlen2);
+			if (i2 >= count2 || i1 >= count1)
+				break;
+		}
+	}
+
+	if (i1 < count1)
+		for(;;)
+		{
+			pos[countRes++] = pos1;
+			i1++;
+			if (i1 >= count1)
+				break;
+			in1 = decompress_pos(in1, &pos1, &isbm25_firstcall1, &vlen1);
+		}
+	else if (i2 < count2)
+	{
+		for(;;)
+		{
+			pos[countRes++] = pos2;
+			i2++;
+			if (i2 >= count2)
+				break;
+			in2 = decompress_pos(in2, &pos2, &isbm25_firstcall2, &vlen2);
+		}
+	}
+
+	Assert(countRes <= count1 + count2);
+
+	/*
+	 * In some cases compressed positions may take more memory than
+	 * uncompressed positions. So allocate memory with a margin.
+	 */
+	size = VARHDRSZ + 2 * sizeof(WordEntryPos) * countRes;
+	result = palloc0(size);
+
+	newvlen = vlen1 + vlen2;
+	size_compressed = compress_pos(result->vl_dat, pos, countRes,
+								   true, &newvlen) + VARHDRSZ;
 	Assert(size >= size_compressed);
 	SET_VARSIZE(result, size_compressed);
 

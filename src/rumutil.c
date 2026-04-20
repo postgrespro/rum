@@ -79,6 +79,45 @@ _PG_init(void)
 							 PGC_USERSET, 0,
 							 NULL, NULL, NULL);
 
+	/*
+	 * FIXME: This is a temporary solution. It is necessary to implement the
+	 * condition for collecting statistics for bm25 in a different way, for
+	 * example, using another function of the operator class. This solution is
+	 * not suitable because when GUC is enabled, statistics will be collected
+	 * for all RUM indexes, although it should only be for those created using
+	 * rum_tsvector_bm25_ops.
+	 */
+	DefineCustomBoolVariable("rum.collect_bm25_stats",
+							 "Collect BM25 statistics.",
+							 NULL,
+							 &RumCollectBm25Stats, false,
+							 PGC_SUSET, 0,
+							 NULL, NULL, NULL);
+
+	DefineCustomIntVariable("rum.bm25_vacuum_sample_percent",
+					"Percentage of table rows to sample for BM25 statistics.",
+							 NULL,
+							 &RumBm25StatsSamplePercent,
+							 RUM_PERCENTAGE_BM25_STATS_DEFAULT, 0, 100,
+							 PGC_USERSET, 0,
+							 NULL, NULL, NULL);
+
+	DefineCustomRealVariable("rum.bm25_k1",
+							 "Parameter k1 in the BM25 formula.",
+							 NULL,
+							 &RumBm25K1,
+							 2.0, 0.0, 10.0,
+							 PGC_USERSET, 0,
+							 NULL, NULL, NULL);
+
+	DefineCustomRealVariable("rum.bm25_b",
+							 "Parameter b in the BM25 formula.",
+							 NULL,
+							 &RumBm25B,
+							 0.75, 0.0, 1.0,
+							 PGC_USERSET, 0,
+							 NULL, NULL, NULL);
+
 	rum_relopt_kind = add_reloption_kind();
 
 	add_string_reloption(rum_relopt_kind, "attach",
@@ -627,6 +666,8 @@ RumInitMetabuffer(GenericXLogState *state, Buffer metaBuffer, bool isBuild)
 	metadata->nDataPages = 0;
 	metadata->nEntries = 0;
 	metadata->rumVersion = RUM_CURRENT_VERSION;
+	metadata->numDocs = 0;
+	metadata->avgDocLength = 0.0;
 
 	((PageHeader) metaPage)->pd_lower += sizeof(RumMetaPageData);
 }
@@ -1004,7 +1045,7 @@ rumproperty(Oid index_oid, int attno,
  * as can rumVersion; but the other fields are as of the last VACUUM.
  */
 void
-rumGetStats(Relation index, GinStatsData *stats)
+rumGetStats(Relation index, RumStatsData *stats)
 {
 	Buffer		metabuffer;
 	Page		metapage;
@@ -1020,9 +1061,11 @@ rumGetStats(Relation index, GinStatsData *stats)
 	stats->nEntryPages = metadata->nEntryPages;
 	stats->nDataPages = metadata->nDataPages;
 	stats->nEntries = metadata->nEntries;
-	stats->ginVersion = metadata->rumVersion;
+	stats->rumVersion = metadata->rumVersion;
+	stats->numDocs = metadata->numDocs;
+	stats->avgDocLength = metadata->avgDocLength;
 
-	if (stats->ginVersion != RUM_CURRENT_VERSION)
+	if (stats->rumVersion != RUM_CURRENT_VERSION)
 		elog(ERROR, "unexpected RUM index version. Reindex");
 
 	UnlockReleaseBuffer(metabuffer);
@@ -1034,7 +1077,7 @@ rumGetStats(Relation index, GinStatsData *stats)
  * Note: nPendingPages and rumVersion are *not* copied over
  */
 void
-rumUpdateStats(Relation index, const GinStatsData *stats, bool isBuild)
+rumUpdateStats(Relation index, const RumStatsData *stats, bool isBuild)
 {
 	Buffer		metaBuffer;
 	Page		metapage;
@@ -1059,6 +1102,8 @@ rumUpdateStats(Relation index, const GinStatsData *stats, bool isBuild)
 	metadata->nEntryPages = stats->nEntryPages;
 	metadata->nDataPages = stats->nDataPages;
 	metadata->nEntries = stats->nEntries;
+	metadata->numDocs = stats->numDocs;
+	metadata->avgDocLength = stats->avgDocLength;
 
 	if (isBuild)
 		MarkBufferDirty(metaBuffer);
@@ -1134,6 +1179,93 @@ FunctionCall10Coll(FmgrInfo *flinfo, Oid collation, Datum arg1, Datum arg2,
 	fcinfo.argnull[7] = false;
 	fcinfo.argnull[8] = false;
 	fcinfo.argnull[9] = false;
+
+	result = FunctionCallInvoke(&fcinfo);
+
+	/* Check for null result, since caller is clearly not expecting one */
+	if (fcinfo.isnull)
+		elog(ERROR, "function %u returned NULL", fcinfo.flinfo->fn_oid);
+#endif
+
+	return result;
+}
+
+Datum
+FunctionCall13Coll(FmgrInfo *flinfo, Oid collation,
+				   Datum arg1, Datum arg2, Datum arg3, Datum arg4,
+				   Datum arg5, Datum arg6, Datum arg7, Datum arg8,
+				   Datum arg9, Datum arg10, Datum arg11, Datum arg12,
+				   Datum arg13)
+{
+	Datum		result;
+#if PG_VERSION_NUM >= 120000
+	LOCAL_FCINFO(fcinfo, 13);
+
+	InitFunctionCallInfoData(*fcinfo, flinfo, 13, collation, NULL, NULL);
+
+	fcinfo->args[0].value = arg1;
+	fcinfo->args[0].isnull = false;
+	fcinfo->args[1].value = arg2;
+	fcinfo->args[1].isnull = false;
+	fcinfo->args[2].value = arg3;
+	fcinfo->args[2].isnull = false;
+	fcinfo->args[3].value = arg4;
+	fcinfo->args[3].isnull = false;
+	fcinfo->args[4].value = arg5;
+	fcinfo->args[4].isnull = false;
+	fcinfo->args[5].value = arg6;
+	fcinfo->args[5].isnull = false;
+	fcinfo->args[6].value = arg7;
+	fcinfo->args[6].isnull = false;
+	fcinfo->args[7].value = arg8;
+	fcinfo->args[7].isnull = false;
+	fcinfo->args[8].value = arg9;
+	fcinfo->args[8].isnull = false;
+	fcinfo->args[9].value = arg10;
+	fcinfo->args[9].isnull = false;
+	fcinfo->args[10].value = arg11;
+	fcinfo->args[10].isnull = false;
+	fcinfo->args[11].value = arg12;
+	fcinfo->args[11].isnull = false;
+	fcinfo->args[12].value = arg13;
+	fcinfo->args[12].isnull = false;
+
+	result = FunctionCallInvoke(fcinfo);
+
+	/* Check for null result, since caller is clearly not expecting one */
+	if (fcinfo->isnull)
+		elog(ERROR, "function %u returned NULL", fcinfo->flinfo->fn_oid);
+#else
+	FunctionCallInfoData fcinfo;
+
+	InitFunctionCallInfoData(fcinfo, flinfo, 13, collation, NULL, NULL);
+
+	fcinfo.arg[0] = arg1;
+	fcinfo.arg[1] = arg2;
+	fcinfo.arg[2] = arg3;
+	fcinfo.arg[3] = arg4;
+	fcinfo.arg[4] = arg5;
+	fcinfo.arg[5] = arg6;
+	fcinfo.arg[6] = arg7;
+	fcinfo.arg[7] = arg8;
+	fcinfo.arg[8] = arg9;
+	fcinfo.arg[9] = arg10;
+	fcinfo.arg[10] = arg11;
+	fcinfo.arg[11] = arg12;
+	fcinfo.arg[12] = arg13;
+	fcinfo.argnull[0] = false;
+	fcinfo.argnull[1] = false;
+	fcinfo.argnull[2] = false;
+	fcinfo.argnull[3] = false;
+	fcinfo.argnull[4] = false;
+	fcinfo.argnull[5] = false;
+	fcinfo.argnull[6] = false;
+	fcinfo.argnull[7] = false;
+	fcinfo.argnull[8] = false;
+	fcinfo.argnull[9] = false;
+	fcinfo.argnull[10] = false;
+	fcinfo.argnull[11] = false;
+	fcinfo.argnull[12] = false;
 
 	result = FunctionCallInvoke(&fcinfo);
 

@@ -368,7 +368,7 @@ rumFindParents(RumBtree btree, RumBtreeStack * stack,
  */
 void
 rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
-			   GinStatsData *buildStats)
+			   RumStatsData *buildStats)
 {
 	RumBtreeStack *parent;
 	BlockNumber rootBlkno;

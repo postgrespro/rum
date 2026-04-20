@@ -28,7 +28,7 @@ typedef struct
 {
 	RumState	rumstate;
 	double		indtuples;
-	GinStatsData buildStats;
+	RumStatsData buildStats;
 	MemoryContext tmpCtx;
 	MemoryContext funcCtx;
 	BuildAccumulator accum;
@@ -256,7 +256,7 @@ RumFormTuple(RumState * rumstate,
 static IndexTuple
 addItemPointersToLeafTuple(RumState * rumstate,
 						   IndexTuple old, RumItem * items, uint32 nitem,
-						   GinStatsData *buildStats)
+						   RumStatsData *buildStats)
 {
 	OffsetNumber attnum;
 	Datum		key;
@@ -335,7 +335,7 @@ addItemPointersToLeafTuple(RumState * rumstate,
 static IndexTuple
 buildFreshLeafTuple(RumState * rumstate,
 					OffsetNumber attnum, Datum key, RumNullCategory category,
-					RumItem * items, uint32 nitem, GinStatsData *buildStats)
+					RumItem * items, uint32 nitem, RumStatsData *buildStats)
 {
 	IndexTuple	res;
 
@@ -419,7 +419,7 @@ void
 rumEntryInsert(RumState * rumstate,
 			   OffsetNumber attnum, Datum key, RumNullCategory category,
 			   RumItem * items, uint32 nitem,
-			   GinStatsData *buildStats)
+			   RumStatsData *buildStats)
 {
 	RumBtreeData btree;
 	RumBtreeStack *stack;
@@ -564,6 +564,7 @@ rumBuildCallback(Relation index,
 	int			i;
 	Datum		outerAddInfo = (Datum) 0;
 	bool		outerAddInfoIsNull = true;
+	TupleDesc	origTupdesc = buildstate->rumstate.origTupdesc;
 #if PG_VERSION_NUM < 130000
 	ItemPointer tid = &htup->t_self;
 #endif
@@ -576,11 +577,39 @@ rumBuildCallback(Relation index,
 
 	oldCtx = MemoryContextSwitchTo(buildstate->tmpCtx);
 
-	for (i = 0; i < buildstate->rumstate.origTupdesc->natts; i++)
+	for (i = 0; i < origTupdesc->natts; i++)
+	{
+		/*
+		 * Collecting statistics for bm25 during index creation.
+		 *
+		 * FIXME: Such statistics will not work in the case of a multi-column
+		 * index, which is built on several columns of the tsvector. Also, other
+		 * operator classes besides rum_tsvector_bm25_ops can use STORAGE text,
+		 * so this is a temporary solution.
+		 */
+		if (RumCollectBm25Stats && isnull[i] == false &&
+			RumTupleDescAttr(origTupdesc, i)->atttypid == TEXTOID)
+		{
+			TSVector tsv = DatumGetTSVector(values[i]);
+			uint64 tsvLen = count_length(tsv);
+			uint64 numDocs = buildstate->buildStats.numDocs;
+			float8 avgDocLength = buildstate->buildStats.avgDocLength;
+
+			if (numDocs == 0)
+				buildstate->buildStats.avgDocLength = tsvLen;
+			else
+				buildstate->buildStats.avgDocLength =
+					(avgDocLength * (float8) numDocs + (float8) tsvLen) /
+													((float8) numDocs + 1.0);
+
+			buildstate->buildStats.numDocs++;
+		}
+
 		rumHeapTupleBulkInsert(buildstate, (OffsetNumber) (i + 1),
 							   values[i], isnull[i],
 							   tid,
 							   outerAddInfo, outerAddInfoIsNull);
+	}
 
 	/* If we've maxed out our available memory, dump everything to the index */
 	if (buildstate->accum.allocatedMemory >= maintenance_work_mem * 1024L)
@@ -631,7 +660,7 @@ rumbuild(Relation heap, Relation index, struct IndexInfo *indexInfo)
 	initRumState(&buildstate.rumstate, index);
 	buildstate.rumstate.isBuild = true;
 	buildstate.indtuples = 0;
-	memset(&buildstate.buildStats, 0, sizeof(GinStatsData));
+	memset(&buildstate.buildStats, 0, sizeof(RumStatsData));
 
 	/* initialize the meta page */
 	MetaBuffer = RumNewBuffer(index);

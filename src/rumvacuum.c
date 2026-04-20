@@ -11,14 +11,19 @@
  *-------------------------------------------------------------------------
  */
 
+#include <math.h>
+
 #include "postgres.h"
 
+#include "access/table.h"
 #include "commands/vacuum.h"
+#include "miscadmin.h"
 #include "postmaster/autovacuum.h"
 #include "storage/indexfsm.h"
 #include "storage/lmgr.h"
 #include "storage/predicate.h"
 
+#include "access/relscan.h"
 #include "rum.h"
 
 typedef struct
@@ -31,6 +36,128 @@ typedef struct
 	BufferAccessStrategy strategy;
 }	RumVacuumState;
 
+/*
+ * rumEstimateAvgDocLen() performs a light scan of the table from which the
+ * index is built in order to estimate the average length of the tsvector in
+ * this table. The function tries to scan the samplePercent of the table blocks,
+ * in case of any errors it returns 0.0.
+ *
+ * TODO: At the moment, this function does not check the visibility of tuples,
+ * because it is assumed that this should not affect the estimate of the average
+ * length of the tsvector. But this point needs to be studied.
+ */
+static float8
+rumEstimateAvgDocLen(Relation index, int samplePercent)
+{
+	Relation		heapRel = table_open(index->rd_index->indrelid,
+										 AccessShareLock);
+	TupleDesc		heapTupleDesc = RelationGetDescr(heapRel);
+	AttrNumber		tsvectorHeapAttnum = InvalidAttrNumber;
+	BlockNumber		nblocks = InvalidBlockNumber;
+	BlockNumber		blkno,
+					sampleStep = 0;
+	uint64			totalLength = 0,
+					totalDocs = 0;
+
+	/* Looking for the attribute number for tsvector in the table */
+	for (int i = 0; i < heapTupleDesc->natts; i++)
+	{
+		if (TupleDescAttr(heapTupleDesc, i)->atttypid == TSVECTOROID)
+		{
+			tsvectorHeapAttnum = i;
+			break;
+		}
+
+		/* There is no tsvector in the table */
+		if (i == heapTupleDesc->natts - 1)
+		{
+			table_close(heapRel, AccessShareLock);
+			return 0.0;
+		}
+	}
+
+	/* Calculating the sampling step */
+	if(samplePercent >= 100)
+		sampleStep = 1;
+	else if (samplePercent <= 0)
+	{
+		table_close(heapRel, AccessShareLock);
+		return 0.0;
+	}
+	else
+	{
+		/*
+		 * TODO: For small tables with a small samplePercent value, statistics
+		 * can be strongly biased. It may make sense to make a minimum number of
+		 * blocks that the function should scan.
+		 */
+		sampleStep = (int) floor(100.0 / (float8) samplePercent);
+		if (sampleStep < 1)
+			sampleStep = 1;
+	}
+
+	/* Sampling cycle */
+	nblocks = RelationGetNumberOfBlocks(heapRel);
+	for (blkno = 0; blkno < nblocks; blkno += sampleStep)
+	{
+		Buffer			buffer;
+		Page			page;
+		OffsetNumber	i, maxoff;
+
+		/* TODO: Perhaps vacuum_delay_point() is needed here? */
+		CHECK_FOR_INTERRUPTS();
+
+		/* Reading and locking the page */
+		buffer = ReadBufferExtended(heapRel, MAIN_FORKNUM, blkno,
+									RBM_NORMAL, NULL);
+		LockBuffer(buffer, RUM_SHARE);
+		page = BufferGetPage(buffer);
+
+		/* Skip new and empty pages */
+		if (!PageIsNew(page) && !PageIsEmpty(page))
+		{
+			maxoff = PageGetMaxOffsetNumber(page);
+
+			/* Page cycle */
+			for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
+			{
+				ItemId itemid = PageGetItemId(page, i);
+				HeapTupleData tuple;
+				Datum value;
+				bool isNull;
+				TSVector tsvector;
+
+				if (!ItemIdIsNormal(itemid))
+					continue;
+
+				/* Reading the tuple and the tsvector value it contains */
+				tuple.t_data = (HeapTupleHeader) PageGetItem(page, itemid);
+				tuple.t_len = ItemIdGetLength(itemid);
+				ItemPointerSet(&(tuple.t_self), blkno, i);
+				tuple.t_tableOid = RelationGetRelid(heapRel);
+				value = heap_getattr(&tuple, tsvectorHeapAttnum + 1,
+									 heapTupleDesc, &isNull);
+				if (isNull)
+					continue;
+
+				/* Calculating the length of the tsvector */
+				tsvector = DatumGetTSVector(value);
+				totalLength += count_length(tsvector);
+				totalDocs++;
+			}
+		}
+
+		UnlockReleaseBuffer(buffer);
+	}
+
+	table_close(heapRel, AccessShareLock);
+
+	/* Final calculations */
+	if (totalDocs > 0)
+		return (float8) totalLength / (float8) totalDocs;
+	else
+		return 0.0;
+}
 
 /*
  * Cleans array of ItemPointer (removes dead pointers)
@@ -39,7 +166,6 @@ typedef struct
  * have allocated enough space. *cleaned and items may point to the same
  * memory address.
  */
-
 static OffsetNumber
 rumVacuumPostingList(RumVacuumState * gvs, OffsetNumber attnum, Pointer src,
 					 OffsetNumber nitem, Pointer *cleaned,
@@ -774,7 +900,7 @@ rumvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 	BlockNumber npages,
 				blkno;
 	BlockNumber totFreePages;
-	GinStatsData idxStat;
+	RumStatsData idxStat;
 
 	/*
 	 * In an autovacuum analyze, we want to clean up pending insertions.
@@ -852,6 +978,15 @@ rumvacuumcleanup(IndexVacuumInfo *info, IndexBulkDeleteResult *stats)
 
 	/* Update the metapage with accurate page and entry counts */
 	idxStat.nTotalPages = npages;
+
+	/* Collect statistics for bm25 */
+	if (RumCollectBm25Stats)
+	{
+		idxStat.numDocs = info->num_heap_tuples;
+		idxStat.avgDocLength = rumEstimateAvgDocLen(index,
+													RumBm25StatsSamplePercent);
+	}
+
 	rumUpdateStats(info->index, &idxStat, false);
 
 	/* Finally, vacuum the FSM */

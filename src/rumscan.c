@@ -142,10 +142,10 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 			   bool *partial_matches, Pointer *extra_data,
 			   bool orderBy)
 {
-	RumScanKey	key = palloc0(sizeof(*key));
-	RumState   *rumstate = &so->rumstate;
-	uint32		nUserQueryValues = nQueryValues;
-	uint32		i;
+	RumScanKey		key = palloc0(sizeof(*key));
+	RumState	   *rumstate = &so->rumstate;
+	uint32			nUserQueryValues = nQueryValues;
+	uint32			i;
 
 	so->keys[so->nkeys++] = key;
 	/* Non-default search modes add one "hidden" entry to each key */
@@ -171,6 +171,9 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 
 	key->addInfoKeys = NULL;
 	key->addInfoNKeys = 0;
+
+	key->numDocs = 0;
+	key->avgDocLength = 0.0;
 
 	if (key->orderBy)
 	{
@@ -234,6 +237,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 			key->entryRes = NULL;
 			key->addInfo = NULL;
 			key->addInfoIsNull = NULL;
+			key->predictNumberResult = NULL;
 
 			so->willSort = true;
 
@@ -251,6 +255,7 @@ rumFillScanKey(RumScanOpaque so, OffsetNumber attnum,
 	key->entryRes = (bool *) palloc0(sizeof(bool) * nQueryValues);
 	key->addInfo = (Datum *) palloc0(sizeof(Datum) * nQueryValues);
 	key->addInfoIsNull = (bool *) palloc(sizeof(bool) * nQueryValues);
+	key->predictNumberResult = (uint32 *) palloc0(sizeof(uint32) * nQueryValues);
 	for (i = 0; i < nQueryValues; i++)
 		key->addInfoIsNull[i] = true;
 

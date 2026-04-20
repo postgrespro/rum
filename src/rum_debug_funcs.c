@@ -544,7 +544,7 @@ get_positions_to_text_datum(Datum addInfo)
 	positions = DatumGetByteaP(addInfo);
 	ptrt = (char *) VARDATA_ANY(positions);
 	npos = count_pos(VARDATA_ANY(positions),
-					 VARSIZE_ANY_EXHDR(positions));
+					 VARSIZE_ANY_EXHDR(positions), false);
 
 	/* Initialize the string */
 	positionsStr = (char *) palloc(POS_STR_BUF_LENGTH * sizeof(char));
@@ -556,7 +556,7 @@ get_positions_to_text_datum(Datum addInfo)
 	for (int i = 0; i < npos; i++)
 	{
 		/* At each iteration decode the position */
-		ptrt = decompress_pos(ptrt, &position);
+		ptrt = decompress_pos(ptrt, &position, NULL, NULL);
 
 		/* Write this position and weight in the string */
 		if (pos_get_weight(position) == 'D')
@@ -1371,8 +1371,8 @@ rum_metapage_info(PG_FUNCTION_ARGS)
 
 	TupleDesc	tupDesc;		/* description of the result tuple */
 	HeapTuple	resultTuple;	/* for the results */
-	Datum		values[10];		/* return values */
-	bool		nulls[10];		/* true if the corresponding value is NULL */
+	Datum		values[12];		/* return values */
+	bool		nulls[12];		/* true if the corresponding value is NULL */
 
 	/*
 	 * To output the index version. If you change the index version, you may
@@ -1427,6 +1427,8 @@ rum_metapage_info(PG_FUNCTION_ARGS)
 	values[8] = Int64GetDatum(metaData->nEntries);
 	snprintf(versionBuf, sizeof(versionBuf), "0x%X", metaData->rumVersion);
 	values[9] = CStringGetTextDatum(versionBuf);
+	values[10] = Int64GetDatum(metaData->numDocs);
+	values[11] = Float8GetDatum(metaData->avgDocLength);
 
 	pfree(page);
 

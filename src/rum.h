@@ -32,6 +32,23 @@
 #define RUM_RIGHT_DISTANCE		22
 
 /*
+ * RumStatsData represents stats data for planner and ranking use
+ */
+typedef struct RumStatsData
+{
+	BlockNumber nPendingPages;
+	BlockNumber nTotalPages;
+	BlockNumber nEntryPages;
+	BlockNumber nDataPages;
+	int64		nEntries;
+	int32		rumVersion;
+
+	/* Statistics for bm25 */
+	int64 		numDocs;
+	float4 		avgDocLength;
+} RumStatsData;
+
+/*
  * Page opaque data in a inverted index page.
  *
  * Note: RUM does not include a page ID word as do the other index types.
@@ -103,6 +120,13 @@ typedef struct RumMetaPageData
 	BlockNumber nEntryPages;
 	BlockNumber nDataPages;
 	int64		nEntries;
+
+	/*
+	 * Statistics that are used for bm25 ranking. It is collected during VACUUM
+	 * and index creation.
+	 */
+	int64 		numDocs;
+	float4 		avgDocLength;
 }	RumMetaPageData;
 
 #define RUM_CURRENT_VERSION		(0xC0DE0002)
@@ -440,8 +464,8 @@ extern OffsetNumber rumtuple_get_attrnum(RumState * rumstate, IndexTuple tuple);
 extern Datum rumtuple_get_key(RumState * rumstate, IndexTuple tuple,
 				 RumNullCategory * category);
 
-extern void rumGetStats(Relation index, GinStatsData *stats);
-extern void rumUpdateStats(Relation index, const GinStatsData *stats,
+extern void rumGetStats(Relation index, RumStatsData *stats);
+extern void rumUpdateStats(Relation index, const RumStatsData *stats,
 						   bool isBuild);
 
 /* ruminsert.c */
@@ -460,7 +484,7 @@ extern bool ruminsert(Relation index, Datum *values, bool *isnull,
 		  );
 extern void rumEntryInsert(RumState * rumstate,
 			   OffsetNumber attnum, Datum key, RumNullCategory category,
-			   RumItem * items, uint32 nitem, GinStatsData *buildStats);
+			   RumItem * items, uint32 nitem, RumStatsData *buildStats);
 
 /* rumbtree.c */
 
@@ -525,7 +549,7 @@ extern Buffer rumStep(Buffer buffer, Relation index, int lockmode,
 					  ScanDirection scanDirection);
 extern void freeRumBtreeStack(RumBtreeStack * stack);
 extern void rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
-			   GinStatsData *buildStats);
+			   RumStatsData *buildStats);
 extern void rumFindParents(RumBtree btree, RumBtreeStack * stack, BlockNumber rootBlkno);
 
 /* rumentrypage.c */
@@ -572,7 +596,7 @@ extern void rumInsertItemPointers(RumState * rumstate,
 					  OffsetNumber attnum,
 					  RumPostingTreeScan * gdi,
 					  RumItem * items, uint32 nitem,
-					  GinStatsData *buildStats);
+					  RumStatsData *buildStats);
 extern Buffer rumScanBeginPostingTree(RumPostingTreeScan * gdi, RumItem *item);
 extern void rumDataFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
 				Page page, Page lpage, Page rpage);
@@ -630,6 +654,17 @@ typedef struct RumScanKeyData
 	Datum		curKey;
 	RumNullCategory curKeyCategory;
 	bool		useCurKey;
+
+	/* Statistics that are used for bm25 ranking */
+	int64 		numDocs; /* Number of documents in the collection */
+	/* The average length of the document in the collection */
+	float8 		avgDocLength;
+	/*
+	 * An array, each element of which corresponds to the element of the
+	 * scanEntry array. The values of this array are copied from the
+	 * corresponding scanEntry->predictNumberResult.
+	 */
+	uint32 	   *predictNumberResult;
 
 	/* other data needed for calling consistentFn */
 	Datum		query;
@@ -856,6 +891,8 @@ extern RumItem *rumGetBAEntry(BuildAccumulator *accum,
 
 #define LOWERMASK 0x1F
 
+#define RUM_PERCENTAGE_BM25_STATS_DEFAULT 2
+
 extern PGDLLEXPORT Datum rum_extract_tsvector(PG_FUNCTION_ARGS);
 extern PGDLLEXPORT Datum rum_extract_tsquery(PG_FUNCTION_ARGS);
 extern PGDLLEXPORT Datum rum_tsvector_config(PG_FUNCTION_ARGS);
@@ -867,8 +904,11 @@ extern PGDLLEXPORT Datum rum_ts_distance_td(PG_FUNCTION_ARGS);
 
 extern PGDLLEXPORT Datum tsquery_to_distance_query(PG_FUNCTION_ARGS);
 
-extern char* decompress_pos(char *ptr, WordEntryPos *pos);
-extern unsigned int count_pos(char *ptr, int len);
+extern char* decompress_pos(char *ptr, WordEntryPos *pos,
+							bool *isbm25_firstcall, uint32 *vlen);
+extern unsigned int count_pos(char *ptr, int len, bool isbm25);
+
+extern uint32 count_length(TSVector t);
 
 /* rum_arr_utils.c */
 typedef enum SimilarityType
@@ -894,6 +934,10 @@ extern PGDLLEXPORT Datum rum_anyarray_distance(PG_FUNCTION_ARGS);
 extern int		RumFuzzySearchLimit;
 extern float8	RumArraySimilarityThreshold;
 extern int		RumArraySimilarityFunction;
+extern bool 	RumCollectBm25Stats;
+extern int 		RumBm25StatsSamplePercent;
+extern float8 	RumBm25K1;
+extern float8 	RumBm25B;
 
 
 /*
@@ -1107,6 +1151,12 @@ extern Datum FunctionCall10Coll(FmgrInfo *flinfo, Oid collation,
 				   Datum arg3, Datum arg4, Datum arg5,
 				   Datum arg6, Datum arg7, Datum arg8,
 				   Datum arg9, Datum arg10);
+
+extern Datum FunctionCall13Coll(FmgrInfo *flinfo, Oid collation,
+				   Datum arg1, Datum arg2, Datum arg3, Datum arg4,
+				   Datum arg5, Datum arg6, Datum arg7, Datum arg8,
+				   Datum arg9, Datum arg10, Datum arg11, Datum arg12,
+				   Datum arg13);
 
 /* PostgreSQL version-agnostic creation of memory context */
 #if PG_VERSION_NUM >= 120000

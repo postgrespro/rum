@@ -1513,7 +1513,7 @@ rumInsertItemPointers(RumState * rumstate,
 					  OffsetNumber attnum,
 					  RumPostingTreeScan * gdi,
 					  RumItem * items, uint32 nitem,
-					  GinStatsData *buildStats)
+					  RumStatsData *buildStats)
 {
 	BlockNumber rootBlkno;
 

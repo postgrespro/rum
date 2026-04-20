@@ -2420,31 +2420,51 @@ keyGetOrdering(RumState * rumstate, MemoryContext tempCtx, RumScanKey key,
 		if (entry->isFinished == false &&
 			rumCompareItemPointers(&entry->curItem.iptr, iptr) == 0)
 		{
+			RumStatsData stats;
+
+			/*
+			 * Add statistics for bm25 to the order by key, which is read from the
+			 * index meta page.
+			 */
+			rumGetStats(rumstate->index, &stats);
+			key->numDocs = stats.numDocs;
+			key->avgDocLength = stats.avgDocLength;
+
 			key->addInfo[i] = entry->curItem.addInfo;
 			key->addInfoIsNull[i] = entry->curItem.addInfoIsNull;
 			key->entryRes[i] = true;
+
+			key->predictNumberResult[i] = entry->predictNumberResult;
 		}
 		else
 		{
+			key->numDocs = 0;
+			key->avgDocLength = 0.0;
+
 			key->addInfo[i] = (Datum) 0;
 			key->addInfoIsNull[i] = true;
 			key->entryRes[i] = false;
+
+			key->predictNumberResult[i] = 0;
 		}
 	}
 
-	return DatumGetFloat8(FunctionCall10Coll(&rumstate->orderingFn[key->attnum - 1],
-								 rumstate->supportCollation[key->attnum - 1],
-											 PointerGetDatum(key->entryRes),
-											 UInt16GetDatum(key->strategy),
-											 key->query,
-										   UInt32GetDatum(key->nuserentries),
-											 PointerGetDatum(key->extra_data),
-									   PointerGetDatum(&key->recheckCurItem),
-										   PointerGetDatum(key->queryValues),
-									   PointerGetDatum(key->queryCategories),
-											 PointerGetDatum(key->addInfo),
-										  PointerGetDatum(key->addInfoIsNull)
-											 ));
+	return DatumGetFloat8(FunctionCall13Coll(&rumstate->orderingFn[key->attnum - 1],
+								rumstate->supportCollation[key->attnum - 1],
+									PointerGetDatum(key->entryRes),
+									UInt16GetDatum(key->strategy),
+									key->query,
+									UInt32GetDatum(key->nuserentries),
+									PointerGetDatum(key->extra_data),
+									PointerGetDatum(&key->recheckCurItem),
+									PointerGetDatum(key->queryValues),
+									PointerGetDatum(key->queryCategories),
+									PointerGetDatum(key->addInfo),
+									PointerGetDatum(key->addInfoIsNull),
+									PointerGetDatum(key->predictNumberResult),
+									Int64GetDatum(key->numDocs),
+									Float8GetDatum(key->avgDocLength)
+									));
 }
 
 static void
@@ -2526,6 +2546,17 @@ insertScanItem(RumScanOpaque so, bool recheck)
 
 		item->data[j] = keyGetOrdering(&so->rumstate, so->tempCtx, so->keys[i],
 									   &so->item.iptr);
+
+		/*
+		 * FIXME: Due to the fact that the <=====> operator has so far been
+		 * implemented using the placeholder function rum_ts_distance(), we have
+		 * no other way to get the real distances except to output them to the
+		 * log.
+		 */
+		elog(DEBUG5, "tid = (%u, %u) --- distance = %f",
+					ItemPointerGetBlockNumber(&so->item.iptr),
+					ItemPointerGetOffsetNumber(&so->item.iptr),
+					item->data[j]);
 
 		j++;
 	}

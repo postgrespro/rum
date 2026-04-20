@@ -1742,7 +1742,9 @@ CREATE FUNCTION rum_metapage_info(
     OUT n_entry_pages bigint,
     OUT n_data_pages bigint,
     OUT n_entries bigint,
-    OUT version varchar)
+    OUT version varchar,
+    OUT numDocs bigint,
+    OUT avgDocLength float8)
 AS 'MODULE_PATHNAME', 'rum_metapage_info'
 LANGUAGE C STRICT PARALLEL SAFE;
 
@@ -1855,3 +1857,53 @@ AS $$
           down_link int4
       );
 $$ LANGUAGE sql;
+
+/*
+ * rum_tsvector_bm25_ops operator class
+ */
+
+CREATE FUNCTION rum_extract_tsvector_bm25(tsvector,internal,internal,internal,internal)
+RETURNS internal
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION rum_tsquery_distance_bm25(internal,smallint,tsvector,int,internal,internal,internal,internal,internal,internal,internal,internal)
+RETURNS float8
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION rum_tsquery_consistent_bm25(internal, smallint, tsvector, integer, internal, internal, internal, internal)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE FUNCTION rum_ts_join_pos_bm25(internal, internal)
+RETURNS bytea
+AS 'MODULE_PATHNAME'
+LANGUAGE C IMMUTABLE STRICT;
+
+-- FIXME: Here we need a function that will implement this operator outside
+-- the index. So far, rum_ts_distance() is used as a placeholder, which leads
+-- to an incorrect display of rank in SQL. It also leads to incorrect ranking
+-- results when using Bitmap Index Scan.
+CREATE OPERATOR <=====> (
+        LEFTARG = tsvector,
+        RIGHTARG = tsquery,
+        PROCEDURE = rum_ts_distance
+);
+
+CREATE OPERATOR CLASS rum_tsvector_bm25_ops
+FOR TYPE tsvector USING rum
+AS
+        OPERATOR        1       @@ (tsvector, tsquery),
+        OPERATOR        2       <=====> (tsvector, tsquery) FOR ORDER BY pg_catalog.float_ops,
+        FUNCTION        1       gin_cmp_tslexeme(text, text),
+        FUNCTION        2       rum_extract_tsvector_bm25(tsvector,internal,internal,internal,internal),
+        FUNCTION        3       rum_extract_tsquery(tsquery,internal,smallint,internal,internal,internal,internal),
+        FUNCTION        4       rum_tsquery_consistent_bm25(internal,smallint,tsvector,int,internal,internal,internal,internal),
+        FUNCTION        5       gin_cmp_prefix(text,text,smallint,internal),
+        FUNCTION        6       rum_tsvector_config(internal),
+        FUNCTION        7       rum_tsquery_pre_consistent(internal,smallint,tsvector,int,internal,internal,internal,internal),
+        FUNCTION        8       rum_tsquery_distance_bm25(internal,smallint,tsvector,int,internal,internal,internal,internal,internal,internal,internal,internal),
+        FUNCTION        10      rum_ts_join_pos_bm25(internal, internal),
+        STORAGE         text;
