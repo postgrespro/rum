@@ -1892,6 +1892,15 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumItem *item, bool equalOk)
 	Page		page = BufferGetPage(entry->buffer);
 
 	RumItemPointerSetMin(&iter_item.iptr);
+	ptr = RumDataPageGetData(page);
+	maxoff = RumPageGetOpaque(page)->maxoff;
+
+	/*
+	 * If there are no items on the page (it was vacuumed), immediately return
+	 * false.
+	 */
+	if (maxoff < FirstOffsetNumber)
+		return false;
 
 	if (ScanDirectionIsForward(entry->scanDirection) && !RumPageRightMost(page))
 	{
@@ -1900,9 +1909,6 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumItem *item, bool equalOk)
 		if (cmp < 0 || (cmp <= 0 && !equalOk))
 			return false;
 	}
-
-	ptr = RumDataPageGetData(page);
-	maxoff = RumPageGetOpaque(page)->maxoff;
 
 	for (j = 0; j < RumDataLeafIndexCount; j++)
 	{
