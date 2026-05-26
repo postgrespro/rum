@@ -714,12 +714,12 @@ restartScanEntry:
 				entry->curItem = entry->list[entry->offset];
 		}
 		/*
-		 * Else, the posting list for this entry has been entirely vacuumed
-		 * away (nlist == 0 after setListPositionScanEntry). We cannot assume
-		 * the scan is complete, as subsequent pages may exist.  Therefore, we
-		 * set isFinished = false and leave entry->nlist = 0 and entry->offset
-		 * = 0 to ensure that entryGetItem advances to the next page on the
-		 * next call.
+		 * Else, the posting list for this IndexTuple has been entirely vacuumed
+		 * away.  We cannot assume that the scan is finished, as subsequent
+		 * IndexTuples or pages may still contain valid results.  Therefore, we
+		 * set isFinished = false and keep entry->nlist = 0 and entry->offset = 0
+		 * to ensure that entryGetItem advances to the next page or IndexTuple
+		 * on the next call.
 		 */
 		else
 			entry->isFinished = false;
