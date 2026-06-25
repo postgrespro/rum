@@ -1637,9 +1637,9 @@ get_docrep_addinfo(bool *check, QueryRepresentation *qr,
 
 		if (!addInfoIsNull[keyN])
 		{
-			dimt = count_pos(VARDATA_ANY(addInfo[keyN]),
-							 VARSIZE_ANY_EXHDR(addInfo[keyN]));
-			ptrt = (char *) VARDATA_ANY(addInfo[keyN]);
+			dimt = count_pos(VARDATA_ANY(DatumGetPointer(addInfo[keyN])),
+							 VARSIZE_ANY_EXHDR(DatumGetPointer(addInfo[keyN])));
+			ptrt = (char *) VARDATA_ANY(DatumGetPointer(addInfo[keyN]));
 		}
 		else
 			continue;
@@ -2266,8 +2266,8 @@ rum_tsvector_config(PG_FUNCTION_ARGS)
 Datum
 rum_ts_join_pos(PG_FUNCTION_ARGS)
 {
-	Datum		addInfo1 = PG_GETARG_DATUM(0);
-	Datum		addInfo2 = PG_GETARG_DATUM(1);
+	Pointer		addInfo1 = PG_GETARG_POINTER(0);
+	Pointer		addInfo2 = PG_GETARG_POINTER(1);
 	char	   *in1 = VARDATA_ANY(addInfo1),
 			   *in2 = VARDATA_ANY(addInfo2);
 	bytea	   *result;
