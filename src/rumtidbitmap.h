@@ -15,6 +15,12 @@
 #define RUMTIDBITMAP_H
 
 #include "postgres.h"
+
+/*
+ * Since PG19 we need htup_details.h for tidbitmap.h to compile.
+ * See PostgreSQL commit 3bf31dd2 and discussion
+ */
+#include "access/htup_details.h"
 #include "nodes/tidbitmap.h"
 
 typedef struct TIDBitmap RumTIDBitmap;
