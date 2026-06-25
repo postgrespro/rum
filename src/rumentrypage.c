@@ -398,7 +398,11 @@ entryPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 
 	entryPreparePage(btree, page, off);
 
+#if PG_VERSION_NUM >= 190000
+	placed = PageAddItem(page, btree->entry, IndexTupleSize(btree->entry), off, false, false);
+#else
 	placed = PageAddItem(page, (Item) btree->entry, IndexTupleSize(btree->entry), off, false, false);
+#endif
 	if (placed != off)
 		elog(ERROR, "failed to add item to index page in \"%s\"",
 			 RelationGetRelationName(btree->index));
@@ -490,7 +494,11 @@ entrySplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf,
 			lsize += MAXALIGN(IndexTupleSize(itup)) + sizeof(ItemIdData);
 		}
 
+#if PG_VERSION_NUM >= 190000
+		if (PageAddItem(page, itup, IndexTupleSize(itup), InvalidOffsetNumber, false, false) == InvalidOffsetNumber)
+#else
 		if (PageAddItem(page, (Item) itup, IndexTupleSize(itup), InvalidOffsetNumber, false, false) == InvalidOffsetNumber)
+#endif
 			elog(ERROR, "failed to add item to index page in \"%s\"",
 				 RelationGetRelationName(btree->index));
 		ptr += MAXALIGN(IndexTupleSize(itup));
@@ -530,12 +538,20 @@ rumEntryFillRoot(RumBtree btree, Buffer root, Buffer lbuf, Buffer rbuf,
 	IndexTuple	itup;
 
 	itup = rumPageGetLinkItup(btree, lbuf, lpage);
+#if PG_VERSION_NUM >= 190000
+	if (PageAddItem(page, itup, IndexTupleSize(itup), InvalidOffsetNumber, false, false) == InvalidOffsetNumber)
+#else
 	if (PageAddItem(page, (Item) itup, IndexTupleSize(itup), InvalidOffsetNumber, false, false) == InvalidOffsetNumber)
+#endif
 		elog(ERROR, "failed to add item to index root page");
 	pfree(itup);
 
 	itup = rumPageGetLinkItup(btree, rbuf, rpage);
+#if PG_VERSION_NUM >= 190000
+	if (PageAddItem(page, itup, IndexTupleSize(itup), InvalidOffsetNumber, false, false) == InvalidOffsetNumber)
+#else
 	if (PageAddItem(page, (Item) itup, IndexTupleSize(itup), InvalidOffsetNumber, false, false) == InvalidOffsetNumber)
+#endif
 		elog(ERROR, "failed to add item to index root page");
 	pfree(itup);
 }
