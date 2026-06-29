@@ -19,6 +19,7 @@
 #include "miscadmin.h"
 #include "storage/bufmgr.h"
 #include "storage/bufpage.h"
+#include "storage/lmgr.h"
 #include "storage/lockdefs.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
@@ -929,20 +930,17 @@ find_attnum_posting_tree_key(RumPageItemsState piState)
  * piState and makes the necessary checks.
  */
 static bool
-prepare_scan(text *relName, uint32 blkNo,
+prepare_scan(Relation rel, uint32 blkNo,
 			 RumPageItemsState * piState,
 			 FuncCallContext *srfFctx,
 			 pageTypeFlags pageType)
 {
-	Relation	rel;			/* needed to initialize the RumState structure */
-
 	Page		page;			/* the page to be scanned */
 	RumPageOpaque opaq;			/* data from the opaque area of the page */
 
 	int			resSize;
 
-	/* Getting rel by name and page by number */
-	rel = get_rel_from_name(relName);
+	/* Getting page by number */
 	page = get_rel_page(rel, blkNo);
 
 	/* The page cannot be new */
@@ -961,8 +959,6 @@ prepare_scan(text *relName, uint32 blkNo,
 	/* Initializing the RumState structure */
 	(*piState)->rumState = palloc(sizeof(RumState));
 	initRumState((*piState)->rumState, rel);
-
-	relation_close(rel, AccessShareLock);
 
 	/* Writing the page and page type into a long-lived structure */
 	(*piState)->srfFctx = srfFctx;
@@ -1551,6 +1547,7 @@ rum_page_items_info(PG_FUNCTION_ARGS)
 	text	   *relName = PG_GETARG_TEXT_PP(0);
 	uint32		blkNo = PG_GETARG_UINT32(1);
 	pageTypeFlags pageType = PG_GETARG_UINT32(2);
+	Relation	rel;			/* needed to initialize the RumState structure */
 
 	int			counter;
 
@@ -1573,6 +1570,9 @@ rum_page_items_info(PG_FUNCTION_ARGS)
 		TupleDesc	tupDesc;	/* description of the result tuple */
 		MemoryContext oldMctx;	/* the old function memory context */
 
+		/* Getting rel by name */
+		rel = get_rel_from_name(relName);
+
 		/*
 		 * Initializing the FuncCallContext structure and switching the memory
 		 * context to the one needed for structures that must be saved during
@@ -1582,9 +1582,10 @@ rum_page_items_info(PG_FUNCTION_ARGS)
 		oldMctx = MemoryContextSwitchTo(fctx->multi_call_memory_ctx);
 
 		/* Before scanning the page, you need to prepare piState */
-		if (!prepare_scan(relName, blkNo, &piState, fctx, pageType))
+		if (!prepare_scan(rel, blkNo, &piState, fctx, pageType))
 		{
 			MemoryContextSwitchTo(oldMctx);
+			relation_close(rel, AccessShareLock);
 			PG_RETURN_NULL();
 		}
 
@@ -1613,6 +1614,13 @@ rum_page_items_info(PG_FUNCTION_ARGS)
 
 	/* In the current call, we are reading data from the previous one */
 	piState = fctx->user_fctx;
+
+	/*
+	 * Need set rel if it is not first call. Anyway, relation has been already
+	 * locked here.
+	 */
+	rel = piState->rumState->index;
+	Assert(CheckRelationLockedByMe(rel, AccessShareLock, false));
 
 	/* The counter is defined differently on different pages */
 	if (RumIsDataPage(piState))
@@ -1644,6 +1652,8 @@ rum_page_items_info(PG_FUNCTION_ARGS)
 		/* Returning the result of the current call */
 		SRF_RETURN_NEXT(fctx, piState->result);
 	}
+
+	relation_close(rel, AccessShareLock);
 
 	/* Completing the function */
 	SRF_RETURN_DONE(fctx);
