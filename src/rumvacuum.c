@@ -632,7 +632,11 @@ rumVacuumEntryPage(RumVacuumState * gvs, Buffer buffer, BlockNumber *roots, Offs
 				pfree(cleaned);
 				PageIndexTupleDelete(tmppage, i);
 
+#if PG_VERSION_NUM >= 190000
+				if (PageAddItem(tmppage, itup, IndexTupleSize(itup), i, false, false) != i)
+#else
 				if (PageAddItem(tmppage, (Item) itup, IndexTupleSize(itup), i, false, false) != i)
+#endif
 					elog(ERROR, "failed to add item to index page in \"%s\"",
 						 RelationGetRelationName(gvs->index));
 
