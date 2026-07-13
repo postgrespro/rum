@@ -284,6 +284,20 @@ initRumState(RumState * state, Relation index)
 			{
 				state->addAttrs[i] = NULL;
 			}
+
+			/*
+			 * PG19 added a tuple-deformation offset cache to TupleDesc
+			 * (firstNonCachedOffsetAttr) that is only initialized by
+			 * TupleDescFinalize(). Any TupleDesc hand-built via
+			 * CreateTemplateTupleDesc()/TupleDescInitEntry(), as above,
+			 * must now be finalized before it is used to form or read
+			 * tuples, or PG core will hit
+			 * Assert(tupleDesc->firstNonCachedOffsetAttr >= 0) the first
+			 * time it tries to deform one -- exactly what happened here.
+			 */
+#if PG_VERSION_NUM >= 190000
+			TupleDescFinalize(state->tupdesc[i]);
+#endif
 		}
 		else
 		{
@@ -311,6 +325,11 @@ initRumState(RumState * state, Relation index)
 			{
 				state->addAttrs[i] = NULL;
 			}
+
+			/* See comment above the oneCol branch's TupleDescFinalize(). */
+#if PG_VERSION_NUM >= 190000
+			TupleDescFinalize(state->tupdesc[i]);
+#endif
 		}
 
 		/*
