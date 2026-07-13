@@ -1019,7 +1019,15 @@ rumDataPageLeafRead(char *ptr, OffsetNumber attnum, RumItem * item,
 			switch (attr->attlen)
 			{
 				case sizeof(char):
-					item->addInfo = Int8GetDatum(*ptr);
+
+					/*
+					 * PG19 removed Int8GetDatum() from postgres.h.
+					 * CharGetDatum() performs the identical (Datum) (X)
+					 * byte-value conversion and remains present in every
+					 * supported PostgreSQL version, so use it instead of
+					 * depending on Int8GetDatum()'s continued existence.
+					 */
+					item->addInfo = CharGetDatum(*ptr);
 					break;
 				case sizeof(int16):
 					memcpy(&u.i16, ptr, sizeof(int16));

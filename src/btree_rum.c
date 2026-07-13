@@ -17,6 +17,27 @@
 
 #include "rum.h"
 
+/*
+ * PostgreSQL's own fallthrough-attribute wrapper is not a stable target:
+ * it's pg_attribute_fallthrough() (function-call-style) through PG18,
+ * pg_fallthrough (a bare, parenless macro) from PG19 on -- and even on
+ * PG18, pg_attribute_fallthrough() is not reliably declared under every
+ * compiler/build-mode combination (e.g. it's missing under clang's
+ * -emit-llvm JIT bitcode pass). Rather than keep chasing PostgreSQL's
+ * internal macro across versions and compilers, detect compiler support
+ * for the attribute directly and supply our own wrapper. This matches
+ * exactly what PostgreSQL's own macros expand to, just without relying
+ * on PostgreSQL to declare it consistently.
+ */
+#if defined(__has_attribute)
+#if __has_attribute(fallthrough)
+#define RUM_FALLTHROUGH() __attribute__((fallthrough))
+#endif
+#endif
+#ifndef RUM_FALLTHROUGH
+#define RUM_FALLTHROUGH() ((void) 0)
+#endif
+
 #if defined(_MSC_VER) && _MSC_VER >= 1200 && _MSC_VER < 1800 // Between VC++ 6.0 and VC++ 11.0
 #include <float.h>
 #define isfinite _finite
@@ -112,7 +133,7 @@ rum_btree_extract_query(FunctionCallInfo fcinfo,
 		case BTGreaterEqualStrategyNumber:
 		case BTGreaterStrategyNumber:
 			*ptr_partialmatch = true;
-			/*FALLTHROUGH*/
+			RUM_FALLTHROUGH();
 		case BTEqualStrategyNumber:
 		case RUM_DISTANCE:
 		case RUM_LEFT_DISTANCE:
