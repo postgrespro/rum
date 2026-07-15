@@ -1019,7 +1019,7 @@ rumDataPageLeafRead(char *ptr, OffsetNumber attnum, RumItem * item,
 			switch (attr->attlen)
 			{
 				case sizeof(char):
-					item->addInfo = Int8GetDatum(*ptr);
+					item->addInfo = CharGetDatum(*ptr);
 					break;
 				case sizeof(int16):
 					memcpy(&u.i16, ptr, sizeof(int16));
