@@ -313,6 +313,10 @@ initRumState(RumState * state, Relation index)
 			}
 		}
 
+#if PG_VERSION_NUM >= 190000
+		TupleDescFinalize(state->tupdesc[i]);
+#endif
+
 		/*
 		 * If the compare proc isn't specified in the opclass definition, look
 		 * up the index key type's default btree comparator.
