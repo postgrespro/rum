@@ -114,9 +114,8 @@ rum_btree_extract_query(FunctionCallInfo fcinfo,
 			*ptr_partialmatch = true;
 #if PG_VERSION_NUM >= 190000
 			pg_fallthrough;
-#else
-			/*FALLTHROUGH*/
 #endif
+			/*FALLTHROUGH*/
 		case BTEqualStrategyNumber:
 		case RUM_DISTANCE:
 		case RUM_LEFT_DISTANCE:
