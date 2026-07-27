@@ -314,6 +314,7 @@ initRumState(RumState * state, Relation index)
 		}
 
 #if PG_VERSION_NUM >= 190000
+		/* Once the TupleDesc is set up, it must be finalized before usage. */
 		TupleDescFinalize(state->tupdesc[i]);
 #endif
 
