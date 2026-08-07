@@ -270,20 +270,17 @@ typedef struct RumPageItemsStateData
 typedef RumPageItemsStateData *RumPageItemsState;
 
 /*
- * This function and get_rel_raw_page() are derived
- * from the separation of the get_raw_page_internal()
- * function, which was copied from the pageinspect code.
- * It is needed in order to call the initRumState()
- * function if necessary.
+ * Open the relation named by relname, acquire specified type of lock,
+ * Caller must close rel when done with it.
  */
 static Relation
-get_rel_from_name(text *relName)
+get_rel_from_relname(text *relName, LOCKMODE lockmode)
 {
 	RangeVar   *relrv;
 	Relation	rel;
 
 	relrv = makeRangeVarFromNameList(textToQualifiedNameList(relName));
-	rel = relation_openrv(relrv, AccessShareLock);
+	rel = relation_openrv(relrv, lockmode);
 
 #if PG_VERSION_NUM >= 150000
 	if (!RELKIND_HAS_STORAGE(rel->rd_rel->relkind))
@@ -1379,8 +1376,8 @@ rum_metapage_info(PG_FUNCTION_ARGS)
 	/* Only the superuser can use this */
 	check_superuser();
 
-	/* Getting rel by name and page by number */
-	rel = get_rel_from_name(relName);
+	/* Open target relation by name and getting page by number */
+	rel = get_rel_from_relname(relName, AccessShareLock);
 	page = get_rel_page(rel, blkNo);
 	relation_close(rel, AccessShareLock);
 
@@ -1462,8 +1459,8 @@ rum_page_opaque_info(PG_FUNCTION_ARGS)
 	/* Only the superuser can use this */
 	check_superuser();
 
-	/* Getting rel by name and raw page by number */
-	rel = get_rel_from_name(relName);
+	/* Open target relation by name and getting raw page by number */
+	rel = get_rel_from_relname(relName, AccessShareLock);
 	page = get_rel_page(rel, blkNo);
 	relation_close(rel, AccessShareLock);
 
@@ -1570,8 +1567,8 @@ rum_page_items_info(PG_FUNCTION_ARGS)
 		TupleDesc	tupDesc;	/* description of the result tuple */
 		MemoryContext oldMctx;	/* the old function memory context */
 
-		/* Getting rel by name */
-		rel = get_rel_from_name(relName);
+		/* open target relation */
+		rel = get_rel_from_relname(relName, AccessShareLock);
 
 		/*
 		 * Initializing the FuncCallContext structure and switching the memory
