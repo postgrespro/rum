@@ -200,7 +200,7 @@ rum_extract_anyarray(PG_FUNCTION_ARGS)
 	{
 		/* Use array's size as additional info */
 		(*addInfo)[i] = Int32GetDatum(*nentries);
-		(*addInfoIsNull)[i] = BoolGetDatum(false);
+		(*addInfoIsNull)[i] = false;
 	}
 
 	/* we should not free array, entries[i] points into it */

@@ -1298,7 +1298,7 @@ get_entry_leaf_posting_tree_result(RumPageItemsState piState)
 	piState->nulls[counter++] = true;
 
 	/* Returning the root of the posting tree */
-	piState->values[counter++] = true;
+	piState->values[counter++] = BoolGetDatum(true);
 	piState->values[counter++] =
 		UInt32GetDatum(RumGetPostingTree(piState->curItup));
 
