@@ -26,7 +26,7 @@ REGRESS = security rum rum_validate rum_hash ruminv timestamp \
 	int2 int4 int8 float4 float8 money oid \
 	time timetz date interval \
 	macaddr inet cidr text varchar char bytea bit varbit \
-	numeric rum_weight expr array
+	numeric rum_weight expr array rum_vacuum
 
 TAP_TESTS = 1
 

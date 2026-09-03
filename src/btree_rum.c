@@ -112,6 +112,9 @@ rum_btree_extract_query(FunctionCallInfo fcinfo,
 		case BTGreaterEqualStrategyNumber:
 		case BTGreaterStrategyNumber:
 			*ptr_partialmatch = true;
+#if PG_VERSION_NUM >= 190000
+			pg_fallthrough;
+#endif
 			/*FALLTHROUGH*/
 		case BTEqualStrategyNumber:
 		case RUM_DISTANCE:

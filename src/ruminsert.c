@@ -57,7 +57,7 @@ createPostingTree(RumState * rumstate, OffsetNumber attnum, Relation index,
 	Buffer		buffer = RumNewBuffer(index);
 	Page		page;
 	int			i;
-	Pointer		ptr;
+	char		*ptr;
 	ItemPointerData prev_iptr = {{0, 0}, 0};
 	GenericXLogState *state = NULL;
 

@@ -19,7 +19,9 @@
  * you need to transfer the src/backend/nodes/tidbitmap.c of the
  * required version to the RUM and include it here.
  */
-#if PG_VERSION_NUM >= 180000
+#if PG_VERSION_NUM >= 190000
+#include "tidbitmap/tidbitmap19.c"
+#elif PG_VERSION_NUM >= 180000
 #include "tidbitmap/tidbitmap18.c"
 #elif PG_VERSION_NUM >= 170000
 #include "tidbitmap/tidbitmap17.c"

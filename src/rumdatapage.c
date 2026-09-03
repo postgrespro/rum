@@ -61,11 +61,11 @@ rumComputeDatumSize(Size data_length, Datum val, bool typbyval, char typalign,
  * pointer incremented by space used.
  */
 static Pointer
-rumDatumWrite(Pointer ptr, Datum datum, bool typbyval, char typalign,
+rumDatumWrite(char *ptr, Datum datum, bool typbyval, char typalign,
 			  int16 typlen, char typstorage)
 {
 	Size		data_length;
-	Pointer		prev_ptr = ptr;
+	char		*prev_ptr = ptr;
 
 	if (typbyval)
 	{
@@ -225,7 +225,7 @@ rumDataPageLeafWriteItemPointer(RumState * rumstate, char *ptr, ItemPointer iptr
  * Place item pointer with additional information into leaf data page.
  */
 Pointer
-rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
+rumPlaceToDataPageLeaf(char *ptr, OffsetNumber attnum,
 					   RumItem * item, ItemPointer prev, RumState * rumstate)
 {
 	Form_pg_attribute attr;
@@ -527,7 +527,7 @@ convertIndexToKey(RumDataLeafItemIndex *src, RumItem *dst)
  */
 static bool
 findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
-			   ItemPointerData *iptrOut, Pointer *ptrOut)
+			   ItemPointerData *iptrOut, char **ptrOut)
 {
 	Pointer		ptr = RumDataPageGetData(page);
 	OffsetNumber i,
@@ -623,7 +623,7 @@ dataLocateLeafItem(RumBtree btree, RumBtreeStack * stack)
 {
 	Page		page = BufferGetPage(stack->buffer);
 	ItemPointerData iptr;
-	Pointer		ptr;
+	char		*ptr;
 
 	Assert(RumPageIsLeaf(page));
 	Assert(RumPageIsData(page));
@@ -848,8 +848,8 @@ dataPlaceToPage(RumBtree btree, Page page, OffsetNumber off)
 
 	if (RumPageIsLeaf(page))
 	{
-		Pointer		ptr = RumDataPageGetData(page),
-					copyPtr = NULL;
+		char		*ptr = RumDataPageGetData(page),
+					*copyPtr = NULL;
 		ItemPointerData iptr = {{0, 0}, 0};
 		RumItem		copyItem;
 		bool		copyItemEmpty = true;
@@ -1050,8 +1050,8 @@ dataSplitPageLeaf(RumBtree btree, Buffer lbuf, Buffer rbuf,
 				maxoff;
 	Size		totalsize = 0,
 				prevTotalsize;
-	Pointer		ptr,
-				copyPtr;
+	char		*ptr,
+				*copyPtr;
 	Page		page;
 	Page		newlPage = PageGetTempPageCopy(lPage);
 	Size		pageSize = PageGetPageSize(newlPage);
@@ -1336,7 +1336,7 @@ dataSplitPage(RumBtree btree, Buffer lbuf, Buffer rbuf,
 void
 updateItemIndexes(Page page, OffsetNumber attnum, RumState * rumstate)
 {
-	Pointer		ptr;
+	char		*ptr;
 	RumItem		item;
 	int			j = 0,
 				maxoff,

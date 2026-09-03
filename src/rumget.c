@@ -659,16 +659,15 @@ restartScanEntry:
 
 			PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
 
-			/*
-			 * We keep buffer pinned because we need to prevent deletion of
-			 * page during scan. See RUM's vacuum implementation. RefCount is
-			 * increased to keep buffer pinned after freeRumBtreeStack() call.
-			 */
 			page = BufferGetPage(entry->buffer);
 			entry->predictNumberResult = gdi->stack->predictNumber * RumPageGetOpaque(page)->maxoff;
 
 			/*
-			 * Keep page content in memory to prevent durable page locking
+			 * Copy page content into memory so we can unlock the buffer.
+			 * Allocate enough space for any leaf page: maxoff can never
+			 * exceed BLCKSZ, so BLCKSZ * sizeof(RumItem) is a safe upper
+			 * bound.  The buffer is reused by entryGetNextItem() when
+			 * traversing to subsequent pages of the posting tree.
 			 */
 			entry->list = (RumItem *) palloc(BLCKSZ * sizeof(RumItem));
 			maxoff = RumPageGetOpaque(page)->maxoff;
@@ -684,9 +683,23 @@ restartScanEntry:
 			}
 
 			LockBuffer(entry->buffer, RUM_UNLOCK);
-			entry->isFinished = setListPositionScanEntry(rumstate, entry);
-			if (!entry->isFinished)
-				entry->curItem = entry->list[entry->offset];
+
+			/*
+			 * If the current page is empty (nlist == 0), we cannot assume the
+			 * scan is complete, as subsequent pages may exist.  Therefore, we
+			 * set isFinished = false and leave entry->nlist = 0 and
+			 * entry->offset = 0 to ensure that entryGetItem advances to the
+			 * next page on the next call.  Otherwise, initialize curItem to
+			 * the first valid item.
+			 */
+			if (entry->nlist == 0)
+				entry->isFinished = false;
+			else
+			{
+				entry->isFinished = setListPositionScanEntry(rumstate, entry);
+				if (!entry->isFinished)
+					entry->curItem = entry->list[entry->offset];
+			}
 		}
 		else if (RumGetNPosting(itup) > 0)
 		{
@@ -699,6 +712,16 @@ restartScanEntry:
 			if (!entry->isFinished)
 				entry->curItem = entry->list[entry->offset];
 		}
+		/*
+		 * Else, the posting list for this IndexTuple has been entirely vacuumed
+		 * away.  We cannot assume that the scan is finished, as subsequent
+		 * IndexTuples or pages may still contain valid results.  Therefore, we
+		 * set isFinished = false and keep entry->nlist = 0 and entry->offset = 0
+		 * to ensure that entryGetItem advances to the next page or IndexTuple
+		 * on the next call.
+		 */
+		else
+			entry->isFinished = false;
 
 		if (entry->queryCategory == RUM_CAT_EMPTY_QUERY &&
 			entry->scanWithAddInfo)
@@ -1011,6 +1034,13 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 
 			LockBuffer(entry->buffer, RUM_UNLOCK);
 
+			/*
+			 * No valid item if VACUUM removed all items concurrently. Go on
+			 * next page.
+			 */
+			if (entry->nlist == 0)
+				break;
+
 			if (entry->offset < 0)
 			{
 				if (ScanDirectionIsForward(entry->scanDirection) &&
@@ -1028,6 +1058,24 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 	}
 }
 
+/*
+ * Load the next batch of items into entry->list during a RumFullScan.
+ *
+ * Reads the next IndexTuple from the current leaf page of the entry tree
+ * (the IndexTuple contains either a posting list or a posting tree) and loads
+ * its items into entry->list.
+ *
+ * The entry must be the hidden EVERYTHING entry used to drive a full-index scan
+ * (i.e. it has entry->stack set, searchMode == GIN_SEARCH_MODE_EVERYTHING, and
+ * scanWithAddInfo == true).  On entry, isFinished must be false (there may be
+ * more IndexTuples with data to return), entry->stack->buffer must point to the
+ * current leaf page of the entry tree, and entry->stack->off must point to the
+ * IndexTuple from which to load the next batch.
+ *
+ * Returns false if the entry tree is exhausted (reached the rightmost page or
+ * a different attribute number), true if a new batch was successfully loaded
+ * into entry->list.
+ */
 static bool
 entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 {
@@ -1035,21 +1083,22 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 	IndexTuple	itup;
 	RumBtreeData btree;
 	bool		needUnlock;
+	bool		skipCurItem = false;
 
 	Assert(!entry->isFinished);
 	Assert(entry->stack);
 	Assert(ScanDirectionIsForward(entry->scanDirection));
+	Assert(entry->strategy == InvalidStrategy);
+	Assert(entry->searchMode == GIN_SEARCH_MODE_EVERYTHING);
+	Assert(entry->scanWithAddInfo == true);
 
-	entry->buffer = InvalidBuffer;
-	RumItemSetMin(&entry->curItem);
-	entry->offset = InvalidOffsetNumber;
-	entry->list = NULL;
+	/* Clearing the hidden entry to load information from the next IndexTuple. */
 	if (entry->gdi)
 	{
 		freeRumBtreeStack(entry->gdi->stack);
 		pfree(entry->gdi);
+		entry->gdi = NULL;
 	}
-	entry->gdi = NULL;
 	if (entry->list)
 	{
 		pfree(entry->list);
@@ -1059,42 +1108,48 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 	entry->matchSortstate = NULL;
 	entry->reduceResult = false;
 	entry->predictNumberResult = 0;
+	entry->buffer = InvalidBuffer;
+	entry->offset = InvalidOffsetNumber;
+	RumItemSetMin(&entry->curItem);
 
+	/* Preparing to move through the entry tree. */
 	rumPrepareEntryScan(&btree, entry->attnum,
 						entry->queryKey, entry->queryCategory,
 						rumstate);
-
 	LockBuffer(entry->stack->buffer, RUM_SHARE);
+	needUnlock = true;
+
 	/*
-	 * stack->off points to the interested entry, buffer is already locked
+	 * Step to the next page if necessary (if the IndexTuple for the current
+	 * page has ended, or if a concurrency insertion has caused the current
+	 * page to split).
 	 */
 	if (!moveRightIfItNeeded(&btree, entry->stack))
 	{
 		ItemPointerSetInvalid(&entry->curItem.iptr);
 		entry->isFinished = true;
 		LockBuffer(entry->stack->buffer, RUM_UNLOCK);
+		needUnlock = false;
 		return false;
 	}
 
+	/* Now stack->off points to the interested entry, buffer is already locked. */
 	page = BufferGetPage(entry->stack->buffer);
 	itup = (IndexTuple) PageGetItem(page, PageGetItemId(page,
 													entry->stack->off));
-	needUnlock = true;
 
-	/*
-	 * If tuple stores another attribute then stop scan
-	 */
+	/* If tuple stores another attribute then stop scan. */
 	if (rumtuple_get_attrnum(btree.rumstate, itup) != entry->attnum)
 	{
 		ItemPointerSetInvalid(&entry->curItem.iptr);
 		entry->isFinished = true;
 		LockBuffer(entry->stack->buffer, RUM_UNLOCK);
+		needUnlock = false;
 		return false;
 	}
 
-	/*
-	 * OK, we want to return the TIDs listed in this entry.
-	 */
+	/* OK, we want to return the TIDs listed in this entry. */
+
 	if (RumIsPostingTree(itup))
 	{
 		BlockNumber rootPostingTree = RumGetPostingTree(itup);
@@ -1115,26 +1170,29 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 		 */
 		LockBuffer(entry->stack->buffer, RUM_UNLOCK);
 		needUnlock = false;
+
+		/* Preparing to move through the posting tree (in full scan mode). */
 		gdi = rumPrepareScanPostingTree(rumstate->index,
 						rootPostingTree, true, entry->scanDirection,
 						entry->attnumOrig, rumstate);
 
+		/* Find the leftmost leaf page. */
 		entry->buffer = rumScanBeginPostingTree(gdi, NULL);
 		entry->gdi = gdi;
 
-		PredicateLockPage(rumstate->index, BufferGetBlockNumber(entry->buffer), snapshot);
+		PredicateLockPage(rumstate->index,
+						  BufferGetBlockNumber(entry->buffer), snapshot);
 
-		/*
-		 * We keep buffer pinned because we need to prevent deletion of
-		 * page during scan. See RUM's vacuum implementation. RefCount is
-		 * increased to keep buffer pinned after freeRumBtreeStack() call.
-		 */
 		page = BufferGetPage(entry->buffer);
 		entry->predictNumberResult = gdi->stack->predictNumber *
 										RumPageGetOpaque(page)->maxoff;
 
 		/*
-		 * Keep page content in memory to prevent durable page locking
+		 * Copy page content into memory so we can unlock the buffer.
+		 * Allocate enough space for any leaf page: maxoff can never
+		 * exceed BLCKSZ, so BLCKSZ * sizeof(RumItem) is a safe upper
+		 * bound.  The buffer is reused by entryGetNextItem() when
+		 * traversing to subsequent pages of the posting tree.
 		 */
 		entry->list = (RumItem *) palloc(BLCKSZ * sizeof(RumItem));
 		maxoff = RumPageGetOpaque(page)->maxoff;
@@ -1142,6 +1200,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 
 		ptr = RumDataPageGetData(page);
 
+		/* Copying data from the leaf page of the posting tree to entry->list. */
 		for (i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i))
 		{
 			ptr = rumDataPageLeafRead(ptr, entry->attnum, &item, true,
@@ -1151,6 +1210,18 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 
 		LockBuffer(entry->buffer, RUM_UNLOCK);
 		entry->isFinished = false;
+
+		/*
+		 * Posting tree's first leaf page is empty due to concurrent VACUUM.
+		 * Advance through empty pages until we find one with items or exhaust
+		 * the tree. entryGetItem does not re-invoke entryGetNextItem after we
+		 * return, so we must do it here to ensure curItem is valid on return.
+		 */
+		if (entry->nlist == 0)
+		{
+			entryGetNextItem(rumstate, entry, snapshot);
+			skipCurItem = true;
+		}
 	}
 	else if (RumGetNPosting(itup) > 0)
 	{
@@ -1161,17 +1232,28 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 		rumReadTuple(rumstate, entry->attnum, itup, entry->list, true);
 		entry->isFinished = setListPositionScanEntry(rumstate, entry);
 	}
+	/* Posting list has been vacuumed. Go to the next entry. */
+	else
+	{
+		ItemPointerSetInvalid(&entry->curItem.iptr);
+		entry->isFinished = true;
+		skipCurItem = true;
+	}
 
-	Assert(entry->nlist > 0 && entry->list);
-
-	entry->curItem = entry->list[entry->offset];
-	entry->offset += entry->scanDirection;
+	/*
+	 * Skip setting curItem from entry->list if it was already set by
+	 * a sub-call (e.g. entryGetNextItem) or if the entry is finished.
+	 */
+	if (!skipCurItem)
+	{
+		Assert(entry->nlist > 0 && entry->list);
+		entry->curItem = entry->list[entry->offset];
+		entry->offset += entry->scanDirection;
+	}
 
 	SCAN_ENTRY_GET_KEY(entry, rumstate, itup);
 
-	/*
-	 * Done with this entry, go to the next for the future.
-	 */
+	/* Done with this entry, go to the next for the future. */
 	entry->stack->off++;
 
 	if (needUnlock)
@@ -1340,8 +1422,24 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
 		}
 		else if (entry->stack)
 		{
-			entry->offset++;
-			if (entryGetNextItemList(rumstate, entry, snapshot) && nextEntryList)
+			/*
+			 * We are responsible for ensuring that we keep advancing through
+			 * ItemLists until we find one that contains at least one valid
+			 * item.  This is necessary because concurrent VACUUM may have
+			 * removed all items from a page, leaving an empty ItemList.  In
+			 * such cases, we must continue to the next ItemList.
+			 */
+			bool		success;
+
+			Assert(!entry->isFinished);
+
+			do
+			{
+				entry->isFinished = false;
+				success = entryGetNextItemList(rumstate, entry, snapshot);
+			} while (success && entry->nlist == 0);
+
+			if (success && nextEntryList)
 				*nextEntryList = true;
 		}
 		else
@@ -1361,8 +1459,22 @@ entryGetItem(RumState * rumstate, RumScanEntry entry, bool *nextEntryList, Snaps
 				 dropItem(entry));
 		if (entry->stack && entry->isFinished)
 		{
-			entry->isFinished = false;
-			if (entryGetNextItemList(rumstate, entry, snapshot) && nextEntryList)
+			/*
+			 * We are responsible for ensuring that we keep advancing through
+			 * ItemLists until we find one that contains at least one valid
+			 * item.  This is necessary because concurrent VACUUM may have
+			 * removed all items from a page, leaving an empty ItemList.  In
+			 * such cases, we must continue to the next ItemList.
+			 */
+			bool		success;
+
+			do
+			{
+				entry->isFinished = false;
+				success = entryGetNextItemList(rumstate, entry, snapshot);
+			} while (success && entry->nlist == 0);
+
+			if (success && nextEntryList)
 				*nextEntryList = true;
 		}
 	}
@@ -1809,6 +1921,15 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumItem *item, bool equalOk)
 	Page		page = BufferGetPage(entry->buffer);
 
 	RumItemPointerSetMin(&iter_item.iptr);
+	ptr = RumDataPageGetData(page);
+	maxoff = RumPageGetOpaque(page)->maxoff;
+
+	/*
+	 * If there are no items on the page (it was vacuumed), immediately return
+	 * false.
+	 */
+	if (maxoff < FirstOffsetNumber)
+		return false;
 
 	if (ScanDirectionIsForward(entry->scanDirection) && !RumPageRightMost(page))
 	{
@@ -1817,9 +1938,6 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumItem *item, bool equalOk)
 		if (cmp < 0 || (cmp <= 0 && !equalOk))
 			return false;
 	}
-
-	ptr = RumDataPageGetData(page);
-	maxoff = RumPageGetOpaque(page)->maxoff;
 
 	for (j = 0; j < RumDataLeafIndexCount; j++)
 	{

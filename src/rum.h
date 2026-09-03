@@ -547,7 +547,7 @@ extern int	rumCompareItemPointers(const ItemPointerData *a, const ItemPointerDat
 extern int	compareRumItem(RumState * state, const AttrNumber attno,
 						  const RumItem * a, const RumItem * b);
 extern void convertIndexToKey(RumDataLeafItemIndex *src, RumItem *dst);
-extern Pointer rumPlaceToDataPageLeaf(Pointer ptr, OffsetNumber attnum,
+extern Pointer rumPlaceToDataPageLeaf(char *ptr, OffsetNumber attnum,
 					   RumItem * item, ItemPointer prev, RumState * rumstate);
 extern Size rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
 			RumItem * item, ItemPointer prev, RumState * rumstate, Size size);
@@ -975,7 +975,7 @@ rumDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
  * locking one can get unexpected behaviour.
  */
 static inline Pointer
-rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumItem * item,
+rumDataPageLeafRead(char *ptr, OffsetNumber attnum, RumItem * item,
 					bool copyAddInfo, RumState * rumstate)
 {
 	Form_pg_attribute attr;
@@ -1019,7 +1019,7 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumItem * item,
 			switch (attr->attlen)
 			{
 				case sizeof(char):
-					item->addInfo = Int8GetDatum(*ptr);
+					item->addInfo = CharGetDatum(*ptr);
 					break;
 				case sizeof(int16):
 					memcpy(&u.i16, ptr, sizeof(int16));
@@ -1061,7 +1061,7 @@ rumDataPageLeafRead(Pointer ptr, OffsetNumber attnum, RumItem * item,
  * passed in order to read the first item pointer.
  */
 static inline Pointer
-rumDataPageLeafReadPointer(Pointer ptr, OffsetNumber attnum, RumItem * item,
+rumDataPageLeafReadPointer(char *ptr, OffsetNumber attnum, RumItem * item,
 						   RumState * rumstate)
 {
 	Form_pg_attribute attr;
