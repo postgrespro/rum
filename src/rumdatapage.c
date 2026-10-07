@@ -60,7 +60,7 @@ rumComputeDatumSize(Size data_length, Datum val, bool typbyval, char typalign,
  * alignment, if needed). Setting padding bytes to zero if needed. Return the
  * pointer incremented by space used.
  */
-static Pointer
+static char *
 rumDatumWrite(char *ptr, Datum datum, bool typbyval, char typalign,
 			  int16 typlen, char typstorage)
 {
@@ -224,7 +224,7 @@ rumDataPageLeafWriteItemPointer(RumState * rumstate, char *ptr, ItemPointer iptr
 /**
  * Place item pointer with additional information into leaf data page.
  */
-Pointer
+char *
 rumPlaceToDataPageLeaf(char *ptr, OffsetNumber attnum,
 					   RumItem * item, ItemPointer prev, RumState * rumstate)
 {
@@ -529,7 +529,7 @@ static bool
 findInLeafPage(RumBtree btree, Page page, OffsetNumber *offset,
 			   ItemPointerData *iptrOut, char **ptrOut)
 {
-	Pointer		ptr = RumDataPageGetData(page);
+	char		   *ptr = RumDataPageGetData(page);
 	OffsetNumber i,
 				maxoff,
 				first = FirstOffsetNumber;

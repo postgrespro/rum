@@ -240,7 +240,7 @@ typedef signed char RumNullCategory;
 
 #define RumGetPostingOffset(itup)	RumItemPointerGetBlockNumber(&(itup)->t_tid)
 #define RumSetPostingOffset(itup,n) ItemPointerSetBlockNumber(&(itup)->t_tid,n)
-#define RumGetPosting(itup)			((Pointer) ((char*)(itup) + RumGetPostingOffset(itup)))
+#define RumGetPosting(itup)			((char*)(itup) + RumGetPostingOffset(itup))
 
 /*
  * Maximum size of an item on entry tree page. Make sure that we fit at least
@@ -547,7 +547,7 @@ extern int	rumCompareItemPointers(const ItemPointerData *a, const ItemPointerDat
 extern int	compareRumItem(RumState * state, const AttrNumber attno,
 						  const RumItem * a, const RumItem * b);
 extern void convertIndexToKey(RumDataLeafItemIndex *src, RumItem *dst);
-extern Pointer rumPlaceToDataPageLeaf(char *ptr, OffsetNumber attnum,
+extern char *rumPlaceToDataPageLeaf(char *ptr, OffsetNumber attnum,
 					   RumItem * item, ItemPointer prev, RumState * rumstate);
 extern Size rumCheckPlaceToDataPageLeaf(OffsetNumber attnum,
 			RumItem * item, ItemPointer prev, RumState * rumstate, Size size);
@@ -974,7 +974,7 @@ rumDataPageLeafReadItemPointer(char *ptr, ItemPointer iptr, bool *addInfoIsNull)
  * when the data page is unlocked. If the additional information is used without
  * locking one can get unexpected behaviour.
  */
-static inline Pointer
+static inline char *
 rumDataPageLeafRead(char *ptr, OffsetNumber attnum, RumItem * item,
 					bool copyAddInfo, RumState * rumstate)
 {
@@ -1043,14 +1043,14 @@ rumDataPageLeafRead(char *ptr, OffsetNumber attnum, RumItem * item,
 		{
 			Datum		addInfo;
 
-			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen,
-											  ptr);
+			ptr = (char *) att_align_pointer(ptr, attr->attalign, attr->attlen,
+											 ptr);
 			addInfo = fetch_att(ptr, attr->attbyval, attr->attlen);
 			item->addInfo = copyAddInfo ?
 				datumCopy(addInfo, attr->attbyval, attr->attlen) : addInfo;
 		}
 
-		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);
+		ptr = att_addlength_pointer(ptr, attr->attlen, ptr);
 	}
 	return ptr;
 }
@@ -1060,7 +1060,7 @@ rumDataPageLeafRead(char *ptr, OffsetNumber attnum, RumItem * item,
  * Replaces current item pointer with the next one. Zero item pointer should be
  * passed in order to read the first item pointer.
  */
-static inline Pointer
+static inline char *
 rumDataPageLeafReadPointer(char *ptr, OffsetNumber attnum, RumItem * item,
 						   RumState * rumstate)
 {
@@ -1094,10 +1094,10 @@ rumDataPageLeafReadPointer(char *ptr, OffsetNumber attnum, RumItem * item,
 		Assert(attr);
 
 		if (!attr->attbyval)
-			ptr = (Pointer) att_align_pointer(ptr, attr->attalign, attr->attlen,
-											  ptr);
+			ptr = (char *) att_align_pointer(ptr, attr->attalign, attr->attlen,
+											 ptr);
 
-		ptr = (Pointer) att_addlength_pointer(ptr, attr->attlen, ptr);
+		ptr = att_addlength_pointer(ptr, attr->attlen, ptr);
 	}
 	return ptr;
 }
