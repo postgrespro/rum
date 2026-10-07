@@ -213,7 +213,7 @@ typedef struct RumPageItemsStateData
 	int				maxoff;
 
 	/* Pointer to the current scanning item */
-	Pointer			itemPtr;
+	char		   *itemPtr;
 
 	/*
 	 * It is used where posting lists are scanned.

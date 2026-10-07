@@ -70,7 +70,7 @@ rumVacuumPostingList(RumVacuumState * gvs, OffsetNumber attnum, char *src,
 			gvs->result->tuples_removed += 1;
 			if (!dst)
 			{
-				dst = (Pointer) palloc(size);
+				dst = (char *) palloc(size);
 				*cleaned = dst;
 				if (i != 0)
 				{
@@ -102,7 +102,7 @@ rumVacuumPostingList(RumVacuumState * gvs, OffsetNumber attnum, char *src,
 static IndexTuple
 RumFormTuple(RumState * rumstate,
 			 OffsetNumber attnum, Datum key, RumNullCategory category,
-			 Pointer data,
+			 char *data,
 			 Size dataSize,
 			 uint32 nipd,
 			 bool errorTooBig)

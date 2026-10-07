@@ -253,7 +253,7 @@ scanPostingTree(Relation index, RumScanEntry scanEntry,
 			maxoff >= FirstOffsetNumber)
 		{
 			RumScanItem	item;
-			Pointer		ptr;
+			char		   *ptr;
 
 			MemSet(&item, 0, sizeof(item));
 			RumItemPointerSetMin(&item.item.iptr);
@@ -635,7 +635,7 @@ restartScanEntry:
 			RumPostingTreeScan *gdi;
 			OffsetNumber maxoff,
 						i;
-			Pointer		ptr;
+			char		   *ptr;
 			RumItem		item;
 
 			RumItemPointerSetMin(&item.iptr);
@@ -974,7 +974,7 @@ entryGetNextItem(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 		{
 			OffsetNumber maxoff,
 						i;
-			Pointer		ptr;
+			char		   *ptr;
 			RumItem		item;
 			bool		searchBorder =
 				(ScanDirectionIsForward(entry->scanDirection) &&
@@ -1156,7 +1156,7 @@ entryGetNextItemList(RumState * rumstate, RumScanEntry entry, Snapshot snapshot)
 		RumPostingTreeScan *gdi;
 		OffsetNumber maxoff,
 					i;
-		Pointer		ptr;
+		char		   *ptr;
 		RumItem		item;
 
 		RumItemPointerSetMin(&item.iptr);
@@ -1911,7 +1911,7 @@ scanPage(RumState * rumstate, RumScanEntry entry, RumItem *item, bool equalOk)
 {
 	int			j;
 	RumItem		iter_item;
-	Pointer		ptr;
+	char		   *ptr;
 	OffsetNumber first = FirstOffsetNumber,
 				i,
 				maxoff;
