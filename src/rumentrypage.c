@@ -23,7 +23,7 @@ void
 rumReadTuple(RumState * rumstate, OffsetNumber attnum,
 			 IndexTuple itup, RumItem * items, bool copyAddInfo)
 {
-	Pointer		ptr = RumGetPosting(itup);
+	char		   *ptr = RumGetPosting(itup);
 	RumItem		item;
 	int			nipd = RumGetNPosting(itup),
 				i;
@@ -44,7 +44,7 @@ void
 rumReadTuplePointers(RumState * rumstate, OffsetNumber attnum,
 					 IndexTuple itup, ItemPointerData *ipd)
 {
-	Pointer		ptr = RumGetPosting(itup);
+	char		   *ptr = RumGetPosting(itup);
 	int			nipd = RumGetNPosting(itup),
 				i;
 	RumItem		item;
