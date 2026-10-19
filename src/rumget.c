@@ -352,7 +352,7 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 		 */
 		if (scanEntry->isPartialMatch)
 		{
-			int32		cmp;
+			int32		cmp_l;
 
 			/*
 			 * In partial match, stop scan at any null (including
@@ -363,21 +363,21 @@ collectMatchBitmap(RumBtreeData * btree, RumBtreeStack * stack,
 
 			/*----------
 			 * Check of partial match.
-			 * case cmp == 0 => match
-			 * case cmp > 0 => not match and finish scan
-			 * case cmp < 0 => not match and continue scan
+			 * case cmp_l == 0 => match
+			 * case cmp_l > 0 => not match and finish scan
+			 * case cmp_l < 0 => not match and continue scan
 			 *----------
 			 */
-			cmp = DatumGetInt32(FunctionCall4Coll(&rumstate->comparePartialFn[attnum - 1],
+			cmp_l = DatumGetInt32(FunctionCall4Coll(&rumstate->comparePartialFn[attnum - 1],
 							   rumstate->supportCollation[attnum - 1],
 												  scanEntry->queryKey,
 												  idatum,
 										 UInt16GetDatum(scanEntry->strategy),
 									PointerGetDatum(scanEntry->extra_data)));
 
-			if (cmp > 0)
+			if (cmp_l > 0)
 				return true;
-			else if (cmp < 0)
+			else if (cmp_l < 0)
 			{
 				stack->off++;
 				continue;
@@ -1703,7 +1703,7 @@ scanGetItemRegular(IndexScanDesc scan, RumItem *advancePast,
 		ItemPointerIsValid(&advancePast->iptr) == false)
 	{
 		/* For each key, put all the appropriate tids into the bitmap */
-		for (int i = 0; i < so->nkeys; i++)
+		for (i = 0; i < so->nkeys; i++)
 		{
 			if (so->keys[i]->orderBy ||
 				rumstate->attrnAddToColumn == so->keys[i]->attnumOrig)
