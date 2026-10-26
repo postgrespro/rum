@@ -6,8 +6,10 @@ use Test::More;
 
 plan skip_all => 'This test requires downloading a 1GB archive. ' .
 				 'The unpacked file weighs almost 3GB. ' .
-				 'Perform only if the big_values is enabled in PG_TEST_EXTRA'
-	unless $ENV{PG_TEST_EXTRA} && $ENV{PG_TEST_EXTRA} =~ /\bbig_values\b/;
+				 'Perform only if the big_values with rum or unstable tests ' .
+				 'are enabled in PG_TEST_EXTRA'
+	unless $ENV{PG_TEST_EXTRA} && $ENV{PG_TEST_EXTRA} =~ /\bbig_values\b/ &&
+	$ENV{PG_TEST_EXTRA} =~ /\b(rum|unstable)\b/;
 
 plan tests => 4;
 
