@@ -1214,11 +1214,11 @@ build_tsvector_entry(TSVector vector, WordEntry *we)
 static Datum
 build_tsvector_hash_entry(TSVector vector, WordEntry *we)
 {
-	int32	hash_value;
+	Datum	hash_value;
 
 	hash_value = hash_any((const unsigned char *) (STRPTR(vector) + we->pos),
 						  we->len);
-	return Int32GetDatum(hash_value);
+	return hash_value;
 }
 
 /*
@@ -1369,7 +1369,7 @@ build_tsquery_entry(TSQuery query, QueryOperand *operand)
 static Datum
 build_tsquery_hash_entry(TSQuery query, QueryOperand *operand)
 {
-	int32	hash_value;
+	Datum	hash_value;
 
 	hash_value = hash_any(
 			(const unsigned char *) (GETOPERAND(query) + operand->distance),
