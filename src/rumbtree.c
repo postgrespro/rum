@@ -540,7 +540,8 @@ rumInsertValue(Relation index, RumBtree btree, RumBtreeStack * stack,
 					state = GenericXLogStart(index);
 
 					lpage = GenericXLogRegisterBuffer(state, stack->buffer, 0);
-					rpage = GenericXLogRegisterBuffer(state, rbuffer, 0);
+					rpage = GenericXLogRegisterBuffer(state, rbuffer,
+													  GENERIC_XLOG_FULL_IMAGE);
 				}
 
 				rightrightBlkno = RumPageGetOpaque(lpage)->rightlink;
