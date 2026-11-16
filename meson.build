@@ -63,6 +63,7 @@ tests += {
     'sql': [
       'security',
       'rum',
+      'rum_validate',
       'rum_hash',
       'ruminv',
       'timestamp',
