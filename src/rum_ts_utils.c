@@ -2127,14 +2127,14 @@ calc_score_parse_opt(TSVector txt, HeapTupleHeader d)
 	tuple.t_tableOid = InvalidOid;
 	tuple.t_data = d;
 
-	query = DatumGetTSQuery(fastgetattr(&tuple, 1, tupdesc, &isnull));
+	query = DatumGetTSQuery(heap_getattr(&tuple, 1, tupdesc, &isnull));
 	if (isnull)
 	{
 		ReleaseTupleDesc(tupdesc);
 		elog(ERROR, "NULL query value is not allowed");
 	}
 
-	method = DatumGetInt32(fastgetattr(&tuple, 2, tupdesc, &isnull));
+	method = DatumGetInt32(heap_getattr(&tuple, 2, tupdesc, &isnull));
 	if (isnull)
 		method = 0;
 
